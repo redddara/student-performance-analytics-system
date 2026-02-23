@@ -3,7 +3,12 @@ import cors from "cors";
 import dotenv from "dotenv";
 
 // Routes
+import authRoutes from "./routes/authRoutes.js";
 import studentRoutes from "./routes/studentRoutes.js";
+import courseRoutes from "./routes/courseRoutes.js";
+import subjectRoutes from "./routes/subjectRoutes.js";
+import gradeRoutes from "./routes/gradeRoutes.js";
+import analyticsRoutes from "./routes/analyticsRoutes.js";
 
 dotenv.config();
 const app = express();
@@ -13,7 +18,12 @@ app.use(cors());
 app.use(express.json());
 
 // Routes
+app.use("/api/auth", authRoutes);
 app.use("/api/students", studentRoutes);
+app.use("/api/courses", courseRoutes);
+app.use("/api/subjects", subjectRoutes);
+app.use("/api/grades", gradeRoutes);
+app.use("/api/analytics", analyticsRoutes);
 
 // Start server
 const PORT = process.env.PORT || 5000;

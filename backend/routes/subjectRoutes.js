@@ -1,10 +1,10 @@
 import express from "express";
 import { getSubjects, addSubject } from "../controllers/subjectController.js";
-import { authenticate, authorize } from "../middlewares/authMiddleware.js";
+import { verifyToken, authorize } from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
 
-router.get("/", authenticate, getSubjects);
-router.post("/", authenticate, authorize(["admin"]), addSubject);
+router.get("/", verifyToken, getSubjects);
+router.post("/", verifyToken, authorize(["admin"]), addSubject);
 
 export default router;

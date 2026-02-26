@@ -4,6 +4,7 @@ import Dashboard from "./pages/Dashboard";
 import Students from "./pages/Students";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Layout from "./components/Layout";
+import AddGrade from "./pages/AddGrade";
 
 function App() {
   return (
@@ -31,6 +32,15 @@ function App() {
             <Layout>
               <Students />
             </Layout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/add-grade"
+        element={
+          <ProtectedRoute>
+            <AddGrade />
           </ProtectedRoute>
         }
       />

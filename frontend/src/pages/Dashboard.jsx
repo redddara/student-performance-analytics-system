@@ -1,44 +1,56 @@
-import { useEffect, useState } from "react";
-import axios from "axios";
+import { Link } from "react-router-dom";
 
 function Dashboard() {
-  const [students, setStudents] = useState([]);
+  const user = JSON.parse(localStorage.getItem("user"));
 
-  useEffect(() => {
-    const fetchStudents = async () => {
-      try {
-        const token = localStorage.getItem("token");
+  // Dashboard sections based on role
+  const adminLinks = [
+    { path: "/users", label: "Manage Users" },
+    { path: "/students", label: "Students" },
+    { path: "/my-grades", label: "View Grades" },
+  ];
 
-        const res = await axios.get(
-          "http://localhost:5000/api/students",
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
+  const teacherLinks = [
+    { path: "/students", label: "Students" },
+    { path: "/add-grade", label: "Add Grade" },
+    { path: "/my-grades", label: "View Grades" },
+  ];
 
-        setStudents(res.data);
-      } catch (err) {
-        console.error(err);
-      }
-    };
+  const studentLinks = [
+    { path: "/my-grades", label: "My Grades" },
+  ];
 
-    fetchStudents();
-  }, []);
+  let linksToShow = [];
+  if (user?.role === "admin") linksToShow = adminLinks;
+  else if (user?.role === "teacher") linksToShow = teacherLinks;
+  else if (user?.role === "student") linksToShow = studentLinks;
 
   return (
-    <div style={{ padding: 40 }}>
-      <h1>Dashboard</h1>
+    <div style={{ padding: "20px" }}>
+      <h1>Welcome, {user?.email}</h1>
+      <h3>Role: {user?.role}</h3>
 
-      <h2>Students</h2>
-      <ul>
-        {students.map((student) => (
-          <li key={student.id}>
-            {student.first_name} {student.last_name}
-          </li>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "15px", marginTop: "20px" }}>
+        {linksToShow.map((link) => (
+          <Link
+            key={link.path}
+            to={link.path}
+            style={{
+              padding: "15px 25px",
+              backgroundColor: "#4f46e5",
+              color: "white",
+              textDecoration: "none",
+              borderRadius: "8px",
+              fontWeight: "bold",
+              transition: "background-color 0.3s",
+            }}
+            onMouseEnter={(e) => (e.target.style.backgroundColor = "#3730a3")}
+            onMouseLeave={(e) => (e.target.style.backgroundColor = "#4f46e5")}
+          >
+            {link.label}
+          </Link>
         ))}
-      </ul>
+      </div>
     </div>
   );
 }

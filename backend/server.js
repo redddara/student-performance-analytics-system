@@ -9,6 +9,7 @@ import courseRoutes from "./routes/courseRoutes.js";
 import subjectRoutes from "./routes/subjectRoutes.js";
 import gradeRoutes from "./routes/gradeRoutes.js";
 import analyticsRoutes from "./routes/analyticsRoutes.js";
+import userRoutes from "./routes/userRoutes.js";
 
 dotenv.config();
 const app = express();
@@ -24,6 +25,7 @@ app.use("/api/courses", courseRoutes);
 app.use("/api/subjects", subjectRoutes);
 app.use("/api/grades", gradeRoutes);
 app.use("/api/analytics", analyticsRoutes);
+app.use("/api/users", userRoutes);
 
 // Start server
 const PORT = process.env.PORT || 5000;

@@ -29,31 +29,26 @@ function App() {
       <Route
         path="/users"
         element={
-          <ProtectedRoute allowedRoles={["admin"]}>
-            {/* You can create a Users.jsx page for admin user management */}
-            <div>Manage Users Page (Admin Only)</div>
+          <ProtectedRoute>
+            <Users />
           </ProtectedRoute>
         }
       />
 
-      {/* Grades view accessible by admin, teacher */}
       <Route
         path="/grades"
         element={
-          <ProtectedRoute allowedRoles={["admin", "teacher"]}>
-            {/* Grades page can show all grades */}
-            <div>Grades Page (Admin & Teacher)</div>
+          <ProtectedRoute>
+            <Grades />
           </ProtectedRoute>
         }
       />
 
-      {/* Analytics accessible by all roles */}
       <Route
         path="/analytics"
         element={
-          <ProtectedRoute allowedRoles={["admin", "teacher", "student"]}>
-            {/* Analytics page: charts, performance, etc. */}
-            <div>Analytics Page</div>
+          <ProtectedRoute>
+            <Analytics />
           </ProtectedRoute>
         }
       />

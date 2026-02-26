@@ -4,7 +4,8 @@ import bcrypt from "bcryptjs";
 // Get all users (admin only)
 export const getUsers = async (req, res) => {
   try {
-    if (req.user.role !== "admin") return res.status(403).json({ error: "Access denied" });
+    if (req.user.role !== "admin")
+      return res.status(403).json({ error: "Access denied" });
 
     const { data, error } = await supabase
       .from("users")
@@ -21,12 +22,13 @@ export const getUsers = async (req, res) => {
 // Add new user (admin only)
 export const addUser = async (req, res) => {
   try {
-    if (req.user.role !== "admin") return res.status(403).json({ error: "Access denied" });
+    if (req.user.role !== "admin")
+      return res.status(403).json({ error: "Access denied" });
 
     const { email, password, role } = req.body;
-    if (!email || !password || !role) return res.status(400).json({ error: "Email, password, role required" });
+    if (!email || !password || !role)
+      return res.status(400).json({ error: "Email, password, role required" });
 
-    // Hash password
     const password_hash = bcrypt.hashSync(password, 10);
 
     const { data, error } = await supabase
@@ -37,6 +39,63 @@ export const addUser = async (req, res) => {
     if (error) return res.status(500).json({ error: error.message });
 
     res.status(201).json({ message: "User added successfully", user: data[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// Update user (admin only)
+export const updateUser = async (req, res) => {
+  try {
+    if (req.user.role !== "admin")
+      return res.status(403).json({ error: "Access denied" });
+
+    const { id } = req.params;
+    const { email, password, role } = req.body;
+
+    if (!email && !password && !role)
+      return res.status(400).json({ error: "At least one field required" });
+
+    const updateData = {};
+    if (email) updateData.email = email;
+    if (role) updateData.role = role;
+    if (password) updateData.password_hash = bcrypt.hashSync(password, 10);
+
+    const { data, error } = await supabase
+      .from("users")
+      .update(updateData)
+      .eq("id", id)
+      .select();
+
+    if (error) return res.status(500).json({ error: error.message });
+    if (!data.length) return res.status(404).json({ error: "User not found" });
+
+    res.json({ message: "User updated successfully", user: data[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// Delete user (admin only)
+export const deleteUser = async (req, res) => {
+  try {
+    if (req.user.role !== "admin")
+      return res.status(403).json({ error: "Access denied" });
+
+    const { id } = req.params;
+
+    const { data, error } = await supabase
+      .from("users")
+      .delete()
+      .eq("id", id)
+      .select();
+
+    if (error) return res.status(500).json({ error: error.message });
+    if (!data.length) return res.status(404).json({ error: "User not found" });
+
+    res.json({ message: "User deleted successfully" });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });

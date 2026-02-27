@@ -12,10 +12,10 @@ import ProtectedRoute from "./components/ProtectedRoute";
 function App() {
   return (
     <Routes>
-      {/* Public route */}
+      {/* Public */}
       <Route path="/" element={<Login />} />
 
-      {/* Dashboard accessible by anyone logged in */}
+      {/* Dashboard (All logged in users) */}
       <Route
         path="/dashboard"
         element={
@@ -25,20 +25,21 @@ function App() {
         }
       />
 
-      {/* Admin-only routes */}
+      {/* Admin */}
       <Route
         path="/users"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={["admin"]}>
             <Users />
           </ProtectedRoute>
         }
       />
 
+      {/* Teacher + Admin */}
       <Route
         path="/grades"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={["teacher", "admin"]}>
             <Grades />
           </ProtectedRoute>
         }
@@ -47,21 +48,12 @@ function App() {
       <Route
         path="/analytics"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={["teacher", "admin"]}>
             <Analytics />
           </ProtectedRoute>
         }
       />
 
-      {/* Teacher-only pages */}
-      <Route
-        path="/add-grade"
-        element={
-          <ProtectedRoute allowedRoles={["teacher"]}>
-            <AddGrade />
-          </ProtectedRoute>
-        }
-      />
       <Route
         path="/students"
         element={
@@ -71,44 +63,26 @@ function App() {
         }
       />
 
-      {/* Student-only page */}
+      <Route
+        path="/add-grade"
+        element={
+          <ProtectedRoute allowedRoles={["teacher"]}>
+            <AddGrade />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Student only */}
       <Route
         path="/my-grades"
         element={
-          <ProtectedRoute allowedRoles={["student", "teacher", "admin"]}>
+          <ProtectedRoute allowedRoles={["student"]}>
             <MyGrades />
           </ProtectedRoute>
         }
       />
 
-      <Route
-        path="/users"
-        element={
-          <ProtectedRoute>
-            <Users />
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/grades"
-        element={
-          <ProtectedRoute>
-            <Grades />
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/analytics"
-        element={
-          <ProtectedRoute>
-            <Analytics />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* Catch-all route for unknown paths */}
+      {/* 404 */}
       <Route path="*" element={<div>Page not found</div>} />
     </Routes>
   );

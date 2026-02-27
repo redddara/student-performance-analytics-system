@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 
 function Students() {
@@ -13,60 +13,49 @@ function Students() {
   const token = localStorage.getItem("token");
 
   // Fetch students
-  const fetchStudents = async () => {
+  const fetchStudents = useCallback(async () => {
     try {
       const res = await axios.get("http://localhost:5000/api/students", {
         headers: { Authorization: `Bearer ${token}` },
       });
       setStudents(res.data);
-    } catch (err) {
-      console.error(err);
+    } catch {
       alert("Failed to fetch students");
     }
-  };
+  }, [token]);
 
   useEffect(() => {
-  const fetchStudents = async () => {
-    try {
-      const res = await axios.get("http://localhost:5000/api/students", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setStudents(res.data);
-    } catch (err) {
-      console.error(err);
-      alert("Failed to fetch students");
-    }
-  };
-
-  fetchStudents();
-}, [token]);
+  (async () => {
+    await fetchStudents();
+  })();
+}, [fetchStudents]);
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  const resetForm = () => {
+    setForm({ first_name: "", last_name: "", grade_level: "", section: "" });
+    setEditingId(null);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       if (editingId) {
-        // Update student
         await axios.put(
           `http://localhost:5000/api/students/${editingId}`,
           form,
           { headers: { Authorization: `Bearer ${token}` } }
         );
-        setEditingId(null);
       } else {
-        // Add new student
         await axios.post("http://localhost:5000/api/students", form, {
           headers: { Authorization: `Bearer ${token}` },
         });
       }
-
-      setForm({ first_name: "", last_name: "", grade_level: "", section: "" });
+      resetForm();
       fetchStudents();
-    } catch (err) {
-      console.error(err);
+    } catch {
       alert(editingId ? "Failed to update student" : "Failed to add student");
     }
   };
@@ -88,18 +77,18 @@ function Students() {
         headers: { Authorization: `Bearer ${token}` },
       });
       fetchStudents();
-    } catch (err) {
-      console.error(err);
+    } catch {
       alert("Failed to delete student");
     }
   };
 
   return (
-    <div>
+    <div style={{ padding: "20px" }}>
       <h1>Students</h1>
 
       {/* Add/Edit Form */}
       <form onSubmit={handleSubmit} style={{ marginBottom: "20px" }}>
+        <h3>{editingId ? "Edit Student" : "Add New Student"}</h3>
         <input
           name="first_name"
           placeholder="First Name"
@@ -128,11 +117,18 @@ function Students() {
           onChange={handleChange}
           required
         />
-        <button type="submit">{editingId ? "Update Student" : "Add Student"}</button>
+        <div style={{ marginTop: "10px" }}>
+          <button type="submit">{editingId ? "Update Student" : "Add Student"}</button>
+          {editingId && (
+            <button type="button" onClick={resetForm} style={{ marginLeft: "10px" }}>
+              Cancel
+            </button>
+          )}
+        </div>
       </form>
 
       {/* Students Table */}
-      <table border="1" cellPadding="10">
+      <table border="1" cellPadding="10" style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
           <tr>
             <th>First Name</th>
@@ -151,10 +147,19 @@ function Students() {
               <td>{s.section}</td>
               <td>
                 <button onClick={() => handleEdit(s)}>Edit</button>
-                <button onClick={() => handleDelete(s.id)}>Delete</button>
+                <button onClick={() => handleDelete(s.id)} style={{ marginLeft: "5px" }}>
+                  Delete
+                </button>
               </td>
             </tr>
           ))}
+          {students.length === 0 && (
+            <tr>
+              <td colSpan="5" style={{ textAlign: "center" }}>
+                No students found
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
     </div>

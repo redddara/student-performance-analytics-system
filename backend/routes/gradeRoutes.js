@@ -1,49 +1,79 @@
 import express from "express";
-import { supabase } from "../utils/supabaseClient.js";
-import { getGrades, addGrade, updateGrade, deleteGrade } from "../controllers/gradeController.js";
+import {
+  getGrades,
+  addGrade,
+  updateGrade,
+  deleteGrade
+} from "../controllers/gradeController.js";
 import { verifyToken, authorize } from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
 
-// --------------------------
-// TEACHER: Add a grade
-// --------------------------
-router.post("/", verifyToken, authorize(["teacher"]), addGrade);
+/*
+=====================================
+  VIEW GRADES
+=====================================
 
-// --------------------------
-// TEACHER: Update a grade
-// --------------------------
-router.put("/:id", verifyToken, authorize(["teacher"]), updateGrade);
+ADMIN   → all grades
+TEACHER → all grades
+STUDENT → only their own grades
+*/
 
-// --------------------------
-// TEACHER: Delete a grade
-// --------------------------
-router.delete("/:id", verifyToken, authorize(["teacher"]), deleteGrade);
+router.get(
+  "/",
+  verifyToken,
+  authorize(["admin", "teacher", "student"]),
+  getGrades
+);
 
-// --------------------------
-// ADMIN, TEACHER, STUDENT: View grades
-// --------------------------
-router.get("/", verifyToken, authorize(["admin", "teacher", "student"]), getGrades);
+/*
+=====================================
+  ADD GRADE (Teacher only)
+=====================================
+*/
+router.post(
+  "/",
+  verifyToken,
+  authorize(["teacher"]),
+  addGrade
+);
 
-// --------------------------
-// STUDENT: View only their own grades
-// --------------------------
-router.get("/my-grades", verifyToken, authorize(["student"]), async (req, res) => {
-  try {
-    const { id } = req.user;
+/*
+=====================================
+  UPDATE GRADE (Teacher only)
+=====================================
+*/
+router.put(
+  "/:id",
+  verifyToken,
+  authorize(["teacher"]),
+  updateGrade
+);
 
-    const { data, error } = await supabase
-      .from("grades")
-      .select("id, grade, semester, remarks, subjects(name)")
-      .eq("student_id", id);
+/*
+=====================================
+  DELETE GRADE (Teacher only)
+=====================================
+*/
+router.delete(
+  "/:id",
+  verifyToken,
+  authorize(["teacher"]),
+  deleteGrade
+);
 
-    if (error) return res.status(500).json({ error: error.message });
+/*
+=====================================
+  OPTIONAL: STUDENT SELF ENDPOINT
+  (Cleaner REST style)
+=====================================
+*/
 
-    res.json(data);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
+router.get(
+  "/me",
+  verifyToken,
+  authorize(["student"]),
+  getGrades
+);
 
 export default router;

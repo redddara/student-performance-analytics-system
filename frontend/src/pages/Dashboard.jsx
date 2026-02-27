@@ -13,7 +13,7 @@ function Dashboard() {
   const teacherLinks = [
     { path: "/students", label: "Students" },
     { path: "/add-grade", label: "Add Grade" },
-    { path: "/my-grades", label: "View Grades" },
+    { path: "/grades", label: "View Grades" },
   ];
 
   const studentLinks = [

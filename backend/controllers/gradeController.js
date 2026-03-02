@@ -17,7 +17,7 @@ export const getGrades = async (req, res) => {
         students(first_name, last_name)
       `);
 
-    // Students only see their own grades
+    
     if (req.user.role === "student") {
       query = query.eq("student_id", req.user.id);
     }

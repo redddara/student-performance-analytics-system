@@ -67,12 +67,12 @@ function Grades() {
   // Group grades: student → semester → quarter → subject_id
   const groupedGrades = {};
   grades
-    .filter((g) => (semesterFilter === "All" ? true : g.semester === semesterFilter))
+    .filter((g) => (semesterFilter === "All" ? true : g.semester.toString() === semesterFilter))
     .forEach((g) => {
       if (!groupedGrades[g.student_id]) groupedGrades[g.student_id] = {};
       if (!groupedGrades[g.student_id][g.semester]) groupedGrades[g.student_id][g.semester] = {};
       if (!groupedGrades[g.student_id][g.semester][g.quarter]) groupedGrades[g.student_id][g.semester][g.quarter] = {};
-      groupedGrades[g.student_id][g.semester][g.quarter][g.subject_id] = g; // <-- use subject_id
+      groupedGrades[g.student_id][g.semester][g.quarter][g.subject_id] = g;
     });
 
   // Compute subject avg (Q1-Q4)
@@ -87,8 +87,9 @@ function Grades() {
   };
 
   // Compute GWA per semester
-  const computeSemesterGWA = (semesterGrades) => {
-    const subjectAverages = subjects
+  const computeSemesterGWA = (semesterGrades, studentCourseId) => {
+    const studentSubjects = subjects.filter((s) => s.course_id === studentCourseId); // Only subjects of student’s course
+    const subjectAverages = studentSubjects
       .map((sub) => computeSubjectAverage(semesterGrades, sub.id))
       .filter(Boolean)
       .map(Number);
@@ -105,7 +106,7 @@ function Grades() {
     if (!semesters) return;
 
     Object.keys(semesters).forEach((sem) => {
-      const gwa = computeSemesterGWA(semesters[sem]);
+      const gwa = computeSemesterGWA(semesters[sem], student.course_id);
       if (gwa !== "-") {
         chartLabels.push(`${student.first_name} ${student.last_name} (Sem ${sem})`);
         chartDataValues.push(gwa);
@@ -122,13 +123,16 @@ function Grades() {
       <label>Filter Semester: </label>
       <select value={semesterFilter} onChange={(e) => setSemesterFilter(e.target.value)}>
         <option value="All">All</option>
-        <option value="1">1</option>
-        <option value="2">2</option>
+        <option value="1">1st Semester</option>
+        <option value="2">2nd Semester</option>
       </select>
 
       {students.map((student) => {
         const studentSemesters = groupedGrades[student.id];
         if (!studentSemesters) return null;
+
+        // Filter subjects per student's course
+        const studentSubjects = subjects.filter((s) => s.course_id === student.course_id);
 
         return (
           <div key={student.id} style={{ marginBottom: "40px" }}>
@@ -139,7 +143,7 @@ function Grades() {
 
               return (
                 <div key={semester} style={{ marginBottom: "20px" }}>
-                  <h4>Semester {semester} - GWA: {computeSemesterGWA(semesterGrades)}</h4>
+                  <h4>Semester {semester} - GWA: {computeSemesterGWA(semesterGrades, student.course_id)}</h4>
 
                   <table border="1" cellPadding="8">
                     <thead>
@@ -153,7 +157,7 @@ function Grades() {
                       </tr>
                     </thead>
                     <tbody>
-                      {subjects.map((subject) => {
+                      {studentSubjects.map((subject) => {
                         const avg = computeSubjectAverage(semesterGrades, subject.id);
 
                         return (

@@ -1,13 +1,17 @@
+
+
 import { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 
 function Students() {
   const [students, setStudents] = useState([]);
+  const [courses, setCourses] = useState([]); // added courses
   const [form, setForm] = useState({
     first_name: "",
     last_name: "",
     grade_level: "",
     section: "",
+    course_id: "" // added course_id
   });
   const [editingId, setEditingId] = useState(null);
   const token = localStorage.getItem("token");
@@ -24,13 +28,31 @@ function Students() {
     }
   }, [token]);
 
-  // Load students on mount
   useEffect(() => {
-    const fetchData = async () => {
-      await fetchStudents();
-    };
-    fetchData();
-  }, [fetchStudents]);
+  const loadData = async () => {
+    try {
+      const [studentsRes, coursesRes] = await Promise.all([
+        axios.get("http://localhost:5000/api/students", {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        axios.get("http://localhost:5000/api/courses", {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
+
+      setStudents(studentsRes.data);
+      setCourses(coursesRes.data);
+    } catch (err) {
+      console.error("Load error:", err);
+      alert("Failed to load students or courses");
+    }
+  };
+
+  if (token) {
+    loadData();
+  }
+}, [token]);
+  
 
   // Handle form input changes
   const handleChange = (e) => {
@@ -40,6 +62,8 @@ function Students() {
   // Add or update student
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!form.course_id) return alert("Please select a course");
 
     try {
       if (editingId) {
@@ -57,9 +81,16 @@ function Students() {
         });
       }
 
-      setForm({ first_name: "", last_name: "", grade_level: "", section: "" });
+      setForm({
+        first_name: "",
+        last_name: "",
+        grade_level: "",
+        section: "",
+        course_id: ""
+      });
       fetchStudents();
-    } catch {
+    } catch (err) {
+      console.error("Add/update student error:", err);
       alert(editingId ? "Failed to update student" : "Failed to add student");
     }
   };
@@ -71,6 +102,7 @@ function Students() {
       last_name: student.last_name,
       grade_level: student.grade_level,
       section: student.section,
+      course_id: student.course_id || ""
     });
     setEditingId(student.id);
   };
@@ -103,8 +135,7 @@ function Students() {
           value={form.first_name}
           onChange={handleChange}
           required
-        />
-        <br /><br />
+        /><br /><br />
 
         <input
           name="last_name"
@@ -112,8 +143,7 @@ function Students() {
           value={form.last_name}
           onChange={handleChange}
           required
-        />
-        <br /><br />
+        /><br /><br />
 
         <input
           name="grade_level"
@@ -121,8 +151,7 @@ function Students() {
           value={form.grade_level}
           onChange={handleChange}
           required
-        />
-        <br /><br />
+        /><br /><br />
 
         <input
           name="section"
@@ -130,8 +159,23 @@ function Students() {
           value={form.section}
           onChange={handleChange}
           required
-        />
-        <br /><br />
+        /><br /><br />
+
+        {/* Course dropdown */}
+        <label>Course:</label>
+        <select
+          name="course_id"
+          value={form.course_id}
+          onChange={handleChange}
+          required
+        >
+          <option value="">Select Course</option>
+          {courses.map((course) => (
+            <option key={course.id} value={course.id}>
+              {course.name}
+            </option>
+          ))}
+        </select><br /><br />
 
         <button type="submit">{editingId ? "Update Student" : "Add Student"}</button>
         {editingId && (
@@ -139,7 +183,7 @@ function Students() {
             type="button"
             onClick={() => {
               setEditingId(null);
-              setForm({ first_name: "", last_name: "", grade_level: "", section: "" });
+              setForm({ first_name: "", last_name: "", grade_level: "", section: "", course_id: "" });
             }}
           >
             Cancel
@@ -156,6 +200,7 @@ function Students() {
             <th>Last Name</th>
             <th>Grade Level</th>
             <th>Section</th>
+            <th>Course</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -166,6 +211,7 @@ function Students() {
               <td>{student.last_name}</td>
               <td>{student.grade_level}</td>
               <td>{student.section}</td>
+              <td>{courses.find(c => c.id === student.course_id)?.name || "-"}</td>
               <td>
                 <button onClick={() => handleEdit(student)}>Edit</button>
                 <button onClick={() => handleDelete(student.id)}>Delete</button>

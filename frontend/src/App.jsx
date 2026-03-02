@@ -8,6 +8,8 @@ import Users from "./pages/Users";
 import Grades from "./pages/Grades";
 import Analytics from "./pages/Analytics";
 import ProtectedRoute from "./components/ProtectedRoute";
+import Courses from "./pages/Course";
+import Subjects from "./pages/Subject";
 
 function App() {
   return (
@@ -81,10 +83,30 @@ function App() {
           </ProtectedRoute>
         }
       />
+      {/* Admin */}
+      <Route
+        path="/courses"
+        element={
+          <ProtectedRoute allowedRoles={["admin"]}>
+            <Courses />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/subjects"
+        element={
+          <ProtectedRoute allowedRoles={["admin"]}>
+            <Subjects />
+          </ProtectedRoute>
+        }
+      />
 
       {/* 404 */}
       <Route path="*" element={<div>Page not found</div>} />
+
     </Routes>
+    
   );
 }
 

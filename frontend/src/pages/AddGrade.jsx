@@ -4,6 +4,7 @@ import axios from "axios";
 function AddGrade() {
   const [students, setStudents] = useState([]);
   const [subjects, setSubjects] = useState([]);
+  const [filteredSubjects, setFilteredSubjects] = useState([]); // subjects filtered by student's course
 
   const [formData, setFormData] = useState({
     student_id: "",
@@ -35,8 +36,22 @@ function AddGrade() {
     if (token) fetchData();
   }, [token]);
 
+  // Handle input changes
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+
+    // If student changes, filter subjects for that student's course
+    if (name === "student_id") {
+      const selectedStudent = students.find((s) => s.id === value);
+      if (selectedStudent) {
+        const filtered = subjects.filter((subj) => subj.course_id === selectedStudent.course_id);
+        setFilteredSubjects(filtered);
+        setFormData({ ...formData, student_id: value, subject_id: "" }); // reset subject
+        return;
+      }
+    }
+
+    setFormData({ ...formData, [name]: value });
   };
 
   const handleSubmit = async (e) => {
@@ -61,6 +76,7 @@ function AddGrade() {
         quarter: "",
         remarks: ""
       });
+      setFilteredSubjects([]); // reset filtered subjects
     } catch (error) {
       alert(error.response?.data?.error || "Error adding grade");
     }
@@ -87,9 +103,15 @@ function AddGrade() {
         {/* Subject */}
         <div>
           <label>Subject:</label>
-          <select name="subject_id" value={formData.subject_id} onChange={handleChange} required>
+          <select
+            name="subject_id"
+            value={formData.subject_id}
+            onChange={handleChange}
+            required
+            disabled={!formData.student_id} // disable until a student is selected
+          >
             <option value="">Select Subject</option>
-            {subjects.map((s) => (
+            {filteredSubjects.map((s) => (
               <option key={s.id} value={s.id}>{s.name}</option>
             ))}
           </select>

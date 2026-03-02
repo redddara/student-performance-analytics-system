@@ -6,14 +6,15 @@ function Dashboard() {
   // Dashboard sections based on role
   const adminLinks = [
     { path: "/users", label: "Manage Users" },
-    { path: "/students", label: "Students" },
-    { path: "/my-grades", label: "View Grades" },
+    { path: "/students", label: "Manage Students" },
+    { path: "/courses", label: "Course Management" },   // Added
+    { path: "/subjects", label: "Subject Management" } // Added
   ];
 
   const teacherLinks = [
-    { path: "/students", label: "Students" },
-    { path: "/add-grade", label: "Add Grade" },
-    { path: "/grades", label: "View Grades" },
+    { path: "/students", label: "Manage Students" },
+    { path: "/add-grade", label: "Manage Grade" },
+    { path: "/grades", label: "Students Grades" },
   ];
 
   const studentLinks = [

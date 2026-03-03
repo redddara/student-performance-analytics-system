@@ -1,22 +1,20 @@
-
-
 import { useEffect, useState, useCallback } from "react";
 import axios from "axios";
+import Layout from "../components/Layout";
 
 function Students() {
   const [students, setStudents] = useState([]);
-  const [courses, setCourses] = useState([]); // added courses
+  const [courses, setCourses] = useState([]);
   const [form, setForm] = useState({
     first_name: "",
     last_name: "",
     grade_level: "",
     section: "",
-    course_id: "" // added course_id
+    course_id: ""
   });
   const [editingId, setEditingId] = useState(null);
   const token = localStorage.getItem("token");
 
-  // Fetch all students
   const fetchStudents = useCallback(async () => {
     try {
       const { data } = await axios.get("http://localhost:5000/api/students", {
@@ -29,73 +27,43 @@ function Students() {
   }, [token]);
 
   useEffect(() => {
-  const loadData = async () => {
-    try {
-      const [studentsRes, coursesRes] = await Promise.all([
-        axios.get("http://localhost:5000/api/students", {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        axios.get("http://localhost:5000/api/courses", {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-      ]);
+    const loadData = async () => {
+      try {
+        const [studentsRes, coursesRes] = await Promise.all([
+          axios.get("http://localhost:5000/api/students", { headers: { Authorization: `Bearer ${token}` } }),
+          axios.get("http://localhost:5000/api/courses", { headers: { Authorization: `Bearer ${token}` } }),
+        ]);
+        setStudents(studentsRes.data);
+        setCourses(coursesRes.data);
+      } catch (err) {
+        console.error("Load error:", err);
+        alert("Failed to load students or courses");
+      }
+    };
+    if (token) loadData();
+  }, [token]);
 
-      setStudents(studentsRes.data);
-      setCourses(coursesRes.data);
-    } catch (err) {
-      console.error("Load error:", err);
-      alert("Failed to load students or courses");
-    }
-  };
+  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
-  if (token) {
-    loadData();
-  }
-}, [token]);
-  
-
-  // Handle form input changes
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
-
-  // Add or update student
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     if (!form.course_id) return alert("Please select a course");
 
     try {
       if (editingId) {
-        // Update student
-        await axios.put(
-          `http://localhost:5000/api/students/${editingId}`,
-          form,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+        await axios.put(`http://localhost:5000/api/students/${editingId}`, form, { headers: { Authorization: `Bearer ${token}` } });
         setEditingId(null);
       } else {
-        // Add new student
-        await axios.post("http://localhost:5000/api/students", form, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        await axios.post("http://localhost:5000/api/students", form, { headers: { Authorization: `Bearer ${token}` } });
       }
-
-      setForm({
-        first_name: "",
-        last_name: "",
-        grade_level: "",
-        section: "",
-        course_id: ""
-      });
+      setForm({ first_name: "", last_name: "", grade_level: "", section: "", course_id: "" });
       fetchStudents();
     } catch (err) {
-      console.error("Add/update student error:", err);
+      console.error(err);
       alert(editingId ? "Failed to update student" : "Failed to add student");
     }
   };
 
-  // Populate form for editing
   const handleEdit = (student) => {
     setForm({
       first_name: student.first_name,
@@ -107,14 +75,10 @@ function Students() {
     setEditingId(student.id);
   };
 
-  // Delete student
   const handleDelete = async (id) => {
     if (!window.confirm("Are you sure you want to delete this student?")) return;
-
     try {
-      await axios.delete(`http://localhost:5000/api/students/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await axios.delete(`http://localhost:5000/api/students/${id}`, { headers: { Authorization: `Bearer ${token}` } });
       fetchStudents();
     } catch {
       alert("Failed to delete student");
@@ -122,105 +86,48 @@ function Students() {
   };
 
   return (
-    <div style={{ padding: "20px" }}>
-      <h2>Manage Students</h2>
+    <Layout>
+      <div className="page">
+        <h2>Manage Students</h2>
 
-      {/* Add/Edit Student Form */}
-      <form onSubmit={handleSubmit} style={{ marginBottom: "30px" }}>
-        <h3>{editingId ? "Edit Student" : "Add New Student"}</h3>
+        {/* Form */}
+        <div className="card">
+          <h3>{editingId ? "Edit Student" : "Add New Student"}</h3>
+          <form onSubmit={handleSubmit} className="student-form">
+            <input name="first_name" placeholder="First Name" value={form.first_name} onChange={handleChange} required />
+            <input name="last_name" placeholder="Last Name" value={form.last_name} onChange={handleChange} required />
+            <input name="grade_level" placeholder="Grade Level" value={form.grade_level} onChange={handleChange} required />
+            <input name="section" placeholder="Section" value={form.section} onChange={handleChange} required />
+            <select name="course_id" value={form.course_id} onChange={handleChange} required>
+              <option value="">Select Course</option>
+              {courses.map(course => <option key={course.id} value={course.id}>{course.name}</option>)}
+            </select>
 
-        <input
-          name="first_name"
-          placeholder="First Name"
-          value={form.first_name}
-          onChange={handleChange}
-          required
-        /><br /><br />
+            <div className="form-buttons">
+              <button type="submit" className="btn btn-primary">{editingId ? "Update" : "Add"} Student</button>
+              {editingId && <button type="button" className="btn btn-danger" onClick={() => { setEditingId(null); setForm({ first_name: "", last_name: "", grade_level: "", section: "", course_id: "" }); }}>Cancel</button>}
+            </div>
+          </form>
+        </div>
 
-        <input
-          name="last_name"
-          placeholder="Last Name"
-          value={form.last_name}
-          onChange={handleChange}
-          required
-        /><br /><br />
-
-        <input
-          name="grade_level"
-          placeholder="Grade Level"
-          value={form.grade_level}
-          onChange={handleChange}
-          required
-        /><br /><br />
-
-        <input
-          name="section"
-          placeholder="Section"
-          value={form.section}
-          onChange={handleChange}
-          required
-        /><br /><br />
-
-        {/* Course dropdown */}
-        <label>Course:</label>
-        <select
-          name="course_id"
-          value={form.course_id}
-          onChange={handleChange}
-          required
-        >
-          <option value="">Select Course</option>
-          {courses.map((course) => (
-            <option key={course.id} value={course.id}>
-              {course.name}
-            </option>
+        {/* Students List */}
+        <h3>All Students</h3>
+        <div className="students-grid">
+          {students.map(student => (
+            <div key={student.id} className="card student-card">
+              <p><strong>Name:</strong> {student.first_name} {student.last_name}</p>
+              <p><strong>Grade Level:</strong> {student.grade_level}</p>
+              <p><strong>Section:</strong> {student.section}</p>
+              <p><strong>Course:</strong> {courses.find(c => c.id === student.course_id)?.name || "-"}</p>
+              <div className="student-actions">
+                <button className="btn btn-primary" onClick={() => handleEdit(student)}>Edit</button>
+                <button className="btn btn-danger" onClick={() => handleDelete(student.id)}>Delete</button>
+              </div>
+            </div>
           ))}
-        </select><br /><br />
-
-        <button type="submit">{editingId ? "Update Student" : "Add Student"}</button>
-        {editingId && (
-          <button
-            type="button"
-            onClick={() => {
-              setEditingId(null);
-              setForm({ first_name: "", last_name: "", grade_level: "", section: "", course_id: "" });
-            }}
-          >
-            Cancel
-          </button>
-        )}
-      </form>
-
-      {/* Students Table */}
-      <h3>All Students</h3>
-      <table border="1" cellPadding="10">
-        <thead>
-          <tr>
-            <th>First Name</th>
-            <th>Last Name</th>
-            <th>Grade Level</th>
-            <th>Section</th>
-            <th>Course</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {students.map((student) => (
-            <tr key={student.id}>
-              <td>{student.first_name}</td>
-              <td>{student.last_name}</td>
-              <td>{student.grade_level}</td>
-              <td>{student.section}</td>
-              <td>{courses.find(c => c.id === student.course_id)?.name || "-"}</td>
-              <td>
-                <button onClick={() => handleEdit(student)}>Edit</button>
-                <button onClick={() => handleDelete(student.id)}>Delete</button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+        </div>
+      </div>
+    </Layout>
   );
 }
 

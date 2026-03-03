@@ -1,38 +1,56 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
+import "./layout.css";
 
-function Layout({ children }) {
-  const navigate = useNavigate();
+function Layout({ children, role }) {
+  const location = useLocation();
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    navigate("/");
+  const links = {
+    admin: [
+      { path: "/dashboard", label: "Dashboard" },
+      { path: "/users", label: "Users" },
+      { path: "/students", label: "Students" },
+      { path: "/courses", label: "Courses" },
+      { path: "/subjects", label: "Subjects" },
+      { path: "/analytics", label: "Analytics" },
+    ],
+    teacher: [
+      { path: "/dashboard", label: "Dashboard" },
+      { path: "/students", label: "Students" },
+      { path: "/grades", label: "Grades" },
+      { path: "/analytics", label: "Analytics" },
+      { path: "/add-grade", label: "Add Grade" },
+    ],
+    student: [
+      { path: "/dashboard", label: "Dashboard" },
+      { path: "/my-grades", label: "My Grades" },
+    ],
   };
 
   return (
-    <div style={{ display: "flex", height: "100vh" }}>
-      
-      {/* Sidebar */}
-      <div style={{
-        width: "220px",
-        background: "#1e293b",
-        color: "white",
-        padding: "20px"
-      }}>
-        <h2>Analytics</h2>
-        <nav>
-          <p><Link to="/dashboard" style={{ color: "white" }}>Dashboard</Link></p>
-          <p><Link to="/students" style={{ color: "white" }}>Students</Link></p>
-        </nav>
-        <button onClick={handleLogout} style={{ marginTop: "20px" }}>
-          Logout
-        </button>
-      </div>
+    <div className={`layout role-${role}`}>
+      <aside className="sidebar">
+              <button
+        className="btn"
+        onClick={() => document.body.classList.toggle("dark")}
+      >
+        Toggle Dark
+      </button>
+        <h2 className="logo">SchoolSys</h2>
 
-      {/* Main Content */}
-      <div style={{ flex: 1, padding: "30px", background: "#f1f5f9" }}>
-        {children}
-      </div>
+        {links[role]?.map((link) => (
+          <Link
+            key={link.path}
+            to={link.path}
+            className={`sidebar-link ${
+              location.pathname === link.path ? "active" : ""
+            }`}
+          >
+            {link.label}
+          </Link>
+        ))}
+      </aside>
 
+      <main className="main-content">{children}</main>
     </div>
   );
 }

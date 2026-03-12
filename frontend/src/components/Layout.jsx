@@ -1,7 +1,7 @@
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, Outlet } from "react-router-dom";
 import "./layout.css";
 
-function Layout({ children, role }) {
+function Layout({ role }) {
   const location = useLocation();
 
   const links = {
@@ -50,7 +50,9 @@ function Layout({ children, role }) {
         ))}
       </aside>
 
-      <main className="main-content">{children}</main>
+      <main className="main-content">
+        <Outlet />
+      </main>
     </div>
   );
 }

@@ -24,7 +24,7 @@ function App() {
       {/* Public */}
       <Route path="/" element={<Login />} />
 
-      {/* All protected routes with sidebar layout */}
+      {/* Layout wrapper for all authenticated users */}
       <Route
         element={
           <ProtectedRoute>
@@ -32,9 +32,11 @@ function App() {
           </ProtectedRoute>
         }
       >
+
+        {/* Accessible by all logged users */}
         <Route path="/dashboard" element={<Dashboard />} />
 
-        {/* Admin */}
+        {/* Admin Only */}
         <Route
           path="/users"
           element={
@@ -64,6 +66,15 @@ function App() {
 
         {/* Teacher + Admin */}
         <Route
+          path="/students"
+          element={
+            <ProtectedRoute allowedRoles={["teacher", "admin"]}>
+              <Students />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/grades"
           element={
             <ProtectedRoute allowedRoles={["teacher", "admin"]}>
@@ -81,15 +92,7 @@ function App() {
           }
         />
 
-        <Route
-          path="/students"
-          element={
-            <ProtectedRoute allowedRoles={["teacher", "admin"]}>
-              <Students />
-            </ProtectedRoute>
-          }
-        />
-
+        {/* Teacher only */}
         <Route
           path="/add-grade"
           element={
@@ -99,7 +102,7 @@ function App() {
           }
         />
 
-        {/* Student */}
+        {/* Student only */}
         <Route
           path="/my-grades"
           element={
@@ -108,6 +111,7 @@ function App() {
             </ProtectedRoute>
           }
         />
+
       </Route>
 
       {/* 404 */}

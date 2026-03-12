@@ -8,8 +8,9 @@
 body {
   margin: 0;
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-  background-color: #ffffff; /* white base */
-  color: #3b1f2b; /* dark maroon text */
+  background-color: #ffffff;
+  color: #3b1f2b;
+  transition: background 0.3s ease, color 0.3s ease;
 }
 
 .page {
@@ -21,24 +22,34 @@ body {
 h1, h2, h3, h4 {
   margin-bottom: 15px;
   font-weight: 600;
-  color: #6b1f2b; /* maroon headers */
+  color: #6b1f2b;
+  transition: color 0.3s ease;
 }
 
 /* =========================
    CARDS
 ========================= */
-.card {
-  background: #fff8f2; /* subtle warm white */
+.card,
+.student-card,
+.user-card,
+.course-card,
+.subject-card {
+  background: rgba(255,248,242,0.9);
   padding: 22px;
   border-radius: 14px;
   box-shadow: 0 6px 18px rgba(0,0,0,0.06);
   margin-bottom: 25px;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, color 0.3s ease;
+  backdrop-filter: blur(10px); /* glass effect */
 }
 
-.card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 20px rgba(0,0,0,0.08);
+.card:hover,
+.student-card:hover,
+.user-card:hover,
+.course-card:hover,
+.subject-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0,0,0,0.12);
 }
 
 /* =========================
@@ -50,17 +61,17 @@ h1, h2, h3, h4 {
   border: none;
   cursor: pointer;
   font-weight: 500;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
 }
 
 .btn-primary {
-  background-color: #8b1f2b; /* maroon */
-  color: #ffcf66; /* yellow gold */
+  background-color: #8b1f2b;
+  color: #ffcf66;
 }
 
 .btn-primary:hover {
   background-color: #6b1a23;
-  transform: translateY(-1px);
+  transform: translateY(-2px);
 }
 
 .btn-danger {
@@ -70,11 +81,12 @@ h1, h2, h3, h4 {
 
 .btn-danger:hover {
   background-color: #b91c1c;
+  transform: translateY(-2px);
 }
 
 .btn-secondary {
-  background-color: #ffcf66; /* yellow gold */
-  color: #3b1f2b; /* maroon text */
+  background-color: #ffcf66;
+  color: #3b1f2b;
 }
 
 .btn-secondary:hover {
@@ -93,12 +105,12 @@ select {
   font-size: 14px;
   background-color: #fff;
   color: #3b1f2b;
-  transition: border 0.2s ease, box-shadow 0.2s ease;
+  transition: border 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, color 0.3s ease;
 }
 
 input:focus,
 select:focus {
-  border-color: #8b1f2b; /* maroon */
+  border-color: #8b1f2b;
   box-shadow: 0 0 0 3px rgba(139, 31, 43, 0.15);
 }
 
@@ -138,19 +150,16 @@ select:focus {
   border-radius:8px;
   border:1px solid #d1d5db;
   width:260px;
+  transition: border 0.3s ease, box-shadow 0.3s ease;
 }
 
 .search-input:focus{
-  border-color:#8b1f2b; /* maroon */
+  border-color:#8b1f2b;
   box-shadow: 0 0 0 3px rgba(139, 31, 43, 0.15);
 }
 
 .search-bar {
   margin-bottom: 15px;
-}
-
-.search-bar input {
-  width: 260px;
 }
 
 /* =========================
@@ -166,9 +175,10 @@ select:focus {
   border-collapse: collapse;
   margin-top: 10px;
   table-layout: fixed;
-  background: #fff8f2;
+  background: rgba(255,248,242,0.9);
   border-radius: 10px;
   overflow: hidden;
+  transition: background 0.3s ease, color 0.3s ease;
 }
 
 .table th,
@@ -178,16 +188,18 @@ select:focus {
   vertical-align: middle;
   border-bottom: 1px solid #f0e6e2;
   color: #3b1f2b;
+  transition: color 0.3s ease, background 0.3s ease;
 }
 
 .table thead {
-  background-color: #ffcf66; /* yellow gold */
+  background-color: #ffcf66;
   font-weight: 600;
   color: #3b1f2b;
 }
 
 .table tr:hover {
-  background-color: #fff1d6; /* subtle hover */
+  background-color: #fff1d6;
+  cursor: pointer;
 }
 
 /* Column widths */
@@ -230,10 +242,12 @@ select:focus {
   border-radius: 6px;
   background-color: #8b1f2b;
   color: #ffcf66;
+  transition: all 0.3s ease;
 }
 
 .grade-save:hover {
   background-color: #6b1a23;
+  transform: translateY(-1px);
 }
 
 /* =========================
@@ -253,14 +267,16 @@ select:focus {
   text-decoration: none;
   border-radius: 14px;
   font-weight: 600;
-  transition: 0.2s ease;
+  transition: transform 0.3s ease, background 0.3s ease;
   min-width: 180px;
   text-align: center;
+  cursor: pointer;
 }
 
 .dashboard-card:hover {
   background-color: #6b1a23;
-  transform: translateY(-3px);
+  transform: translateY(-4px);
+  box-shadow: 0 10px 25px rgba(0,0,0,0.2);
 }
 
 /* =========================
@@ -276,26 +292,26 @@ select:focus {
   margin-top: 15px;
 }
 
+/* Glass effect + shadow */
 .student-card,
 .user-card,
 .course-card,
 .subject-card {
-  flex: 1 1 250px;
-  background: #fff8f2;
+  background: rgba(255,248,242,0.85);
   padding: 20px;
   border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.08);
   color: #3b1f2b;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(8px);
 }
 
-.student-actions,
-.user-actions,
-.course-actions,
-.subject-actions {
-  display: flex;
-  gap: 10px;
-  margin-top: 10px;
-  flex-wrap: wrap;
+.student-card:hover,
+.user-card:hover,
+.course-card:hover,
+.subject-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 20px rgba(0,0,0,0.15);
 }
 
 /* FAILING GRADE */
@@ -303,6 +319,7 @@ select:focus {
   background-color: #fee2e2 !important;
   color: #b91c1c;
   font-weight: 600;
+  transition: all 0.3s ease;
 }
 
 /* =========================
@@ -313,29 +330,86 @@ body.dark {
   color: #fff4e6;
 }
 
+body.dark h1,
+body.dark h2,
+body.dark h3,
+body.dark h4 {
+  color: #ffcf66;
+}
+
 body.dark .card,
 body.dark .student-card,
 body.dark .user-card,
 body.dark .course-card,
 body.dark .subject-card {
-  background: #2b1f23;
+  background: rgba(43,31,35,0.85);
   color: #ffcf66;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.3);
 }
 
 body.dark .table {
-  background: #2b1f23;
+  background: rgba(43,31,35,0.85);
   color: #ffcf66;
+}
+
+body.dark .table thead {
+  background-color: #6b1f2b;
+  color: #ffd966;
+}
+
+body.dark .table th,
+body.dark .table td {
+  border-bottom: 1px solid #4a2a2f;
+  color: #ffd966;
+}
+
+body.dark .table tr:hover {
+  background-color: rgba(255,207,102,0.12);
 }
 
 body.dark input,
 body.dark select {
-  background: #3b2b2e;
-  color: #ffcf66;
+  background: rgba(58,43,46,0.85);
+  color: #ffd966;
   border-color: #5c3b3e;
 }
 
+body.dark input:focus,
+body.dark select:focus {
+  border-color: #ffd966;
+  box-shadow: 0 0 0 3px rgba(255,207,102,0.15);
+}
+
+body.dark .btn-primary {
+  background-color: #6b1a23;
+  color: #ffd966;
+}
+
+body.dark .btn-primary:hover {
+  background-color: #8b1f2b;
+}
+
+body.dark .btn-secondary {
+  background-color: #ffd966;
+  color: #6b1a23;
+}
+
+body.dark .btn-secondary:hover {
+  background-color: #e6b744;
+}
+
+body.dark .btn-danger {
+  background-color: #b91c1c;
+  color: white;
+}
+
+body.dark .btn-danger:hover {
+  background-color: #7f1416;
+}
+
 body.dark .main-content {
-  background: #1f1b1f;
+  background-color: #1f1b1f;
 }
 
 /* =========================
@@ -352,7 +426,11 @@ body.dark .main-content {
     padding: 15px;
   }
 
-  .card {
+  .card,
+  .student-card,
+  .user-card,
+  .course-card,
+  .subject-card {
     padding: 16px;
   }
 

@@ -86,7 +86,6 @@ function Students() {
   };
 
   return (
-    <Layout>
       <div className="page">
         <h2>Manage Students</h2>
 
@@ -127,7 +126,7 @@ function Students() {
           ))}
         </div>
       </div>
-    </Layout>
+    
   );
 }
 

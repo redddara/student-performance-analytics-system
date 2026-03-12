@@ -4,9 +4,12 @@
 .layout {
   display: flex;
   min-height: 100vh;
+  transition: all 0.3s ease;
 }
 
-/* Sidebar */
+/* =========================
+   SIDEBAR
+========================= */
 .sidebar {
   width: 220px;
   background-color: #4f46e5;
@@ -14,21 +17,47 @@
   display: flex;
   flex-direction: column;
   padding: 20px;
+  transition: width 0.3s ease;
+}
+
+.sidebar-collapsed .sidebar {
+  width: 70px;
+}
+
+.sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
 }
 
 .sidebar .logo {
   font-size: 24px;
   font-weight: 700;
-  margin-bottom: 30px;
+}
+
+.toggle-btn {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.sidebar-links {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .sidebar-link {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 10px 15px;
   border-radius: 8px;
   color: white;
   text-decoration: none;
-  margin-bottom: 10px;
   font-weight: 500;
   transition: 0.2s;
 }
@@ -42,44 +71,127 @@
   background-color: #2725a3;
 }
 
-/* Dark mode toggle button in sidebar */
+.sidebar-link .icon {
+  font-size: 18px;
+}
+
+/* Sidebar footer */
+.sidebar-footer {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .sidebar .btn {
-  margin-bottom: 20px;
   background-color: #2725a3;
   color: white;
   border: none;
   padding: 8px 12px;
   border-radius: 6px;
   cursor: pointer;
+  transition: 0.2s;
 }
 
 .sidebar .btn:hover {
   background-color: #1c1a87;
 }
 
-/* Main content */
+.logout-btn {
+  background-color: #dc2626;
+}
+
+.logout-btn:hover {
+  background-color: #b91c1c;
+}
+
+/* =========================
+   MAIN CONTENT
+========================= */
 .main-content {
   flex: 1;
   background-color: #f4f6fb;
   padding: 30px;
+  transition: padding 0.3s ease;
 }
 
-/* Responsive sidebar */
+/* =========================
+   HAMBURGER (mobile) 
+========================= */
+.hamburger {
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.hamburger span {
+  width: 25px;
+  height: 3px;
+  background-color: white;
+  border-radius: 3px;
+  transition: 0.3s;
+}
+
+.hamburger.active span:nth-child(1) {
+  transform: rotate(45deg) translate(5px, 5px);
+}
+.hamburger.active span:nth-child(2) {
+  opacity: 0;
+}
+.hamburger.active span:nth-child(3) {
+  transform: rotate(-45deg) translate(5px, -5px);
+}
+
+/* Mobile dropdown animation */
+.sidebar.mobile .sidebar-links {
+  max-height: 0;
+  overflow: hidden;
+  flex-direction: column;
+  transition: max-height 0.3s ease;
+}
+
+.sidebar.mobile.open .sidebar-links {
+  max-height: 500px; /* adjust if more links */
+}
+
+/* =========================
+   RESPONSIVE
+========================= */
 @media (max-width: 768px) {
+  .hamburger {
+    display: flex;
+  }
+
   .layout {
     flex-direction: column;
   }
+
   .sidebar {
     width: 100%;
     flex-direction: row;
     overflow-x: auto;
+    padding: 10px;
+    position: relative;
   }
+
+  .sidebar-links {
+    flex-direction: column;
+    width: 100%;
+    gap: 5px;
+  }
+
   .sidebar-link {
     flex: 0 0 auto;
-    margin-right: 10px;
-    margin-bottom: 0;
+    margin-right: 0;
+    margin-bottom: 5px;
   }
+
   .main-content {
-    padding: 20px;
+    padding: 15px;
+  }
+
+  .sidebar-collapsed .sidebar {
+    width: 100%;
   }
 }

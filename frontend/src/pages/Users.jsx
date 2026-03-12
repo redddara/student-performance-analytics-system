@@ -13,7 +13,6 @@ function Users() {
 
   const token = localStorage.getItem("token");
 
-  // Fetch users
   const fetchUsers = useCallback(async () => {
     try {
       setLoading(true);
@@ -21,7 +20,7 @@ function Users() {
         headers: { Authorization: `Bearer ${token}` },
       });
       setUsers(data);
-    } catch  {
+    } catch {
       alert("Failed to fetch users");
     } finally {
       setLoading(false);
@@ -39,7 +38,6 @@ function Users() {
     setEditingUser(null);
   };
 
-  // Add / Update
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -84,161 +82,128 @@ function Users() {
       await axios.delete(`http://localhost:5000/api/users/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+
       setMessage("User deleted successfully!");
       fetchUsers();
       setTimeout(() => setMessage(""), 3000);
+
     } catch (err) {
       alert(err.response?.data?.error || "Delete failed");
     }
   };
 
   return (
-    <div style={{ padding: "30px", maxWidth: "900px", margin: "auto" }}>
-      <h2 style={{ marginBottom: "20px" }}>Manage Users (Admin)</h2>
+    <div className="page">
+
+      <h2>Manage Users</h2>
 
       {message && (
-        <div
-          style={{
-            backgroundColor: "#e6ffed",
-            color: "#065f46",
-            padding: "10px",
-            marginBottom: "15px",
-            borderRadius: "6px",
-          }}
-        >
+        <div className="card" style={{background:"#e6ffed", color:"#065f46"}}>
           {message}
         </div>
       )}
 
       {/* Form */}
-      <form
-        onSubmit={handleSubmit}
-        style={{
-          background: "#f9f9f9",
-          padding: "20px",
-          borderRadius: "8px",
-          marginBottom: "30px",
-        }}
-      >
+      <div className="card">
+
         <h3>{editingUser ? "Edit User" : "Add New User"}</h3>
 
-        <input
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          style={{ width: "100%", padding: "8px", marginBottom: "10px" }}
-        />
+        <form onSubmit={handleSubmit} className="student-form">
 
-        <input
-          type="password"
-          placeholder={editingUser ? "Leave blank to keep password" : "Password"}
-          onChange={(e) => setPassword(e.target.value)}
-          required={!editingUser}
-          style={{ width: "100%", padding: "8px", marginBottom: "10px" }}
-        />
+          <input
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
 
-        <select
-          value={role}
-          onChange={(e) => setRole(e.target.value)}
-          style={{ width: "100%", padding: "8px", marginBottom: "15px" }}
-        >
-          <option value="student">Student</option>
-          <option value="teacher">Teacher</option>
-          <option value="admin">Admin</option>
-        </select>
+          <input
+            type="password"
+            placeholder={editingUser ? "Leave blank to keep password" : "Password"}
+            onChange={(e) => setPassword(e.target.value)}
+            required={!editingUser}
+          />
 
-        <button
-          type="submit"
-          style={{
-            padding: "8px 15px",
-            backgroundColor: "#2563eb",
-            color: "white",
-            border: "none",
-            borderRadius: "5px",
-            cursor: "pointer",
-            marginRight: "10px",
-          }}
-        >
-          {editingUser ? "Update User" : "Add User"}
-        </button>
+          <select value={role} onChange={(e) => setRole(e.target.value)}>
+            <option value="student">Student</option>
+            <option value="teacher">Teacher</option>
+            <option value="admin">Admin</option>
+          </select>
 
-        {editingUser && (
-          <button
-            type="button"
-            onClick={resetForm}
-            style={{
-              padding: "8px 15px",
-              backgroundColor: "#9ca3af",
-              color: "white",
-              border: "none",
-              borderRadius: "5px",
-              cursor: "pointer",
-            }}
-          >
-            Cancel
-          </button>
-        )}
-      </form>
+          <div className="form-buttons">
+            <button type="submit" className="btn btn-primary">
+              {editingUser ? "Update User" : "Add User"}
+            </button>
+
+            {editingUser && (
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={resetForm}
+              >
+                Cancel
+              </button>
+            )}
+          </div>
+
+        </form>
+
+      </div>
 
       {/* Table */}
-      <h3>All Users</h3>
+      <div className="card">
 
-      {loading ? (
-        <p>Loading users...</p>
-      ) : (
-        <table
-          style={{
-            width: "100%",
-            borderCollapse: "collapse",
-            marginTop: "15px",
-          }}
-        >
-          <thead>
-            <tr style={{ backgroundColor: "#f3f4f6" }}>
-              <th style={{ padding: "10px", textAlign: "left" }}>Email</th>
-              <th style={{ padding: "10px", textAlign: "left" }}>Role</th>
-              <th style={{ padding: "10px" }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((user) => (
-              <tr key={user.id} style={{ borderBottom: "1px solid #ddd" }}>
-                <td style={{ padding: "10px" }}>{user.email}</td>
-                <td style={{ padding: "10px" }}>{user.role}</td>
-                <td style={{ padding: "10px", textAlign: "center" }}>
-                  <button
-                    onClick={() => handleEdit(user)}
-                    style={{
-                      marginRight: "8px",
-                      padding: "5px 10px",
-                      backgroundColor: "#f59e0b",
-                      border: "none",
-                      borderRadius: "4px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDelete(user.id)}
-                    style={{
-                      padding: "5px 10px",
-                      backgroundColor: "#ef4444",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "4px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+        <h3>All Users</h3>
+
+        {loading ? (
+          <p>Loading users...</p>
+        ) : (
+          <div className="table-wrapper">
+
+            <table className="table">
+
+              <thead>
+                <tr>
+                  <th>Email</th>
+                  <th>Role</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {users.map((user) => (
+                  <tr key={user.id}>
+
+                    <td>{user.email}</td>
+                    <td>{user.role}</td>
+
+                    <td>
+                      <button
+                        className="btn btn-primary"
+                        onClick={() => handleEdit(user)}
+                      >
+                        Edit
+                      </button>
+
+                      <button
+                        className="btn btn-danger"
+                        onClick={() => handleDelete(user.id)}
+                      >
+                        Delete
+                      </button>
+                    </td>
+
+                  </tr>
+                ))}
+              </tbody>
+
+            </table>
+
+          </div>
+        )}
+
+      </div>
+
     </div>
   );
 }

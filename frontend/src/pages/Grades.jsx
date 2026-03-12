@@ -107,7 +107,7 @@ function Grades() {
   };
 
   return (
-    <Layout>
+    
       <div className="page">
         <h2>Teacher Grades Dashboard</h2>
         <div className="filter-semester">
@@ -191,7 +191,7 @@ function Grades() {
           <Bar data={chartData} />
         </div>
       </div>
-    </Layout>
+    
   );
 }
 

@@ -4,7 +4,7 @@ import axios from "axios";
 function AddGrade() {
   const [students, setStudents] = useState([]);
   const [subjects, setSubjects] = useState([]);
-  const [filteredSubjects, setFilteredSubjects] = useState([]); // subjects filtered by student's course
+  const [filteredSubjects, setFilteredSubjects] = useState([]);
 
   const [formData, setFormData] = useState({
     student_id: "",
@@ -32,21 +32,18 @@ function AddGrade() {
         alert("Failed to fetch students or subjects");
       }
     };
-
     if (token) fetchData();
   }, [token]);
 
-  // Handle input changes
   const handleChange = (e) => {
     const { name, value } = e.target;
 
-    // If student changes, filter subjects for that student's course
     if (name === "student_id") {
       const selectedStudent = students.find((s) => s.id === value);
       if (selectedStudent) {
         const filtered = subjects.filter((subj) => subj.course_id === selectedStudent.course_id);
         setFilteredSubjects(filtered);
-        setFormData({ ...formData, student_id: value, subject_id: "" }); // reset subject
+        setFormData({ ...formData, student_id: value, subject_id: "" });
         return;
       }
     }
@@ -56,10 +53,7 @@ function AddGrade() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (!formData.semester || !formData.quarter) {
-      return alert("Please select both semester and quarter");
-    }
+    if (!formData.semester || !formData.quarter) return alert("Please select both semester and quarter");
 
     try {
       await axios.post("http://localhost:5000/api/grades", formData, {
@@ -67,7 +61,6 @@ function AddGrade() {
       });
 
       alert("Grade added successfully!");
-
       setFormData({
         student_id: "",
         subject_id: "",
@@ -76,20 +69,20 @@ function AddGrade() {
         quarter: "",
         remarks: ""
       });
-      setFilteredSubjects([]); // reset filtered subjects
+      setFilteredSubjects([]);
     } catch (error) {
       alert(error.response?.data?.error || "Error adding grade");
     }
   };
 
   return (
-    <div style={{ padding: "20px", maxWidth: "600px" }}>
+    <div className="page">
       <h2>Add Grade</h2>
 
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "15px" }}>
-        {/* Student */}
-        <div>
-          <label>Student:</label>
+      <div className="card">
+        <h3>Add New Grade</h3>
+        <form onSubmit={handleSubmit} className="student-form">
+          {/* Student */}
           <select name="student_id" value={formData.student_id} onChange={handleChange} required>
             <option value="">Select Student</option>
             {students.map((s) => (
@@ -98,28 +91,22 @@ function AddGrade() {
               </option>
             ))}
           </select>
-        </div>
 
-        {/* Subject */}
-        <div>
-          <label>Subject:</label>
+          {/* Subject */}
           <select
             name="subject_id"
             value={formData.subject_id}
             onChange={handleChange}
             required
-            disabled={!formData.student_id} // disable until a student is selected
+            disabled={!formData.student_id}
           >
             <option value="">Select Subject</option>
             {filteredSubjects.map((s) => (
               <option key={s.id} value={s.id}>{s.name}</option>
             ))}
           </select>
-        </div>
 
-        {/* Grade */}
-        <div>
-          <label>Grade:</label>
+          {/* Grade */}
           <input
             type="number"
             name="grade"
@@ -128,23 +115,18 @@ function AddGrade() {
             min="0"
             max="100"
             step="0.01"
+            placeholder="Grade"
             required
           />
-        </div>
 
-        {/* Semester */}
-        <div>
-          <label>Semester:</label>
+          {/* Semester */}
           <select name="semester" value={formData.semester} onChange={handleChange} required>
             <option value="">Select Semester</option>
             <option value="1">1</option>
             <option value="2">2</option>
           </select>
-        </div>
 
-        {/* Quarter */}
-        <div>
-          <label>Quarter:</label>
+          {/* Quarter */}
           <select name="quarter" value={formData.quarter} onChange={handleChange} required>
             <option value="">Select Quarter</option>
             <option value="1">1</option>
@@ -152,16 +134,21 @@ function AddGrade() {
             <option value="3">3</option>
             <option value="4">4</option>
           </select>
-        </div>
 
-        {/* Remarks */}
-        <div>
-          <label>Remarks:</label>
-          <input type="text" name="remarks" value={formData.remarks} onChange={handleChange} />
-        </div>
+          {/* Remarks */}
+          <input
+            type="text"
+            name="remarks"
+            value={formData.remarks}
+            onChange={handleChange}
+            placeholder="Remarks (optional)"
+          />
 
-        <button type="submit">Add Grade</button>
-      </form>
+          <div className="form-buttons">
+            <button type="submit" className="btn btn-primary">Add Grade</button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

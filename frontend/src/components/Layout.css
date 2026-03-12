@@ -12,12 +12,12 @@
 ========================= */
 .sidebar {
   width: 220px;
-  background-color: #4f46e5;
-  color: white;
+  background-color: #8b1f2b; /* maroon */
+  color: #ffcf66; /* yellow-gold text */
   display: flex;
   flex-direction: column;
   padding: 20px;
-  transition: width 0.3s ease;
+  transition: width 0.3s ease, background-color 0.3s ease;
 }
 
 .sidebar-collapsed .sidebar {
@@ -34,14 +34,20 @@
 .sidebar .logo {
   font-size: 24px;
   font-weight: 700;
+  color: #ffcf66;
 }
 
 .toggle-btn {
   background: none;
   border: none;
-  color: white;
+  color: #ffcf66;
   font-size: 24px;
   cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.toggle-btn:hover {
+  color: #fff8f2;
 }
 
 .sidebar-links {
@@ -56,19 +62,21 @@
   gap: 10px;
   padding: 10px 15px;
   border-radius: 8px;
-  color: white;
+  color: #ffcf66;
   text-decoration: none;
   font-weight: 500;
   transition: 0.2s;
 }
 
 .sidebar-link:hover {
-  background-color: #3730a3;
+  background-color: #6b1a23;
+  color: #fff8f2;
   transform: translateX(3px);
 }
 
 .sidebar-link.active {
-  background-color: #2725a3;
+  background-color: #6b1a23;
+  color: #fff8f2;
 }
 
 .sidebar-link .icon {
@@ -84,8 +92,8 @@
 }
 
 .sidebar .btn {
-  background-color: #2725a3;
-  color: white;
+  background-color: #6b1a23;
+  color: #ffcf66;
   border: none;
   padding: 8px 12px;
   border-radius: 6px;
@@ -94,7 +102,7 @@
 }
 
 .sidebar .btn:hover {
-  background-color: #1c1a87;
+  background-color: #50151b;
 }
 
 .logout-btn {
@@ -110,9 +118,9 @@
 ========================= */
 .main-content {
   flex: 1;
-  background-color: #f4f6fb;
+  background-color: #fff8f2;
   padding: 30px;
-  transition: padding 0.3s ease;
+  transition: padding 0.3s ease, background-color 0.3s ease;
 }
 
 /* =========================
@@ -128,7 +136,7 @@
 .hamburger span {
   width: 25px;
   height: 3px;
-  background-color: white;
+  background-color: #ffcf66;
   border-radius: 3px;
   transition: 0.3s;
 }
@@ -194,4 +202,35 @@
   .sidebar-collapsed .sidebar {
     width: 100%;
   }
+}
+
+/* =========================
+   DARK MODE
+========================= */
+body.dark .sidebar {
+  background-color: #50151b;
+  color: #ffcf66;
+}
+
+body.dark .sidebar .logo {
+  color: #ffcf66;
+}
+
+body.dark .sidebar-link {
+  color: #ffcf66;
+}
+
+body.dark .sidebar-link:hover,
+body.dark .sidebar-link.active {
+  background-color: #3b0f14;
+  color: #fff8f2;
+}
+
+body.dark .sidebar .btn {
+  background-color: #3b0f14;
+  color: #ffcf66;
+}
+
+body.dark .sidebar .btn:hover {
+  background-color: #2a0a0f;
 }

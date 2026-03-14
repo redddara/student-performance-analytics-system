@@ -3,21 +3,26 @@ import { supabase } from "../utils/supabaseClient.js";
 // GET GRADES
 export const getGrades = async (req, res) => {
   try {
+
     let query = supabase
       .from("grades")
       .select(`
         id,
-        student_id,
-        subject_id,     
         grade,
         semester,
         quarter,
         remarks,
-        subjects(name),
-        students(first_name, last_name)
+        subjects(
+          name,
+          courses(name)
+        ),
+        students(
+          first_name,
+          last_name,
+          grade_level
+        )
       `);
 
-    
     if (req.user.role === "student") {
       query = query.eq("student_id", req.user.id);
     }
@@ -28,7 +33,29 @@ export const getGrades = async (req, res) => {
 
     if (error) return res.status(500).json({ error: error.message });
 
-    res.json(data);
+    const formatted = data.map((g) => ({
+      id: g.id,
+      grade: g.grade,
+      semester: g.semester,
+      quarter: g.quarter,
+      remarks: g.remarks,
+
+      student_id: g.student_id,           // <--- add this
+      student_name: g.students
+        ? `${g.students.first_name} ${g.students.last_name}`
+        : "Unknown",
+
+      grade_level: g.students?.grade_level || "Unknown",
+
+      subject_id: g.subject_id,           // <--- add this
+      subject: g.subjects?.name || "Unknown",
+
+      course_id: g.subjects?.courses?.id || null,  // <--- add this
+      course: g.subjects?.courses?.name || "Unknown"
+    }));
+
+    res.json(formatted);
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });

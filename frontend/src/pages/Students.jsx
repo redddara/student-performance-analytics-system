@@ -33,6 +33,7 @@ function Students() {
           axios.get("http://localhost:5000/api/students", { headers: { Authorization: `Bearer ${token}` } }),
           axios.get("http://localhost:5000/api/courses", { headers: { Authorization: `Bearer ${token}` } }),
         ]);
+
         setStudents(studentsRes.data);
         setCourses(coursesRes.data);
       } catch (err) {
@@ -40,13 +41,20 @@ function Students() {
         alert("Failed to load students or courses");
       }
     };
+
     if (token) loadData();
   }, [token]);
 
-  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+  const handleChange = (e) => {
+    setForm({
+      ...form,
+      [e.target.name]: e.target.value
+    });
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     if (!form.course_id) return alert("Please select a course");
 
     try {
@@ -85,6 +93,7 @@ function Students() {
       section: student.section,
       course_id: student.course_id || ""
     });
+
     setEditingId(student.id);
   };
 
@@ -97,6 +106,7 @@ function Students() {
       });
 
       fetchStudents();
+
     } catch {
       alert("Failed to delete student");
     }
@@ -119,15 +129,50 @@ function Students() {
 
         <form onSubmit={handleSubmit} className="student-form">
 
-          <input name="first_name" placeholder="First Name" value={form.first_name} onChange={handleChange} required />
+          <input
+            name="first_name"
+            placeholder="First Name"
+            value={form.first_name}
+            onChange={handleChange}
+            required
+          />
 
-          <input name="last_name" placeholder="Last Name" value={form.last_name} onChange={handleChange} required />
+          <input
+            name="last_name"
+            placeholder="Last Name"
+            value={form.last_name}
+            onChange={handleChange}
+            required
+          />
 
-          <input name="grade_level" placeholder="Grade Level" value={form.grade_level} onChange={handleChange} required />
+          {/* YEAR LEVEL DROPDOWN */}
+          <select
+            name="grade_level"
+            value={form.grade_level}
+            onChange={handleChange}
+            required
+          >
+            <option value="">Select Year Level</option>
+            <option value="1st-Year">1st-Year</option>
+            <option value="2nd-Year">2nd-Year</option>
+            <option value="3rd-Year">3rd-Year</option>
+            <option value="4th-Year">4th-Year</option>
+          </select>
 
-          <input name="section" placeholder="Section" value={form.section} onChange={handleChange} required />
+          <input
+            name="section"
+            placeholder="Section"
+            value={form.section}
+            onChange={handleChange}
+            required
+          />
 
-          <select name="course_id" value={form.course_id} onChange={handleChange} required>
+          <select
+            name="course_id"
+            value={form.course_id}
+            onChange={handleChange}
+            required
+          >
             <option value="">Select Course</option>
             {courses.map(course => (
               <option key={course.id} value={course.id}>
@@ -137,6 +182,7 @@ function Students() {
           </select>
 
           <div className="form-buttons">
+
             <button type="submit" className="btn btn-primary">
               {editingId ? "Update" : "Add"} Student
             </button>
@@ -159,6 +205,7 @@ function Students() {
                 Cancel
               </button>
             )}
+
           </div>
 
         </form>
@@ -186,21 +233,30 @@ function Students() {
             <div key={student.id} className="student-card">
 
               <p><strong>Name:</strong> {student.first_name} {student.last_name}</p>
-              <p><strong>Grade Level:</strong> {student.grade_level}</p>
+              <p><strong>Year Level:</strong> {student.grade_level}</p>
               <p><strong>Section:</strong> {student.section}</p>
+
               <p>
-                <strong>Course:</strong>
+                <strong>Course:</strong>{" "}
                 {courses.find(c => c.id === student.course_id)?.name || "-"}
               </p>
 
               <div className="student-actions">
-                <button className="btn btn-primary" onClick={() => handleEdit(student)}>
+
+                <button
+                  className="btn btn-primary"
+                  onClick={() => handleEdit(student)}
+                >
                   Edit
                 </button>
 
-                <button className="btn btn-danger" onClick={() => handleDelete(student.id)}>
+                <button
+                  className="btn btn-danger"
+                  onClick={() => handleDelete(student.id)}
+                >
                   Delete
                 </button>
+
               </div>
 
             </div>

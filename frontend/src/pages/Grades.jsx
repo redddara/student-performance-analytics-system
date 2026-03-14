@@ -5,6 +5,7 @@ function Grades() {
   const [grades, setGrades] = useState([]);
   const [semesterFilter, setSemesterFilter] = useState("1");
   const [yearFilter, setYearFilter] = useState("All");
+  const [courseFilter, setCourseFilter] = useState("All");
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState({});
   const [collapsed, setCollapsed] = useState({});
@@ -25,6 +26,12 @@ function Grades() {
     };
     if (token) fetchGrades();
   }, [token]);
+
+  // Extract unique courses for dropdown
+  const courses = useMemo(() => {
+    const set = new Set(grades.map((g) => g.course));
+    return ["All", ...set];
+  }, [grades]);
 
   // Handle grade edit
   const handleChange = (gradeId, value) =>
@@ -65,24 +72,32 @@ function Grades() {
 
   // FILTERING
   const filteredGrades = useMemo(() => {
-  return grades.filter((g) => {
+    return grades.filter((g) => {
+      const matchesSemester =
+        semesterFilter === "All" ||
+        g.semester.toString() === semesterFilter;
 
-    const matchesSemester =
-      semesterFilter === "All" ||
-      g.semester.toString() === semesterFilter;
+      const matchesYear =
+        yearFilter === "All" ||
+        (g.grade_level && g.grade_level === yearFilter);
 
-    const matchesYear =
-      yearFilter === "All" ||
-      (g.grade_level && g.grade_level === yearFilter);
+      const matchesCourse =
+        courseFilter === "All" ||
+        (g.course && g.course === courseFilter);
 
-    const matchesSearch =
-      g.student_name
-        .toLowerCase()
-        .includes(search.toLowerCase());
+      const matchesSearch =
+        g.student_name
+          .toLowerCase()
+          .includes(search.toLowerCase());
 
-    return matchesSemester && matchesYear && matchesSearch;
-  });
-}, [grades, semesterFilter, yearFilter, search]);
+      return (
+        matchesSemester &&
+        matchesYear &&
+        matchesCourse &&
+        matchesSearch
+      );
+    });
+  }, [grades, semesterFilter, yearFilter, courseFilter, search]);
 
   // GROUP STUDENT → SUBJECT → QUARTER
   const studentsGrouped = useMemo(() => {
@@ -167,6 +182,18 @@ function Grades() {
           <option value="3rd-Year">3rd-Year</option>
           <option value="4th-Year">4th-Year</option>
         </select>
+
+        {/* Course Filter */}
+        <select
+          value={courseFilter}
+          onChange={(e) => setCourseFilter(e.target.value)}
+        >
+          {courses.map((c, i) => (
+            <option key={i} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* STUDENTS */}
@@ -176,16 +203,11 @@ function Grades() {
         const isCollapsed = collapsed[student];
 
         return (
-          <div
-            key={student}
-            className="card"
-            style={{ marginBottom: "1rem" }}
-          >
+          <div key={student} className="card" style={{ marginBottom: "1rem" }}>
             <div
               style={{
                 display: "flex",
                 justifyContent: "space-between",
-                alignItems: "center",
                 cursor: "pointer",
               }}
               onClick={() => toggleCollapse(student)}
@@ -194,11 +216,7 @@ function Grades() {
 
               <div>
                 Semester GWA:{" "}
-                <strong
-                  style={{
-                    color: studentGWA < 75 ? "red" : "black",
-                  }}
-                >
+                <strong style={{ color: studentGWA < 75 ? "red" : "black" }}>
                   {studentGWA}
                 </strong>{" "}
                 {isCollapsed ? "▼" : "▲"}
@@ -208,11 +226,7 @@ function Grades() {
             {!isCollapsed && (
               <table
                 className="table"
-                style={{
-                  width: "100%",
-                  borderCollapse: "collapse",
-                  marginTop: "0.5rem",
-                }}
+                style={{ width: "100%", marginTop: "0.5rem" }}
               >
                 <thead>
                   <tr>
@@ -239,17 +253,13 @@ function Grades() {
                         );
 
                         return (
-                          <td
-                            key={q}
-                            style={{ textAlign: "center" }}
-                          >
+                          <td key={q} style={{ textAlign: "center" }}>
                             {gradeObj ? (
                               <div
                                 style={{
                                   display: "flex",
                                   gap: "0.5rem",
                                   justifyContent: "center",
-                                  alignItems: "center",
                                 }}
                               >
                                 <input
@@ -264,21 +274,10 @@ function Grades() {
                                       e.target.value
                                     )
                                   }
-                                  style={{
-                                    width: "70px",
-                                    textAlign: "center",
-                                    color:
-                                      gradeObj.grade < 75
-                                        ? "red"
-                                        : "black",
-                                  }}
+                                  style={{ width: "70px", textAlign: "center" }}
                                 />
 
-                                <button
-                                  onClick={() =>
-                                    handleSave(gradeObj)
-                                  }
-                                >
+                                <button onClick={() => handleSave(gradeObj)}>
                                   ✔
                                 </button>
                               </div>
@@ -289,16 +288,7 @@ function Grades() {
                         );
                       })}
 
-                      <td
-                        style={{
-                          textAlign: "center",
-                          fontWeight: "bold",
-                          color:
-                            computeFinal(quarters) < 75
-                              ? "red"
-                              : "black",
-                        }}
-                      >
+                      <td style={{ textAlign: "center", fontWeight: "bold" }}>
                         {computeFinal(quarters)}
                       </td>
                     </tr>

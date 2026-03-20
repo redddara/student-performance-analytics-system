@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from '../../store';
 import { DashboardLayout } from '../../components/layouts';
-import { Card, Button, Input, Select, Modal, Badge } from '../../components/ui';
+import { Card, Button, Input, Select, Modal, Badge, LoadingSpinner } from '../../components/ui';
 import { 
   ClipboardList, 
   Plus, 
@@ -17,7 +17,8 @@ import {
   Calendar,
   Award,
   CheckCircle,
-  XCircle
+  XCircle,
+  TrendingUp
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
@@ -335,31 +336,32 @@ const TeacherGrades: React.FC = () => {
       <div className="space-y-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-white">Grade Entry</h1>
-            <p className="text-gray-400 mt-2">Encode and manage student grades</p>
+            <h1 className="text-4xl font-bold text-white">Student Grade Reports</h1>
+            <p className="text-gray-300 mt-3 text-lg">Manage and track student performance</p>
           </div>
-          <div className="flex items-center gap-2 text-sm text-gray-400">
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full bg-green-500"></div>
-              <span>Auto-saved</span>
-            </div>
+          <div className="flex items-center gap-2 text-base text-green-300 bg-green-500/20 px-6 py-3 rounded-xl border border-green-500/60">
+            <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse"></div>
+            <span className="font-semibold">System Ready</span>
           </div>
         </div>
 
         {/* Subject Selection */}
-        <Card className="bg-gradient-to-r from-maroon-900/30 to-black/30">
-          <div className="flex flex-col md:flex-row md:items-center gap-4">
-            <div className="flex items-center gap-3">
-              <BookOpen className="text-gold-400" size={24} />
+        <Card className="border-gold-500/60 bg-gold-500/5">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+            <div className="flex items-center gap-4 flex-1">
+              <div className="p-4 bg-gold-500/25 rounded-xl text-gold-400">
+                <BookOpen size={28} />
+              </div>
               <div>
-                <label className="text-gray-400 text-sm">Selected Subject</label>
-                <p className="text-white font-semibold text-lg">
+                <p className="text-gray-300 text-sm font-bold uppercase tracking-wide">Current Subject</p>
+                <p className="text-white font-bold text-2xl mt-1">
                   {selectedSubjectData?.name || 'Select a subject'}
                 </p>
               </div>
             </div>
-            <div className="flex-1 md:ml-8">
+            <div className="w-full md:w-64">
               <Select
+                label="Switch Subject"
                 value={selectedSubject}
                 onChange={(e) => setSelectedSubject(e.target.value)}
                 options={[
@@ -374,169 +376,173 @@ const TeacherGrades: React.FC = () => {
         {/* Filters */}
         {selectedSubject && !initialLoading && (
           <Card>
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex-1">
-                <Input
-                  placeholder="Search by student name..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  icon={<Search size={18} />}
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="md:col-span-2">
+                  <Input
+                    label="Search Students"
+                    placeholder="Enter student name..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    icon={<Search size={18} />}
+                  />
+                </div>
+                <Select
+                  label="Year Level"
+                  value={gradeLevelFilter}
+                  onChange={(e) => setGradeLevelFilter(e.target.value)}
+                  options={GRADE_LEVELS}
+                />
+                <Select
+                  label="Section"
+                  value={sectionFilter}
+                  onChange={(e) => setSectionFilter(e.target.value)}
+                  options={SECTIONS}
                 />
               </div>
-              <Select
-                value={gradeLevelFilter}
-                onChange={(e) => setGradeLevelFilter(e.target.value)}
-                options={GRADE_LEVELS}
-                className="w-full md:w-44"
-              />
-              <Select
-                value={sectionFilter}
-                onChange={(e) => setSectionFilter(e.target.value)}
-                options={SECTIONS}
-                className="w-full md:w-36"
-              />
-            </div>
-            <div className="mt-3 flex items-center justify-between text-sm">
-              <span className="text-gray-400">
-                Showing <span className="text-white font-medium">{filteredStudents.length}</span> of{' '}
-                <span className="text-white font-medium">{enrolledStudents.length}</span> enrolled students
-              </span>
-              <span className="text-gray-400">
-                Grades entered: <span className="text-gold-400 font-medium">{allGrades.length}</span>
-              </span>
+              <div className="bg-black/30 rounded-xl p-4 border border-maroon-600/30 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div className="flex flex-col gap-2">
+                  <span className="text-gray-300 text-sm font-bold">Students Found</span>
+                  <span className="text-white font-bold text-2xl">{filteredStudents.length} <span className="text-gray-400 text-base font-normal">of {enrolledStudents.length}</span></span>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <span className="text-gray-300 text-sm font-bold">Grades Recorded</span>
+                  <span className="text-gold-300 font-bold text-2xl">{allGrades.length} <span className="text-gray-400 text-base font-normal">entries</span></span>
+                </div>
+              </div>
             </div>
           </Card>
         )}
 
         {/* Students Grid - Card Layout */}
         {initialLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[1, 2, 3, 4, 5, 6].map(i => <CardSkeleton key={i} />)}
+          <div className="flex items-center justify-center min-h-96">
+            <LoadingSpinner size="lg" text="Loading student records..." />
           </div>
         ) : selectedSubject ? (
           filteredStudents.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">
               {filteredStudents.map(es => {
                 const student = es.student;
                 const studentRecordId = student?.id;
                 const studentGrades = getAllStudentGrades(studentRecordId);
                 const averageGrade = getAverageGrade(studentGrades);
                 const hasGrades = studentGrades.length > 0;
+                const avgGradeNum = averageGrade ? parseFloat(averageGrade) : null;
+                const gradeStatus = getGradeStatus(avgGradeNum);
                 
                 return (
                   <Card 
                     key={es.id} 
-                    className={`bg-white/5 backdrop-blur-md border transition-all duration-300 hover:shadow-xl hover:shadow-gold-500/10 ${
-                      hasGrades ? 'border-gold-500/30' : 'border-white/10'
-                    }`}
+                    className={`transition-all duration-300 hover:shadow-xl hover:shadow-gold-500/30 ${hasGrades ? 'border-gold-500/60' : 'border-maroon-600/50'}`}
                   >
-                    {/* Header */}
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${getGradeColor(averageGrade ? parseFloat(averageGrade) : null)} flex flex-col items-center justify-center text-white font-bold shadow-lg`}>
-                          {averageGrade ? (
+                    {/* Card Header - Student Info */}
+                    <div className="pb-6 border-b border-maroon-600/30">
+                      <div className="flex items-start gap-6">
+                        {/* Avatar with Grade */}
+                        <div className={`w-24 h-24 rounded-2xl bg-gradient-to-br ${getGradeColor(avgGradeNum)} flex flex-col items-center justify-center text-white font-bold shadow-lg flex-shrink-0`}>
+                          {avgGradeNum ? (
                             <>
-                              <span className="text-lg leading-none">{averageGrade}</span>
-                              <span className="text-[10px] font-normal opacity-80">AVG</span>
+                              <span className="text-5xl leading-none">{averageGrade}</span>
+                              <span className="text-xs font-normal opacity-90 mt-1">AVERAGE</span>
                             </>
                           ) : (
-                            <span className="text-lg">--</span>
+                            <>
+                              <span className="text-5xl leading-none">--</span>
+                              <span className="text-xs font-normal opacity-90 mt-1">NO GRADE</span>
+                            </>
                           )}
                         </div>
-                        <div>
-                          <h3 className="text-white font-semibold text-lg">
+                        
+                        {/* Student Details */}
+                        <div className="flex-1">
+                          <h3 className="text-white font-bold text-2xl mb-3">
                             {student?.first_name || ''} {student?.last_name || ''}
                           </h3>
-                          <div className="flex items-center gap-2 text-gray-400 text-sm">
-                            <GraduationCap size={14} />
-                            <span>{student?.grade_level || 'N/A'}</span>
-                            <span className="text-gold-500">•</span>
-                            <span>{student?.section || 'N/A'}</span>
+                          <div className="grid grid-cols-2 gap-4 mb-4">
+                            <div className="bg-black/30 rounded-lg p-3">
+                              <p className="text-gray-400 text-xs font-bold uppercase mb-1">Year Level</p>
+                              <p className="text-white font-bold text-lg">{student?.grade_level || 'N/A'}</p>
+                            </div>
+                            <div className="bg-black/30 rounded-lg p-3">
+                              <p className="text-gray-400 text-xs font-bold uppercase mb-1">Section</p>
+                              <p className="text-white font-bold text-lg">{student?.section || 'N/A'}</p>
+                            </div>
                           </div>
+                          <Badge 
+                            variant={gradeStatus.variant} 
+                            size="md"
+                            className="inline-flex items-center gap-2"
+                          >
+                            <gradeStatus.icon size={16} />
+                            {gradeStatus.label}
+                          </Badge>
                         </div>
                       </div>
                     </div>
 
-                    {/* All Quarters Grade Grid */}
-                    <div className="mb-4">
-                      <div className="flex items-center gap-2 mb-3">
-                        <BookOpen size={16} className="text-gold-400" />
-                        <span className="text-gray-400 text-sm">{es.subject?.name || 'Subject'}</span>
-                      </div>
-                      
-                      {/* Semester 1 - Quarters 1 & 2 */}
-                      <div className="mb-2">
-                        <div className="text-xs text-gold-500 mb-1 font-medium">1st Semester</div>
-                        <div className="grid grid-cols-2 gap-2">
-                          {[1, 2].map(q => {
-                            const gradeData = getGradeByQuarter(studentGrades, 1, q);
-                            return (
-                              <button
-                                key={`sem1-q${q}`}
-                                onClick={() => gradeData ? openEditModal(gradeData) : openGradeModalWithQuarter(studentRecordId, 1, q)}
-                                className={`py-2 px-2 rounded-lg border transition-all text-center ${
-                                  gradeData 
-                                    ? 'bg-white/10 border-gold-500/30 hover:border-gold-500' 
-                                    : 'bg-white/5 border-white/10 hover:border-white/30'
-                                }`}
-                              >
-                                <div className="text-[10px] text-gray-400 mb-1">Q{q}</div>
-                                <div className={`text-lg font-bold ${gradeData ? 'text-white' : 'text-gray-500'}`}>
-                                  {gradeData?.grade || '--'}
-                                </div>
-                              </button>
-                            );
-                          })}
+                    {/* Subject & Grade Grid */}
+                    <div className="py-6 border-b border-maroon-600/30">
+                      <div className="flex items-center gap-3 mb-5">
+                        <div className="p-2 bg-gold-500/25 rounded-lg">
+                          <BookOpen size={20} className="text-gold-400" />
+                        </div>
+                        <div>
+                          <p className="text-gray-300 text-xs font-bold uppercase">Subject</p>
+                          <p className="text-white font-bold text-lg">{es.subject?.name || 'Subject'}</p>
                         </div>
                       </div>
                       
-                      {/* Semester 2 - Quarters 3 & 4 */}
-                      <div>
-                        <div className="text-xs text-gold-500 mb-1 font-medium">2nd Semester</div>
-                        <div className="grid grid-cols-2 gap-2">
-                          {[3, 4].map(q => {
-                            const gradeData = getGradeByQuarter(studentGrades, 2, q);
-                            return (
-                              <button
-                                key={`sem2-q${q}`}
-                                onClick={() => gradeData ? openEditModal(gradeData) : openGradeModalWithQuarter(studentRecordId, 2, q)}
-                                className={`py-2 px-2 rounded-lg border transition-all text-center ${
-                                  gradeData 
-                                    ? 'bg-white/10 border-gold-500/30 hover:border-gold-500' 
-                                    : 'bg-white/5 border-white/10 hover:border-white/30'
-                                }`}
-                              >
-                                <div className="text-[10px] text-gray-400 mb-1">Q{q}</div>
-                                <div className={`text-lg font-bold ${gradeData ? 'text-white' : 'text-gray-500'}`}>
-                                  {gradeData?.grade || '--'}
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
+                      {/* Grade Grid - All 4 Quarters */}
+                      <div className="grid grid-cols-4 gap-3">
+                        {[1, 2, 3, 4].map(q => {
+                          const semester = 1;
+                          const quarter = q;
+                          const gradeData = getGradeByQuarter(studentGrades, semester, quarter);
+                          return (
+                            <button
+                              key={`q${q}`}
+                              onClick={() => gradeData ? openEditModal(gradeData) : openGradeModalWithQuarter(studentRecordId, semester, quarter)}
+                              className={`py-4 px-3 rounded-xl border-2 transition-all text-center font-semibold ${
+                                gradeData 
+                                  ? 'bg-gold-500/20 border-gold-500/60 hover:border-gold-500 hover:bg-gold-500/30' 
+                                  : 'bg-white/5 border-maroon-600/40 hover:bg-white/10 hover:border-maroon-500/60'
+                              }`}
+                            >
+                              <div className="text-xs text-gray-400 mb-2 uppercase">Q{q}</div>
+                              <div className={`text-2xl font-bold ${
+                                gradeData ? 'text-white' : 'text-gray-500'
+                              }`}>
+                                {gradeData?.grade || '--'}
+                              </div>
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
 
-                    {/* Status & Actions */}
-                    <div className="flex items-center justify-between pt-3 border-t border-white/10">
+                    {/* Card Footer - Status & Action */}
+                    <div className="pt-6 flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         {hasGrades ? (
-                          <span className="text-green-400 text-sm flex items-center gap-1">
-                            <CheckCircle size={14} />
-                            {studentGrades.length}/4 grades
-                          </span>
+                          <div className="flex items-center gap-2 text-green-300 font-semibold">
+                            <CheckCircle size={20} />
+                            <span>{studentGrades.length} of 4 Recorded</span>
+                          </div>
                         ) : (
-                          <span className="text-yellow-400 text-sm flex items-center gap-1">
-                            <AlertCircle size={14} />
-                            No grades
-                          </span>
+                          <div className="flex items-center gap-2 text-yellow-300 font-semibold">
+                            <AlertCircle size={20} />
+                            <span>No Grades Yet</span>
+                          </div>
                         )}
                       </div>
                       <Button 
                         onClick={() => openGradeModal(studentRecordId)} 
-                        size="sm"
+                        size="md"
+                        className="ml-auto"
                       >
-                        Encode
+                        <Plus size={18} />
+                        Add Grade
                       </Button>
                     </div>
                   </Card>
@@ -570,28 +576,17 @@ const TeacherGrades: React.FC = () => {
         title="Encode Student Grade"
       >
         <form onSubmit={handleEncodeGrade} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <Select
-              label="Semester"
-              value={gradeForm.semester}
-              onChange={(e) => setGradeForm({ ...gradeForm, semester: e.target.value })}
-              options={[
-                { value: '1', label: '1st Semester' },
-                { value: '2', label: '2nd Semester' },
-              ]}
-            />
-            <Select
-              label="Quarter"
-              value={gradeForm.quarter}
-              onChange={(e) => setGradeForm({ ...gradeForm, quarter: e.target.value })}
-              options={[
-                { value: '1', label: '1st Quarter' },
-                { value: '2', label: '2nd Quarter' },
-                { value: '3', label: '3rd Quarter' },
-                { value: '4', label: '4th Quarter' },
-              ]}
-            />
-          </div>
+          <Select
+            label="Quarter"
+            value={gradeForm.quarter}
+            onChange={(e) => setGradeForm({ ...gradeForm, quarter: e.target.value })}
+            options={[
+              { value: '1', label: '1st Quarter' },
+              { value: '2', label: '2nd Quarter' },
+              { value: '3', label: '3rd Quarter' },
+              { value: '4', label: '4th Quarter' },
+            ]}
+          />
           <Input
             label="Grade (0-100)"
             type="number"
@@ -626,28 +621,17 @@ const TeacherGrades: React.FC = () => {
         title="Edit Student Grade"
       >
         <form onSubmit={handleUpdateGrade} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <Select
-              label="Semester"
-              value={editGradeForm.semester}
-              onChange={(e) => setEditGradeForm({ ...editGradeForm, semester: e.target.value })}
-              options={[
-                { value: '1', label: '1st Semester' },
-                { value: '2', label: '2nd Semester' },
-              ]}
-            />
-            <Select
-              label="Quarter"
-              value={editGradeForm.quarter}
-              onChange={(e) => setEditGradeForm({ ...editGradeForm, quarter: e.target.value })}
-              options={[
-                { value: '1', label: '1st Quarter' },
-                { value: '2', label: '2nd Quarter' },
-                { value: '3', label: '3rd Quarter' },
-                { value: '4', label: '4th Quarter' },
-              ]}
-            />
-          </div>
+          <Select
+            label="Quarter"
+            value={editGradeForm.quarter}
+            onChange={(e) => setEditGradeForm({ ...editGradeForm, quarter: e.target.value })}
+            options={[
+              { value: '1', label: '1st Quarter' },
+              { value: '2', label: '2nd Quarter' },
+              { value: '3', label: '3rd Quarter' },
+              { value: '4', label: '4th Quarter' },
+            ]}
+          />
           <Input
             label="Grade (0-100)"
             type="number"

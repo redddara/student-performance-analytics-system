@@ -128,7 +128,6 @@ const StudentDashboard: React.FC = () => {
             <div>
               <p className="text-gray-300 text-lg">General Weighted Average</p>
               <p className="text-6xl font-bold text-white mt-2">{gwa.toFixed(2)}</p>
-              <Badge variant={status.variant} className="mt-3">{status.label}</Badge>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <StatCard

@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from '../../store';
 import { DashboardLayout } from '../../components/layouts';
-import { Card, Badge, Button, Table, Select } from '../../components/ui';
+import { Card, Badge, Button, Table, Select, Modal } from '../../components/ui';
 import { 
   BookOpen, 
   Users, 
   GraduationCap,
-  ClipboardList
+  ClipboardList,
+  X
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
@@ -15,6 +16,7 @@ const TeacherSubjects: React.FC = () => {
   const [mySubjects, setMySubjects] = useState<any[]>([]);
   const [selectedSubject, setSelectedSubject] = useState('');
   const [enrolledStudents, setEnrolledStudents] = useState<any[]>([]);
+  const [studentGradesModal, setStudentGradesModal] = useState<any>(null);
 
   useEffect(() => {
     if (user) {
@@ -36,6 +38,11 @@ const TeacherSubjects: React.FC = () => {
       .eq('subject_id', selectedSubject);
     
     if (data) setEnrolledStudents(data);
+  };
+
+  const viewStudentGrades = (student: any) => {
+    const studentGrades = grades.filter(g => g.student_id === student.id && g.subject_id === selectedSubject);
+    setStudentGradesModal({ student, grades: studentGrades });
   };
 
   const getSubjectStats = (subjectId: string) => {
@@ -139,7 +146,7 @@ const TeacherSubjects: React.FC = () => {
                       {es.student?.section || '-'}
                     </td>
                     <td className="px-4 py-3">
-                      <Button size="sm" variant="secondary">
+                      <Button size="sm" variant="secondary" onClick={() => viewStudentGrades(es.student)}>
                         View Grades
                       </Button>
                     </td>
@@ -154,6 +161,42 @@ const TeacherSubjects: React.FC = () => {
           </Card>
         )}
       </div>
+
+      {/* View Grades Modal */}
+      <Modal
+        isOpen={!!studentGradesModal}
+        onClose={() => setStudentGradesModal(null)}
+        title={studentGradesModal ? `Grades - ${studentGradesModal.student.first_name} ${studentGradesModal.student.last_name}` : ''}
+      >
+        {studentGradesModal && (
+          <div className="space-y-4">
+            {studentGradesModal.grades.length > 0 ? (
+              <div className="space-y-3">
+                {studentGradesModal.grades.map((grade: any) => (
+                  <div key={grade.id} className="bg-black/30 rounded-lg p-4 border border-maroon-600/30 flex items-center justify-between">
+                    <div>
+                      <p className="text-gray-300 text-sm">
+                        <span className="font-bold text-white">Q{grade.quarter}</span>
+                        <span className="text-gray-400 ml-2">- Semester {grade.semester}</span>
+                      </p>
+                      {grade.remarks && (
+                        <p className="text-gray-400 text-xs mt-1">{grade.remarks}</p>
+                      )}
+                    </div>
+                    <div className="text-3xl font-bold text-gold-400">
+                      {grade.grade}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-400">
+                No grades recorded for this student
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
     </DashboardLayout>
   );
 };

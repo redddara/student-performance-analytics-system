@@ -83,6 +83,8 @@ const TeacherGrades: React.FC = () => {
   const [allGrades, setAllGrades] = useState<any[]>([]);
   const [selectedGrade, setSelectedGrade] = useState<any>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [batchGrades, setBatchGrades] = useState<{ [key: string]: { [key: number]: string } }>({});
   
   // Grade entry form
   const [gradeForm, setGradeForm] = useState({
@@ -295,6 +297,55 @@ const TeacherGrades: React.FC = () => {
     setIsEditModalOpen(true);
   };
 
+  const handleBatchGradeChange = (studentId: string, quarter: number, value: string) => {
+    setBatchGrades(prev => ({
+      ...prev,
+      [studentId]: {
+        ...prev[studentId],
+        [quarter]: value
+      }
+    }));
+  };
+
+  const handleBatchSave = async () => {
+    setLoading(true);
+    try {
+      for (const studentId in batchGrades) {
+        for (const quarter in batchGrades[studentId]) {
+          const gradeValue = batchGrades[studentId][parseInt(quarter)];
+          if (gradeValue && gradeValue.trim()) {
+            const existingGrade = allGrades.find(
+              g => g.student_id === studentId && g.quarter === parseInt(quarter) && g.semester === 1
+            );
+
+            if (existingGrade) {
+              await supabase.from('grades').update({
+                grade: parseFloat(gradeValue)
+              }).eq('id', existingGrade.id);
+            } else {
+              await supabase.from('grades').insert({
+                student_id: studentId,
+                subject_id: selectedSubject,
+                semester: 1,
+                quarter: parseInt(quarter),
+                grade: parseFloat(gradeValue),
+                remarks: null
+              });
+            }
+          }
+        }
+      }
+      await fetchAllGrades();
+      setBatchGrades({});
+      alert('Grades saved successfully!');
+    } catch (err) {
+      console.error('Error saving batch grades:', err);
+      alert('Error saving grades');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const filteredStudents = enrolledStudents.filter(es => {
     const student = es.student;
     if (!student) return false;
@@ -414,7 +465,100 @@ const TeacherGrades: React.FC = () => {
           </Card>
         )}
 
-        {/* Students Grid - Card Layout */}
+        {/* View Toggle */}
+        {selectedSubject && !initialLoading && filteredStudents.length > 0 && (
+          <div className="flex gap-3 justify-end">
+            <Button 
+              variant={viewMode === 'cards' ? 'primary' : 'secondary'}
+              onClick={() => setViewMode('cards')}
+              size="md"
+            >
+              Card View
+            </Button>
+            <Button 
+              variant={viewMode === 'table' ? 'primary' : 'secondary'}
+              onClick={() => setViewMode('table')}
+              size="md"
+            >
+              Batch Entry
+            </Button>
+          </div>
+        )}
+
+        {/* Table View - Batch Entry */}
+        {viewMode === 'table' && selectedSubject && !initialLoading && filteredStudents.length > 0 && (
+          <Card>
+            <div className="space-y-4">
+              <h3 className="text-2xl font-bold text-white mb-6">Batch Grade Entry</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-maroon-600/50">
+                      <th className="px-4 py-4 text-left text-white font-bold text-lg">Student Name</th>
+                      <th className="px-4 py-4 text-center text-gold-300 font-bold text-lg">Q1</th>
+                      <th className="px-4 py-4 text-center text-gold-300 font-bold text-lg">Q2</th>
+                      <th className="px-4 py-4 text-center text-gold-300 font-bold text-lg">Q3</th>
+                      <th className="px-4 py-4 text-center text-gold-300 font-bold text-lg">Q4</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredStudents.map(es => {
+                      const student = es.student;
+                      const studentGrades = getAllStudentGrades(student?.id);
+                      return (
+                        <tr key={es.id} className="border-b border-maroon-600/30 hover:bg-white/5">
+                          <td className="px-4 py-4">
+                            <p className="text-white font-semibold text-lg">
+                              {student?.first_name} {student?.last_name}
+                            </p>
+                            <p className="text-gray-400 text-sm">{student?.grade_level} - {student?.section}</p>
+                          </td>
+                          {[1, 2, 3, 4].map(q => {
+                            const existingGrade = getGradeByQuarter(studentGrades, 1, q);
+                            return (
+                              <td key={`${es.id}-q${q}`} className="px-4 py-4 text-center">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  defaultValue={existingGrade?.grade || ''}
+                                  onChange={(e) => handleBatchGradeChange(student?.id, q, e.target.value)}
+                                  placeholder="--"
+                                  className="w-20 px-3 py-2 text-lg font-bold text-center rounded-lg bg-black/30 border-2 border-maroon-600/40 text-white focus:outline-none focus:ring-2 focus:ring-gold-400"
+                                />
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex gap-3 pt-4">
+                <Button 
+                  variant="secondary" 
+                  onClick={() => {
+                    setViewMode('cards');
+                    setBatchGrades({});
+                  }}
+                  size="lg"
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleBatchSave}
+                  disabled={loading || Object.keys(batchGrades).length === 0}
+                  size="lg"
+                  className="flex-1"
+                >
+                  {loading ? <Loader2 className="animate-spin" size={20} /> : 'Save All Grades'}
+                </Button>
+              </div>
+            </div>
+          </Card>
+        )}
         {initialLoading ? (
           <div className="flex items-center justify-center min-h-96">
             <LoadingSpinner size="lg" text="Loading student records..." />

@@ -104,7 +104,7 @@ export const DashboardLayout: React.FC<LayoutProps> = ({ children }) => {
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-maroon-600 to-gold-500 flex items-center justify-center">
               <GraduationCap className="text-white" size={24} />
             </div>
-            <span className="text-xl font-bold text-white">EduAnalytics</span>
+            <span className="text-xl font-bold text-white">PhilTech</span>
           </div>
 
           {/* Navigation */}

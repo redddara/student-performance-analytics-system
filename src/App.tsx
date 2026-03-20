@@ -10,6 +10,7 @@ import AdminUsers from './pages/admin/Users';
 import AdminCourses from './pages/admin/Courses';
 import AdminSubjects from './pages/admin/Subjects';
 import AdminAnalytics from './pages/admin/Analytics';
+import AdminEnrollment from './pages/admin/Enrollment';
 
 // Teacher Pages
 import TeacherDashboard from './pages/teacher/Dashboard';
@@ -47,6 +48,7 @@ function App() {
         <Route path="/admin/users" element={<AdminUsers />} />
         <Route path="/admin/courses" element={<AdminCourses />} />
         <Route path="/admin/subjects" element={<AdminSubjects />} />
+        <Route path="/admin/enrollment" element={<AdminEnrollment />} />
         <Route path="/admin/analytics" element={<AdminAnalytics />} />
 
         {/* Teacher Routes */}

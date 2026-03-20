@@ -1,18 +1,17 @@
 import { createClient } from '@supabase/supabase-js';
 
-// ✅ Read from Vite environment variables
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseUrl = 'https://xlmlrplyfizfhklhaicc.supabase.co';
+const supabaseAnonKey = 'sb_publishable_4cdLLPqeL0NxFsSeqxShtQ_7rFBahBD';
 
-// Initialize Supabase client
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Auth functions
 export const signUp = async (email: string, password: string, name: string, role: string) => {
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: { data: { name, role } }
+    options: {
+      data: { name, role }
+    }
   });
   return { data, error };
 };

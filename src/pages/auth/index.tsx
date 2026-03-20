@@ -121,7 +121,7 @@ export const LoginPage: React.FC = () => {
 
       <Card className="bg-black/30 backdrop-blur-xl border border-maroon-800/30">
         <p className="text-gray-400 text-sm text-center">
-          Demo: Contact admin to create accounts
+          Teachers and Admins: Contact your administrator for account creation.
         </p>
       </Card>
     </div>
@@ -134,9 +134,12 @@ export const RegisterPage: React.FC = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('student');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Security fix: Only students can self-register
+  // Teachers and Admins must be created by existing admins
+  const role = 'student';
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -164,17 +167,15 @@ export const RegisterPage: React.FC = () => {
           password_hash: 'managed_by_auth'
         });
 
-        if (role === 'student') {
-          const firstName = name.split(' ')[0];
-          const lastName = name.split(' ').slice(1).join(' ') || '';
-          await supabase.from('students').insert({
-            user_id: data.user.id,
-            first_name: firstName,
-            last_name: lastName,
-            grade_level: '1',
-            section: 'A'
-          });
-        }
+        const firstName = name.split(' ')[0];
+        const lastName = name.split(' ').slice(1).join(' ') || '';
+        await supabase.from('students').insert({
+          user_id: data.user.id,
+          first_name: firstName,
+          last_name: lastName,
+          grade_level: '1st-Year',
+          section: '1m1'
+        });
 
         const { data: loginData } = await supabase.auth.signInWithPassword({
           email,
@@ -261,16 +262,9 @@ export const RegisterPage: React.FC = () => {
             required
           />
 
-          <Select
-            label="Role"
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
-            options={[
-              { value: 'student', label: 'Student' },
-              { value: 'teacher', label: 'Teacher' },
-              { value: 'admin', label: 'Admin' },
-            ]}
-          />
+          <p className="text-gray-400 text-sm">
+            Only students can register. Teachers and admins are created by administrators.
+          </p>
 
           <Button
             type="submit"

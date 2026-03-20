@@ -20,13 +20,36 @@ import {
 } from 'lucide-react';
 
 const AdminAnalytics: React.FC = () => {
-  const { analytics, subjects, grades, students, fetchAnalytics, calculateGWA } = useStore();
+  const { analytics, subjects, grades, students, fetchAnalytics, calculateGWA, fetchGrades, fetchSubjects, fetchStudents } = useStore();
   const [subjectFilter, setSubjectFilter] = useState('all');
   const [semesterFilter, setSemesterFilter] = useState('all');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchAnalytics();
-  }, [subjects, grades]);
+    const initializeData = async () => {
+      try {
+        // Fetch all required data first
+        await Promise.all([
+          fetchStudents(),
+          fetchSubjects(),
+          fetchGrades()
+        ]);
+      } catch (err) {
+        console.error('Error fetching initial data:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initializeData();
+  }, []);
+
+  useEffect(() => {
+    // Recalculate analytics whenever data changes
+    if (grades.length > 0 || students.length > 0) {
+      fetchAnalytics();
+    }
+  }, [subjects, grades, students, fetchGrades, fetchSubjects, fetchStudents, fetchAnalytics]);
 
   const mockPerformanceTrend = [
     { month: 'Jan', avgGrade: 78 },
@@ -79,8 +102,14 @@ const AdminAnalytics: React.FC = () => {
           <p className="text-gray-400 mt-2">Comprehensive academic performance insights</p>
         </div>
 
-        {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {loading ? (
+          <div className="text-center py-12">
+            <p className="text-gray-400">Loading analytics data...</p>
+          </div>
+        ) : (
+          <>
+            {/* Stats Overview */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard
             title="Total Students"
             value={students.length}
@@ -214,10 +243,11 @@ const AdminAnalytics: React.FC = () => {
             </Table>
           </Card>
         </div>
+        </>
+        )}
       </div>
     </DashboardLayout>
   );
 };
 
 export default AdminAnalytics;
-    

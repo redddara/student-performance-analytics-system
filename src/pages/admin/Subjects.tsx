@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useStore } from '../../store';
 import { DashboardLayout } from '../../components/layouts';
 import { Card, Button, Input, Select, Modal, Table, Badge } from '../../components/ui';
@@ -7,17 +7,22 @@ import {
   Plus, 
   Search,
   Trash2,
+  Edit,
   X,
-  User
+  User,
+  BookOpen
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 const AdminSubjects: React.FC = () => {
-  const { subjects, courses, createSubject, fetchSubjects, fetchCourses } = useStore();
+  const { subjects, courses, fetchSubjects, fetchCourses } = useStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [courseFilter, setCourseFilter] = useState('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [selectedSubject, setSelectedSubject] = useState<any>(null);
+  const [teachers, setTeachers] = useState<any[]>([]);
   
   const [newSubject, setNewSubject] = useState({
     name: '',
@@ -25,10 +30,15 @@ const AdminSubjects: React.FC = () => {
     teacherId: ''
   });
 
-  const [teachers, setTeachers] = useState<any[]>([]);
+  const [editSubject, setEditSubject] = useState({
+    name: '',
+    courseId: '',
+    teacherId: ''
+  });
 
-  React.useEffect(() => {
+  useEffect(() => {
     fetchTeachers();
+    fetchCourses();
   }, []);
 
   const fetchTeachers = async () => {
@@ -41,7 +51,12 @@ const AdminSubjects: React.FC = () => {
     setLoading(true);
     
     try {
-      await createSubject(newSubject.name, newSubject.courseId, newSubject.teacherId || undefined);
+      await supabase.from('subjects').insert({
+        name: newSubject.name,
+        course_id: newSubject.courseId,
+        teacher_id: newSubject.teacherId || null
+      });
+      await fetchSubjects();
       setIsModalOpen(false);
       setNewSubject({ name: '', courseId: '', teacherId: '' });
     } catch (err) {
@@ -51,6 +66,36 @@ const AdminSubjects: React.FC = () => {
     }
   };
 
+  const handleUpdateSubject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    
+    try {
+      await supabase.from('subjects').update({
+        name: editSubject.name,
+        course_id: editSubject.courseId,
+        teacher_id: editSubject.teacherId || null
+      }).eq('id', selectedSubject.id);
+      await fetchSubjects();
+      setIsEditModalOpen(false);
+      setSelectedSubject(null);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openEditModal = (subject: any) => {
+    setSelectedSubject(subject);
+    setEditSubject({
+      name: subject.name,
+      courseId: subject.course_id,
+      teacherId: subject.teacher_id || ''
+    });
+    setIsEditModalOpen(true);
+  };
+
   const handleDeleteSubject = async (subjectId: string) => {
     if (!confirm('Are you sure you want to delete this subject?')) return;
     await supabase.from('subjects').delete().eq('id', subjectId);
@@ -58,7 +103,7 @@ const AdminSubjects: React.FC = () => {
   };
 
   const filteredSubjects = subjects.filter(subject => {
-    const matchesSearch = subject.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = subject.name?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCourse = courseFilter === 'all' || subject.course_id === courseFilter;
     return matchesSearch && matchesCourse;
   });
@@ -109,7 +154,7 @@ const AdminSubjects: React.FC = () => {
               <tr key={subject.id} className="hover:bg-white/5 transition-colors">
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center text-purple-300">
+                    <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center text-purple-300"> 
                       <ClipboardList size={18} />
                     </div>
                     <span className="text-white font-medium">{subject.name}</span>
@@ -126,24 +171,35 @@ const AdminSubjects: React.FC = () => {
                   )}
                 </td>
                 <td className="px-4 py-3">
-                  <button
-                    onClick={() => handleDeleteSubject(subject.id)}
-                    className="p-2 rounded-lg text-red-400 hover:bg-red-500/10 transition-colors"
-                  >
-                    <Trash2 size={18} />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => openEditModal(subject)}
+                      className="p-2 rounded-lg text-gold-400 hover:bg-gold-500/10 transition-colors"
+                      title="Edit Subject"
+                    >
+                      <Edit size={18} />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteSubject(subject.id)}
+                      className="p-2 rounded-lg text-red-400 hover:bg-red-500/10 transition-colors"
+                      title="Delete Subject"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
           </Table>
           {filteredSubjects.length === 0 && (
             <div className="text-center py-8 text-gray-400">
-              No subjects found
+              No subjects found. Create your first subject!
             </div>
           )}
         </Card>
       </div>
 
+      {/* Add Subject Modal */}
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -165,6 +221,7 @@ const AdminSubjects: React.FC = () => {
               { value: '', label: 'Select Course' },
               ...courses.map(c => ({ value: c.id, label: c.name }))
             ]}
+            required
           />
           <Select
             label="Assign Teacher (Optional)"
@@ -172,15 +229,58 @@ const AdminSubjects: React.FC = () => {
             onChange={(e) => setNewSubject({ ...newSubject, teacherId: e.target.value })}
             options={[
               { value: '', label: 'No Teacher Assigned' },
-              ...teachers.map(t => ({ value: t.id, label: t.name }))
+              ...teachers.map(t => ({ value: t.id, label: t.name || t.email }))
             ]}
           />
           <div className="flex gap-3 pt-4">
             <Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)} className="flex-1">
               Cancel
             </Button>
-            <Button type="submit" disabled={loading || !newSubject.courseId} className="flex-1">
+            <Button type="submit" disabled={loading} className="flex-1">
               {loading ? 'Creating...' : 'Create Subject'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Edit Subject Modal */}
+      <Modal
+        isOpen={isEditModalOpen}
+        onClose={() => { setIsEditModalOpen(false); setSelectedSubject(null); }}
+        title="Edit Subject"
+      >
+        <form onSubmit={handleUpdateSubject} className="space-y-4">
+          <Input
+            label="Subject Name"
+            value={editSubject.name}
+            onChange={(e) => setEditSubject({ ...editSubject, name: e.target.value })}
+            required
+          />
+          <Select
+            label="Course"
+            value={editSubject.courseId}
+            onChange={(e) => setEditSubject({ ...editSubject, courseId: e.target.value })}
+            options={[
+              { value: '', label: 'Select Course' },
+              ...courses.map(c => ({ value: c.id, label: c.name }))
+            ]}
+            required
+          />
+          <Select
+            label="Assign Teacher (Optional)"
+            value={editSubject.teacherId}
+            onChange={(e) => setEditSubject({ ...editSubject, teacherId: e.target.value })}
+            options={[
+              { value: '', label: 'No Teacher Assigned' },
+              ...teachers.map(t => ({ value: t.id, label: t.name || t.email }))
+            ]}
+          />
+          <div className="flex gap-3 pt-4">
+            <Button type="button" variant="secondary" onClick={() => { setIsEditModalOpen(false); setSelectedSubject(null); }} className="flex-1">
+              Cancel
+            </Button>
+            <Button type="submit" disabled={loading} className="flex-1">
+              {loading ? 'Saving...' : 'Save Changes'}
             </Button>
           </div>
         </form>

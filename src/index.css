@@ -20,48 +20,59 @@ body {
   -moz-osx-font-smoothing: grayscale;
   background: linear-gradient(135deg, #0a0a0a 0%, #1a0a0a 50%, #0d0d0d 100%);
   min-height: 100vh;
+  font-size: 16px;
+  line-height: 1.6;
 }
 
-/* Glassmorphism utilities */
+/* Enhanced Glassmorphism utilities - LIGHT version for accessibility */
 @layer utilities {
+  /* Light glassmorphism - minimal blur for clarity */
   .glass {
-    @apply bg-white/10 backdrop-blur-lg border border-white/20;
+    @apply bg-white/5 backdrop-blur-sm border border-white/20;
   }
   
+  /* Light dark glass */
   .glass-dark {
-    @apply bg-black/40 backdrop-blur-xl border border-maroon-800/30;
+    @apply bg-black/20 backdrop-blur-sm border border-maroon-700/40;
   }
 
+  /* Light maroon glass */
   .glass-maroon {
-    @apply bg-maroon-950/60 backdrop-blur-xl border border-maroon-700/40;
+    @apply bg-maroon-950/40 backdrop-blur-sm border border-maroon-600/60;
   }
 
+  /* Light gold glass */
   .glass-gold {
-    @apply bg-gold-950/40 backdrop-blur-xl border border-gold-600/30;
+    @apply bg-gold-950/30 backdrop-blur-sm border border-gold-500/60;
+  }
+
+  /* Accessible focus states with better visibility */
+  .focus-ring {
+    @apply focus:outline-none focus:ring-3 focus:ring-gold-400 focus:ring-offset-2 focus:ring-offset-maroon-950;
   }
 }
 
-/* Custom scrollbar */
+/* Custom scrollbar - improved visibility */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 12px;
+  height: 12px;
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(139, 8, 8, 0.1);
-  border-radius: 4px;
+  background: rgba(139, 8, 8, 0.15);
+  border-radius: 6px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #8c1818 0%, #df4444 100%);
-  border-radius: 4px;
+  background: linear-gradient(180deg, #d92323 0%, #df4444 100%);
+  border-radius: 6px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #b31b1b 0%, #e87a7a 100%);
+  background: linear-gradient(180deg, #e87a7a 0%, #ffd000 100%);
 }
 
-/* Animation utilities */
+/* Enhanced animation utilities */
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -73,19 +84,49 @@ body {
   }
 }
 
+@keyframes slideInFromLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(212, 165, 0, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(212, 165, 0, 0.6);
+  }
+}
+
 .animate-fadeIn {
   animation: fadeIn 0.3s ease-out;
 }
 
-/* Custom focus styles */
+.animate-slideInFromLeft {
+  animation: slideInFromLeft 0.4s ease-out;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Improved focus styles for accessibility */
 *:focus-visible {
-  outline: 2px solid rgba(212, 165, 0, 0.5);
+  outline: 3px solid #ffd000;
   outline-offset: 2px;
 }
 
 /* Input and select styling */
 input, select, textarea {
   color-scheme: dark;
+  font-size: 16px;
+  line-height: 1.5;
 }
 
 /* Smooth transitions */
@@ -93,9 +134,13 @@ a, button {
   transition: all 0.2s ease;
 }
 
-/* Gold glow effect */
+/* Gold glow effect - enhanced */
 .gold-glow {
-  box-shadow: 0 0 20px rgba(212, 165, 0, 0.3);
+  box-shadow: 0 0 20px rgba(212, 165, 0, 0.4);
+}
+
+.gold-glow-strong {
+  box-shadow: 0 0 30px rgba(212, 165, 0, 0.6);
 }
 
 /* Maroon gradient text */
@@ -112,4 +157,83 @@ a, button {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+
+/* Accessibility helpers */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* High contrast text for better readability */
+.text-readable-light {
+  color: #ffffff;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+}
+
+.text-readable-medium {
+  color: #e5e5e5;
+  font-weight: 400;
+}
+
+.text-readable-dim {
+  color: #b0b0b0;
+  font-weight: 400;
+}
+
+/* Success/Error/Warning states - high contrast */
+.status-success {
+  @apply bg-green-500/20 border border-green-500/60 text-green-200;
+}
+
+.status-error {
+  @apply bg-red-500/20 border border-red-500/60 text-red-200;
+}
+
+.status-warning {
+  @apply bg-yellow-500/20 border border-yellow-500/60 text-yellow-200;
+}
+
+.status-info {
+  @apply bg-maroon-500/20 border border-maroon-500/60 text-maroon-200;
+}
+
+.status-success-dark {
+  @apply bg-green-500/10 border border-green-600/70 text-green-300;
+}
+
+.status-error-dark {
+  @apply bg-red-500/10 border border-red-600/70 text-red-300;
+}
+
+/* Improved button feedback */
+.btn-feedback {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-feedback::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+
+.btn-feedback:active::after {
+  width: 300px;
+  height: 300px;
 }

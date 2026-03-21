@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useStore } from '../../store';
-import { GraduationCap, Mail, Lock, ArrowRight } from 'lucide-react';
+import { Mail, Lock, ArrowRight } from 'lucide-react';
+import { Logo } from '../../components/Logo';
 import { Card, Button, Input, Select } from '../../components/ui';
 
 export const LoginPage: React.FC = () => {
@@ -65,12 +66,12 @@ export const LoginPage: React.FC = () => {
   return (
     <div className="space-y-8">
       {/* Logo */}
-      <div className="text-center">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-maroon-600 to-gold-500 mb-4">
-          <GraduationCap className="text-white" size={32} />
+      <div className="text-center mb-8">
+        <div className="mx-auto w-24 h-24 flex items-center justify-center mb-6">
+          <Logo className="w-20 h-20 max-w-none object-contain" />
         </div>
-        <h1 className="text-3xl font-bold text-white">Welcome Back</h1>
-        <p className="text-gray-400 mt-2">Sign in to your account to continue</p>
+        <h1 className="text-4xl font-bold bg-gradient-to-r from-gold-400 via-yellow-300 to-gold-500 bg-clip-text text-transparent mb-2">Welcome Back</h1>
+        <p className="text-gray-400 text-lg max-w-md mx-auto leading-relaxed">Sign in to your account to continue</p>
       </div>
 
       <Card className="bg-black/40 backdrop-blur-xl border border-maroon-800/50">
@@ -219,12 +220,12 @@ export const RegisterPage: React.FC = () => {
   return (
     <div className="space-y-8">
       {/* Logo */}
-      <div className="text-center">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-maroon-600 to-gold-500 mb-4">
-          <GraduationCap className="text-white" size={32} />
+      <div className="text-center mb-8">
+        <div className="mx-auto w-24 h-24 flex items-center justify-center mb-6">
+          <Logo className="w-20 h-20 max-w-none object-contain" />
         </div>
-        <h1 className="text-3xl font-bold text-white">Create Account</h1>
-        <p className="text-gray-400 mt-2">Join the academic analytics platform</p>
+        <h1 className="text-4xl font-bold bg-gradient-to-r from-gold-400 via-yellow-300 to-gold-500 bg-clip-text text-transparent mb-2">Create Account</h1>
+        <p className="text-gray-400 text-lg max-w-md mx-auto leading-relaxed">Join the academic analytics platform</p>
       </div>
 
       <Card className="bg-black/40 backdrop-blur-xl border border-maroon-800/50">

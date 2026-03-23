@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from '../../store';
 import { DashboardLayout } from '../../components/layouts';
-import { Card, StatCard, Select, Table, Badge } from '../../components/ui';
+import { Card, StatCard, Select, Table, Badge, Button } from '../../components/ui';
 import { 
   GradeDistributionChart, 
   PerformanceTrendChart,
   SubjectComparisonChart,
   QuarterlyPerformanceChart 
 } from '../../components/charts';
+import type { StudentPerformance } from '../../types';
+import type { Subject, Grade } from '../../types';
 import { 
   BookOpen, 
   GraduationCap, 
@@ -94,7 +96,7 @@ const TeacherAnalytics: React.FC = () => {
     });
   });
 
-  // Student performance
+  // Student performance - per subject evaluation (respects filters)
   const studentGradesMap = new Map();
   filteredGrades.forEach(g => {
     if (!studentGradesMap.has(g.student_id)) {
@@ -103,17 +105,41 @@ const TeacherAnalytics: React.FC = () => {
     studentGradesMap.get(g.student_id).push(g);
   });
 
-  const studentPerformance = Array.from(studentGradesMap.entries()).map(([studentId, studentGrades]: [string, any]) => {
+  const studentPerformance: StudentPerformance[] = Array.from(studentGradesMap.entries()).map(([studentId, studentGrades]) => {
     const student = students.find(s => s.id === studentId);
-    const avg = studentGrades.reduce((sum: number, g: any) => sum + Number(g.grade), 0) / studentGrades.length;
+    const avg = studentGrades.reduce((sum: number, g: Grade) => sum + Number(g.grade), 0) / studentGrades.length;
+    
+    // Group by subject and calculate average grade per subject
+    const subjectAvgMap = new Map<string, { subject: Subject; grades: number[] }>();
+    studentGrades.forEach((g: Grade) => {
+      const subjectId = g.subject_id;
+      if (!subjectAvgMap.has(subjectId)) {
+        subjectAvgMap.set(subjectId, { subject: g.subject!, grades: [] });
+      }
+      const current = subjectAvgMap.get(subjectId)!;
+      current.grades.push(Number(g.grade));
+    });
+
+    const weakSubjects: { subject: Subject; avgGrade: number }[] = [];
+    subjectAvgMap.forEach(({ subject, grades }) => {
+      const avgGrade = grades.reduce((sum: number, grade: number) => sum + grade, 0) / grades.length;
+      if (avgGrade < 75) {
+        weakSubjects.push({ subject, avgGrade: Math.round(avgGrade * 100) / 100 });
+      }
+    });
+    
+    const needsAttention = weakSubjects.length > 0;
+    
     return {
-      student,
-      avgGrade: Math.round(avg * 100) / 100
+      student: student!,
+      avgGrade: Math.round(avg * 100) / 100,
+      weakSubjects: weakSubjects as any, // Type compatible with original
+      needsAttention
     };
   }).sort((a, b) => b.avgGrade - a.avgGrade);
 
-  const topPerformers = studentPerformance.slice(0, 5);
-  const strugglingStudents = studentPerformance.filter(s => s.avgGrade < 75).slice(0, 5);
+  const topPerformers = studentPerformance.filter(s => !s.needsAttention).slice(0, 5);
+  const strugglingStudents = studentPerformance.filter(s => s.needsAttention).slice(0, 5);
 
   const mockTrend = [
     { month: 'Jan', avgGrade: avgGrade - 5 || 75 },
@@ -211,9 +237,9 @@ const TeacherAnalytics: React.FC = () => {
             </h3>
             <Table headers={['Student', 'Average Grade', 'Status']}>
               {topPerformers.map(({ student, avgGrade }) => (
-                <tr key={student?.id} className="hover:bg-white/5">
+                <tr key={student.id} className="hover:bg-white/5">
                   <td className="px-4 py-3 text-white">
-                    {student?.first_name} {student?.last_name}
+                    {student.first_name} {student.last_name}
                   </td>
                   <td className="px-4 py-3 text-indigo-300 font-semibold">
                     {avgGrade.toFixed(2)}
@@ -231,23 +257,50 @@ const TeacherAnalytics: React.FC = () => {
               <AlertTriangle className="text-red-400" size={24} />
               Needs Attention
             </h3>
-            <Table headers={['Student', 'Average Grade', 'Status']}>
-              {strugglingStudents.length > 0 ? strugglingStudents.map(({ student, avgGrade }) => (
-                <tr key={student?.id} className="hover:bg-white/5">
-                  <td className="px-4 py-3 text-white">
-                    {student?.first_name} {student?.last_name}
-                  </td>
-                  <td className="px-4 py-3 text-red-300 font-semibold">
-                    {avgGrade.toFixed(2)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge variant="danger">At Risk</Badge>
-                  </td>
-                </tr>
-              )) : (
+            {/* Summary */}
+            <div className="mb-6 p-4 bg-gradient-to-r from-red-500/20 to-orange-500/20 border-2 border-red-400/50 rounded-xl backdrop-blur-sm">
+              <div className="flex items-center gap-3">
+                <AlertTriangle className="w-6 h-6 text-red-400" />
+                <div>
+                  <p className="text-lg font-semibold text-white">{strugglingStudents.length} students need attention</p>
+                  <p className="text-sm text-orange-200">Focus on these students for intervention</p>
+                </div>
+              </div>
+            </div>
+
+            <Table headers={['Student', 'Overall Avg', 'Weak Subjects (Avg)', 'Priority', 'Action']}>
+              {strugglingStudents.length > 0 ? strugglingStudents.map(({ student, weakSubjects, avgGrade }) => {
+                const weakList = weakSubjects
+                  .map((ws: any) => `${ws.subject.name} (${ws.avgGrade.toFixed(1)})`)
+                  .join(', ');
+                const worstAvg = Math.min(...(weakSubjects as any[]).map(ws => ws.avgGrade));
+                const priorityVariant = worstAvg < 60 ? 'danger' : 'warning';
+                const priorityLabel = worstAvg < 60 ? 'High Risk' : 'Monitor';
+                return (
+                  <tr key={student.id} className="hover:bg-white/10 transition-all duration-200 border-l-4 border-red-400 hover:border-red-300">
+                    <td className="px-4 py-3 font-medium text-white max-w-xs truncate" title={`${student.first_name} ${student.last_name}`}>
+                      {student.first_name} {student.last_name}
+                    </td>
+                    <td className="px-4 py-3 text-indigo-300 font-semibold max-w-xs">
+                      {avgGrade.toFixed(1)}
+                    </td>
+                    <td className="px-4 py-3 text-red-300 max-w-lg truncate" title={weakList}>
+                      {weakList}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge variant={priorityVariant}>{priorityLabel}</Badge>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Button size="sm" variant="danger" className="text-red-50 hover:shadow-red-500/30">
+                        View Details
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              }) : (
                 <tr>
-                  <td colSpan={3} className="px-4 py-8 text-center text-gray-400">
-                    No struggling students
+                  <td colSpan={5} className="px-4 py-12 text-center text-gray-400">
+                    🎉 No students needing attention!
                   </td>
                 </tr>
               )}

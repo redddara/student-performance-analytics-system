@@ -57,6 +57,16 @@ export interface StudentSubject {
   subject?: Subject;
 }
 
+export interface StudentPerformance {
+  student: Student;
+  avgGrade: number;
+  weakSubjects: Array<{
+    subject: Subject;
+    grade: number;
+  }>;
+  needsAttention: boolean;
+}
+
 export interface AnalyticsData {
   totalStudents: number;
   totalTeachers: number;
@@ -65,8 +75,8 @@ export interface AnalyticsData {
   averageGWA: number;
   passingRate: number;
   failingRate: number;
-  topPerformers: Student[];
-  strugglingStudents: Student[];
+  topPerformers: StudentPerformance[];
+  strugglingStudents: StudentPerformance[];
   gradeDistribution: { range: string; count: number }[];
   performanceTrend: { month: string; avgGrade: number }[];
 }

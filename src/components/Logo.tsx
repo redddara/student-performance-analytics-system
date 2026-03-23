@@ -1,4 +1,9 @@
+import React from 'react';
 import logoSrc from '../assets/logo.png';
+
+interface LogoProps {
+  className?: string;
+}
 
 const Logo: React.FC<LogoProps> = ({ className = '' }) => (
   <img
@@ -7,3 +12,6 @@ const Logo: React.FC<LogoProps> = ({ className = '' }) => (
     className={`h-10 w-10 object-contain ${className}`}
   />
 );
+
+export { Logo };
+export default Logo;

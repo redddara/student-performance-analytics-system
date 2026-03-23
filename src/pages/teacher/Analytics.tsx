@@ -138,6 +138,32 @@ const TeacherAnalytics: React.FC = () => {
     };
   }).sort((a, b) => b.avgGrade - a.avgGrade);
 
+  // Per-subject top performers (top 3 students per subject, avg >= 75 only)
+  const subjectTopPerformers = mySubjects.map(subject => {
+    const subjectGrades = filteredGrades.filter(g => g.subject_id === subject.id);
+    const studentSubjectAvgs = new Map();
+    subjectGrades.forEach(g => {
+      if (!studentSubjectAvgs.has(g.student_id)) {
+        studentSubjectAvgs.set(g.student_id, {student: g.student!, sum: 0, count: 0});
+      }
+      const current = studentSubjectAvgs.get(g.student_id)!;
+      current.sum += Number(g.grade);
+      current.count += 1;
+    });
+    const perf = Array.from(studentSubjectAvgs.values())
+      .map(({student, sum, count}) => {
+        const avgGrade = Math.round((sum / count) * 100) / 100;
+        return { student, avgGrade };
+      })
+      .filter(p => p.avgGrade >= 75)
+      .sort((a,b) => b.avgGrade - a.avgGrade)
+      .slice(0, 3);
+    return { 
+      subject: subject.name, 
+      topStudents: perf 
+    };
+  });
+
   const topPerformers = studentPerformance.filter(s => !s.needsAttention).slice(0, 5);
   const strugglingStudents = studentPerformance.filter(s => s.needsAttention).slice(0, 5);
 
@@ -231,24 +257,46 @@ const TeacherAnalytics: React.FC = () => {
         {/* Student Tables */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card>
-            <h3 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+            <h3 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
               <Award className="text-yellow-400" size={24} />
-              Top Performers
+              Top Performers Per Subject
             </h3>
-            <Table headers={['Student', 'Average Grade', 'Status']}>
-              {topPerformers.map(({ student, avgGrade }) => (
-                <tr key={student.id} className="hover:bg-white/5">
-                  <td className="px-4 py-3 text-white">
-                    {student.first_name} {student.last_name}
-                  </td>
-                  <td className="px-4 py-3 text-indigo-300 font-semibold">
-                    {avgGrade.toFixed(2)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge variant="success">Excellent</Badge>
+            <Table headers={['Subject', 'Rank', 'Student', 'Avg Grade']}>
+              {subjectTopPerformers.filter(({ topStudents }) => topStudents.length > 0).map(({ subject, topStudents }) => 
+                topStudents.map(({ student, avgGrade }, rank) => (
+                  <tr key={`${subject}-${student.id}`} className="hover:bg-white/10 group even:bg-black/10">
+                    <td className="px-8 py-5 font-semibold text-left">
+                      <div className="inline-flex items-center gap-3 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 px-4 py-2 rounded-xl text-sm shadow-md">
+                      {subject}
+                      </div>
+                    </td>
+                    <td className="px-8 py-5 text-center">
+                      <div className="inline-flex items-center justify-center gap-2 bg-gradient-to-br from-yellow-400/70 to-yellow-500/70 text-black font-black text-xl px-5 py-3 rounded-2xl shadow-xl ring-2 ring-yellow-300/50 min-w-[100px]">
+                        #{rank + 1}
+                      </div>
+                    </td>
+                    <td className="px-8 py-5">
+                      <div className="font-bold text-lg text-white truncate max-w-[200px]">
+                        {student.first_name} {student.last_name}
+                      </div>
+                    </td>
+                    <td className="px-8 py-5 text-right">
+                      <div className="inline-flex items-center gap-3 bg-gradient-to-r from-indigo-500/20 to-purple-500/20 px-6 py-3 rounded-xl font-mono font-bold text-lg text-indigo-200 shadow-lg backdrop-blur-sm border border-indigo-400/40 min-w-[110px]">
+                        {avgGrade.toFixed(1)}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+              {subjectTopPerformers.filter(({ topStudents }) => topStudents.length > 0).length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-12 py-20 text-center bg-gradient-to-r from-yellow-500/10 backdrop-blur-sm rounded-b-2xl">
+                    <Award className="mx-auto h-20 w-20 text-yellow-400/40 mb-6 animate-pulse" />
+                    <h4 className="text-2xl font-bold text-white mb-3">No Top Performers Yet</h4>
+                    <p className="text-gray-400 text-xl max-w-lg mx-auto leading-relaxed">Students need 75+ average to appear here</p>
                   </td>
                 </tr>
-              ))}
+              )}
             </Table>
           </Card>
 

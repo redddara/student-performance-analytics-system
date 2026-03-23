@@ -6,8 +6,10 @@ import {
   BookOpen, 
   Users, 
   GraduationCap,
-  ClipboardList
+  ClipboardList,
+  Eye
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 
 const TeacherSubjects: React.FC = () => {
@@ -139,9 +141,10 @@ const TeacherSubjects: React.FC = () => {
                       {es.student?.section || '-'}
                     </td>
                     <td className="px-4 py-3">
-                      <Button size="sm" variant="secondary">
-                        View Grades
-                      </Button>
+                      <Link to={`/teacher/grades?subject=${selectedSubject}`} className="inline-flex items-center gap-1.5 p-2 rounded-lg hover:bg-white/10 transition-colors text-white font-medium">
+        <Eye className="h-4 w-4" />
+        <span>View Grades</span>
+      </Link>
                     </td>
                   </tr>
                 ))}

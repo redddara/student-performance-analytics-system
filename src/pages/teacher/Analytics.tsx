@@ -300,7 +300,7 @@ const TeacherAnalytics: React.FC = () => {
               }) : (
                 <tr>
                   <td colSpan={5} className="px-4 py-12 text-center text-gray-400">
-                    🎉 No students needing attention!
+                     No students needing attention!
                   </td>
                 </tr>
               )}

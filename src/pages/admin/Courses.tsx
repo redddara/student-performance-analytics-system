@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, FormEvent } from 'react';
+import type { Course } from '../../types';
 import { useStore } from '../../store';
 import { DashboardLayout } from '../../components/layouts';
 import { Card, Button, Input, Modal, Table, Badge } from '../../components/ui';
@@ -20,10 +21,10 @@ const AdminCourses: React.FC = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [newCourseName, setNewCourseName] = useState('');
   const [editCourseName, setEditCourseName] = useState('');
-  const [selectedCourse, setSelectedCourse] = useState<any>(null);
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleCreateCourse = async (e: React.FormEvent) => {
+  const handleCreateCourse = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     
@@ -39,11 +40,12 @@ const AdminCourses: React.FC = () => {
     }
   };
 
-  const handleUpdateCourse = async (e: React.FormEvent) => {
+  const handleUpdateCourse = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     
     try {
+      if (!selectedCourse) return;
       await supabase.from('courses').update({ name: editCourseName }).eq('id', selectedCourse.id);
       await fetchCourses();
       setIsEditModalOpen(false);
@@ -55,7 +57,7 @@ const AdminCourses: React.FC = () => {
     }
   };
 
-  const openEditModal = (course: any) => {
+  const openEditModal = (course: Course) => {
     setSelectedCourse(course);
     setEditCourseName(course.name);
     setIsEditModalOpen(true);

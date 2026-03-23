@@ -95,7 +95,7 @@ export const DashboardLayout: React.FC<LayoutProps> = ({ children }) => {
       {/* Sidebar */}
       <aside
         className={clsx(
-          'fixed top-0 left-0 h-full w-64 bg-black/60 backdrop-blur-xl border-r border-maroon-800/50 z-40 transition-transform duration-300',
+'fixed top-0 left-0 h-full w-72 lg:w-80 bg-black/60 backdrop-blur-xl border-r border-maroon-800/50 z-40 transition-transform duration-300',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         )}
       >
@@ -114,7 +114,7 @@ export const DashboardLayout: React.FC<LayoutProps> = ({ children }) => {
                 to={item.path}
                 onClick={() => setSidebarOpen(false)}
                 className={clsx(
-                  'flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200',
+'flex items-center gap-4 px-6 py-4 rounded-2xl transition-all duration-200 font-medium text-lg',
                   location.pathname === item.path
                     ? 'bg-gold-500/20 text-gold-300 border border-gold-500/30'
                     : 'text-gray-400 hover:bg-maroon-900/50 hover:text-white'
@@ -131,7 +131,7 @@ export const DashboardLayout: React.FC<LayoutProps> = ({ children }) => {
             <div className="relative">
               <button
                 onClick={() => setProfileOpen(!profileOpen)}
-                className="flex items-center gap-3 w-full px-4 py-3 rounded-xl hover:bg-maroon-900/50 transition-colors"
+                className="flex items-center gap-4 w-full px-6 py-4 rounded-2xl hover:bg-maroon-900/50 transition-colors font-medium text-lg"
               >
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-maroon-600 to-gold-500 flex items-center justify-center text-white font-semibold">
                   {user?.name?.charAt(0) || 'U'}
@@ -160,7 +160,7 @@ export const DashboardLayout: React.FC<LayoutProps> = ({ children }) => {
       </aside>
 
       {/* Main Content */}
-      <main className="lg:ml-64 min-h-screen p-6 lg:p-8 pt-16 lg:pt-8">
+      <main className="lg:ml-72 xl:ml-80 min-h-screen p-8 lg:p-12 pt-16 lg:pt-8">
         <div className="max-w-7xl mx-auto">
           {children}
         </div>

@@ -61,7 +61,18 @@ export default {
         '16': '64px',
         '20': '80px',
       },
+      fontFamily: {
+        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', '"Liberation Mono"', '"Courier New"', 'monospace'],
+      },
+      boxShadow: {
+        'card': '0 10px 30px rgba(0,0,0,0.3), 0 4px 12px rgba(0,0,0,0.2)',
+        'card-hover': '0 20px 40px rgba(0,0,0,0.4), 0 8px 20px rgba(212,165,0,0.15)',
+        'gold-glow': '0 0 25px rgba(212,165,0,0.4)',
+        'gold-glow-strong': '0 0 40px rgba(212,165,0,0.6)',
+      },
     },
   },
+
   plugins: [],
 }

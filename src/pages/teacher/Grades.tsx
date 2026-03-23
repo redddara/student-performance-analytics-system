@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from '../../store';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { DashboardLayout } from '../../components/layouts';
-import { Card, Button, Input, Select, Modal, Badge, LoadingSpinner } from '../../components/ui';
+import { Card, Button, Input, Select, Modal, Badge, LoadingSpinner, Table } from '../../components/ui';
 import { 
   ClipboardList, 
   Plus, 
@@ -21,6 +21,7 @@ import {
   XCircle,
   TrendingUp
 } from 'lucide-react';
+// @ts-ignore lucide-react types
 import { supabase } from '../../lib/supabase';
 
 const GRADE_LEVELS = [
@@ -92,7 +93,7 @@ const getQuarterStatus = (grade: number | null | undefined) => {
 };
 
   const TeacherGrades: React.FC = () => {
-  const [searchParams] = useSearchParams();
+  const location = useLocation();
   const { user, subjects, grades, getTeacherSubjects, fetchGrades, students, fetchStudents, fetchSubjects } = useStore();
   const [mySubjects, setMySubjects] = useState<any[]>([]);
   const [selectedSubject, setSelectedSubject] = useState('');
@@ -148,14 +149,14 @@ const getQuarterStatus = (grade: number | null | undefined) => {
       const teacherSubjects = getTeacherSubjects(user.id);
       setMySubjects(teacherSubjects);
       
-      const urlSubject = searchParams.get('subject');
+      const urlSubject = new URLSearchParams(location.search).get('subject');
       if (urlSubject && teacherSubjects.some(s => s.id === urlSubject)) {
         setSelectedSubject(urlSubject);
       } else if (teacherSubjects.length > 0 && !selectedSubject) {
         setSelectedSubject(teacherSubjects[0].id);
       }
     }
-  }, [user, subjects, getTeacherSubjects, searchParams, selectedSubject]);
+  }, [user, subjects, getTeacherSubjects, location.search, selectedSubject]);
 
   // Fetch enrolled students and grades when subject changes
   useEffect(() => {
@@ -449,190 +450,108 @@ const getQuarterStatus = (grade: number | null | undefined) => {
           </div>
         ) : selectedSubject ? (
           filteredStudents.length > 0 ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-8 gap-4 h-screen overflow-y-auto">
-              {filteredStudents.map(es => {
-                const student = es.student;
-                const studentRecordId = student?.id;
-                const studentGrades = getAllStudentGrades(studentRecordId);
-                const averageGrade = getAverageGrade(studentGrades);
-                const hasGrades = studentGrades.length > 0;
-                const avgGradeNum = averageGrade ? parseFloat(averageGrade) : null;
-                const gradeStatus = getGradeStatus(avgGradeNum);
-                const initials = getStudentInitials(student?.first_name || '', student?.last_name || '');
-                
-                return (
-                  <Card 
-                    key={es.id} 
-                    className="group/card w-full h-48 backdrop-blur-lg bg-white/10 border border-white/20 shadow-xl hover:shadow-2xl hover:shadow-gold-500/25 transition-all duration-300 hover:scale-105 hover:border-gold-500/50 rounded-xl overflow-hidden flex flex-col ${hasGrades ? 'ring-2 ring-gold-500/30' : 'ring-maroon-500/30'}"
-                  >
-                    {/* Landscape Header - Horizontal Layout */}
-                    {/* Landscape Main Content - Grades + Subject */}
-                    <div className="flex-1 flex flex-col p-3 gap-2">
-                      {/* Top: Subject */}
-                      <div className="flex items-center gap-2">
-                        <div className="p-1.5 bg-gradient-to-r from-gold-500/40 to-amber-500/40 rounded-lg">
-                          <BookOpen size={14} className="text-gold-400" />
-                        </div>
-                        <p className="text-white font-bold text-xs truncate flex-1">{es.subject?.name || 'Subject Name'}</p>
-                      </div>
-                      {/* Grades Grid */}
-                      <div className="grid grid-cols-4 gap-1.5">
-                        {[1, 2, 3, 4].map(q => {
-                          const semester = 1;
-                          const quarter = q;
-                          const gradeData = getGradeByQuarter(studentGrades, semester, quarter);
-                          const quarterGradeNum = gradeData?.grade || null;
-                          const quarterColor = getQuarterColor(quarterGradeNum);
-                          const quarterStatus = getQuarterStatus(quarterGradeNum);
-                          return (
-                            <button
-                              key={`q${q}`}
-                              onClick={() => gradeData ? openEditModal(gradeData) : openGradeModalWithQuarter(studentRecordId, semester, quarter)}
-                              title={gradeData ? `Edit Q${q} (${quarterGradeNum})` : `Add Q${q} grade`}
-                              className={`group/q h-10 rounded-lg border p-1.5 transition-all duration-200 flex flex-col items-center justify-center font-bold text-xs shadow-md hover:shadow-lg hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-gold-500/50 backdrop-blur-sm ${
-                                gradeData 
-                                  ? `bg-gradient-to-br ${quarterColor} text-white border-white/30 hover:border-white/50` 
-                                  : 'bg-white/10 border-gray-500/40 hover:bg-white/20 hover:border-gray-400/60 text-gray-300'
-                              }`}
-                              aria-label={`Quarter ${q} grade: ${gradeData?.grade || 'Not set'}`}
-                            >
-                              <div className="text-[10px] opacity-90 uppercase tracking-wider mb-0.5">Q{q}</div>
-                              <div className={`font-black leading-none ${
-                                gradeData ? 'text-shadow-lg' : 'text-gray-400'
-                              }`}>
-                                {quarterGradeNum?.toFixed(0) || '--'}
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                    {/* Footer: Progress + Add */}
-                    <div className="p-2 pt-0 border-t border-white/20">
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1 pr-2">
-                          <div className="flex items-center gap-1 mb-1 text-xs">
-                            {hasGrades ? (
-                              <>
-                                <CheckCircle size={12} className="text-emerald-400" />
-                                <span className="font-bold text-emerald-300">{studentGrades.length}/4</span>
-                              </>
-                            ) : (
-                              <>
-                                <AlertCircle size={12} className="text-amber-400" />
-                                <span className="font-bold text-amber-300">No Grades</span>
-                              </>
-                            )}
-                          </div>
-                          <div className="w-full h-1 bg-white/20 rounded-full overflow-hidden">
-                            <div 
-                              className="bg-gradient-to-r from-emerald-500 to-green-500 h-full rounded-full transition-all" 
-                              style={{width: `${(studentGrades.length / 4) * 100}%`}}
-                            />
-                          </div>
-                        </div>
-                        <Button 
-                          size="sm" 
-                          className="px-2.5 h-8 text-xs font-bold shadow-lg hover:shadow-gold-500/50"
-                          onClick={() => openGradeModal(studentRecordId)}
-                        >
-                          <Plus size={12} /> 
-                        </Button>
-                      </div>
-                    </div>
-
-                    {/* Compact Subject */}
-                    <div className="p-5 border-b border-white/20 bg-black/10">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-gradient-to-r from-gold-500/30 to-amber-500/30 rounded-xl backdrop-blur-sm">
-                          <BookOpen size={18} className="text-gold-400" />
-                        </div>
-                        <div>
-                          <p className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1">Subject</p>
-                          <p className="text-white font-bold text-lg md:text-xl truncate pr-2">{es.subject?.name || 'Subject Name'}</p>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* Perfect Quarter Grid */}
-                    <div className="p-5">
-                      <div className="grid grid-cols-4 gap-3">
-                        {[1, 2, 3, 4].map(q => {
-                          const semester = 1;
-                          const quarter = q;
-                          const gradeData = getGradeByQuarter(studentGrades, semester, quarter);
-                          const quarterGradeNum = gradeData?.grade || null;
-                          const quarterColor = getQuarterColor(quarterGradeNum);
-                          const quarterStatus = getQuarterStatus(quarterGradeNum);
-                          return (
-                            <button
-                              key={`q${q}`}
-                              onClick={() => gradeData ? openEditModal(gradeData) : openGradeModalWithQuarter(studentRecordId, semester, quarter)}
-                              title={gradeData ? `Edit Q${q} (${quarterGradeNum})` : `Add Q${q} grade`}
-                              className={`group/btn h-16 rounded-2xl border-2 p-2 transition-all duration-200 flex flex-col items-center justify-center font-bold shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 focus:outline-none focus:ring-4 focus:ring-gold-500/50 backdrop-blur-sm ${
-                                gradeData 
-                                  ? `bg-gradient-to-br ${quarterColor} text-white border-white/30 hover:border-white/50` 
-                                  : 'bg-white/10 border-gray-500/40 hover:bg-white/20 hover:border-gray-400/60 text-gray-300'
-                              }`}
-                              aria-label={`Quarter ${q} grade: ${gradeData?.grade || 'Not set'}`}
-                            >
-                              <div className="text-[11px] text-gray-200/80 uppercase tracking-wider mb-0.5 group-hover/btn:text-white/90">Q{q}</div>
-                              <div className={`text-xl md:text-2xl font-black leading-none ${
-                                gradeData ? 'drop-shadow-lg' : 'text-gray-400'
-                              }`}>
-                                {quarterGradeNum?.toFixed(0) || '--'}
-                              </div>
-                              <div className="text-[10px] font-bold opacity-90 mt-0.5">
-                                {quarterStatus.label}
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Perfect Footer */}
-                    <div className="p-5 pt-0">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1.5">
-                            {hasGrades ? (
-                              <>
-                                <CheckCircle size={16} className="text-emerald-400" />
-                                <span className="text-sm font-bold text-emerald-300">
-                                  {studentGrades.length}/4 Complete
+            <Card className="overflow-hidden">
+              <div className="w-full overflow-x-auto">
+                <table className="w-full table-fixed border-collapse min-w-[800px]">
+                  <thead>
+                    <tr className="bg-black/20 backdrop-blur-sm sticky top-0 z-10 [&th]:py-3">
+                      <th className="w-64 px-4 text-left text-xs font-bold uppercase tracking-wider text-gray-200">Student</th>
+                      <th className="w-20 text-center text-xs font-bold uppercase tracking-wider text-gray-200 hidden md:table-cell">Year</th>
+                      <th className="w-20 text-center text-xs font-bold uppercase tracking-wider text-gray-200">Q1</th>
+                      <th className="w-20 text-center text-xs font-bold uppercase tracking-wider text-gray-200">Q2</th>
+                      <th className="w-20 text-center text-xs font-bold uppercase tracking-wider text-gray-200">Q3</th>
+                      <th className="w-20 text-center text-xs font-bold uppercase tracking-wider text-gray-200">Q4</th>
+                      <th className="w-20 text-center text-xs font-bold uppercase tracking-wider text-gray-200">Avg</th>
+                      <th className="w-24 px-2 text-center text-xs font-bold uppercase tracking-wider text-gray-200 hidden lg:table-cell">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredStudents.map((es, index) => {
+                      const student = es.student;
+                      const studentRecordId = student?.id;
+                      const studentGrades = getAllStudentGrades(studentRecordId);
+                      const averageGrade = getAverageGrade(studentGrades);
+                      const avgGradeNum = averageGrade ? parseFloat(averageGrade) : null;
+                      const gradeStatus = getGradeStatus(avgGradeNum);
+                      const hasGrades = studentGrades.length > 0;
+                      return (
+                        <tr key={es.id} className="hover:bg-white/10 transition-colors border-b border-white/10 last:border-b-0 [&>td]:py-3">
+                          {/* Student Name */}
+                          <td className="w-64 px-4 min-w-[200px] max-w-[250px]">
+                            <div className="flex items-center gap-3 truncate">
+                              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-gold-500/40 to-amber-500/40 flex items-center justify-center flex-shrink-0">
+                                <span className="text-lg font-bold text-gold-800">
+                                  {getStudentInitials(student?.first_name || '', student?.last_name || '')}
                                 </span>
-                              </>
-                            ) : (
-                              <>
-                                <AlertCircle size={16} className="text-amber-400" />
-                                <span className="text-sm font-bold text-amber-300">
-                                  No Grades
-                                </span>
-                              </>
-                            )}
-                          </div>
-                          <div className="w-full bg-white/20 rounded-full h-1.5 overflow-hidden">
-                            <div 
-                              className="bg-gradient-to-r from-emerald-500 to-green-500 h-1.5 rounded-full transition-all duration-300" 
-                              style={{width: `${(studentGrades.length / 4) * 100}%`}}
-                            />
-                          </div>
-                        </div>
-                        <Button 
-                          onClick={() => openGradeModal(studentRecordId)} 
-                          size="sm"
-                          className="px-4 h-10 font-bold shadow-lg hover:shadow-gold-500/50 whitespace-nowrap"
-                        >
-                          <Plus size={16} className="mr-1" />Add
-                        </Button>
-                      </div>
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
+                              </div>
+                              <div className="truncate">
+                                <div className="font-bold text-white text-sm line-clamp-1" title={`${student?.first_name} ${student?.last_name}`}>
+                                  {`${student?.first_name || ''} ${student?.last_name || ''}`}
+                                </div>
+                                <div className="text-gray-400 text-xs truncate" title={es.subject?.name}>{es.subject?.name}</div>
+                              </div>
+                            </div>
+                          </td>
+                          {/* Grade Level */}
+                          <td className="w-20 text-center hidden md:table-cell">
+                            <Badge variant="gold" size="sm">
+                              {student?.grade_level}
+                            </Badge>
+                          </td>
+                          {/* Quarters */}
+                          {[1,2,3,4].map(q => {
+                            const semester = 1;
+                            const quarter = q;
+                            const gradeData = getGradeByQuarter(studentGrades, semester, quarter);
+                            const quarterGradeNum = gradeData?.grade || null;
+                            const quarterColor = getQuarterColor(quarterGradeNum);
+                            return (
+                              <td key={q} className="w-20 px-1 text-center">
+                                <button
+                                  onClick={() => gradeData ? openEditModal(gradeData) : openGradeModalWithQuarter(studentRecordId, semester, quarter)}
+                                  title={gradeData ? `Edit Q${q} (${quarterGradeNum})` : `Add Q${q} grade`}
+                                  className={`w-16 h-14 rounded-lg font-bold text-base shadow-md hover:shadow-lg hover:scale-105 transition-all mx-auto flex flex-col items-center justify-center text-center ${
+                                    gradeData 
+                                      ? `bg-gradient-to-br ${quarterColor} text-white border border-white/40` 
+                                      : 'bg-gray-800/40 border border-gray-500/50 text-gray-200 hover:bg-gray-700/60'
+                                  }`}
+                                >
+                                  <div className="text-xs uppercase tracking-wide mb-0.5 opacity-90">Q{q}</div>
+                                  <div className="font-black text-xl leading-none">
+                                    {quarterGradeNum?.toFixed(0) || '--'}
+                                  </div>
+                                </button>
+                              </td>
+                            );
+                          })}
+                          {/* Average */}
+                          <td className="w-20 px-2 text-center">
+                            <div className={`px-3 py-1.5 rounded-lg font-bold text-base shadow-md inline-block min-w-[3rem] ${
+                              avgGradeNum 
+                                ? `bg-gradient-to-r from-emerald-500/90 to-green-600 text-white` 
+                                : 'bg-gray-800/50 text-gray-300 border border-gray-600/50'
+                            }`}>
+                              {avgGradeNum?.toFixed(1) || '--'}
+                            </div>
+                          </td>
+                          {/* Status */}
+                          <td className="w-24 px-2 text-center hidden lg:table-cell">
+                            <Badge 
+                              variant={gradeStatus.variant === 'success' ? 'success' : gradeStatus.variant === 'warning' ? 'warning' : 'danger'} 
+                              size="sm"
+                            >
+                              {gradeStatus.label}
+                            </Badge>
+                          </td>
+                          </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
           ) : (
+
             <Card>
               <div className="text-center py-12">
                 <Filter size={48} className="mx-auto mb-4 text-gray-600" />

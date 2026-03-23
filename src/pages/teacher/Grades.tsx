@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from '../../store';
+import { useSearchParams } from 'react-router-dom';
 import { DashboardLayout } from '../../components/layouts';
 import { Card, Button, Input, Select, Modal, Badge, LoadingSpinner } from '../../components/ui';
 import { 
@@ -68,7 +69,8 @@ const CardSkeleton = () => (
   </div>
 );
 
-const TeacherGrades: React.FC = () => {
+  const TeacherGrades: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const { user, subjects, grades, getTeacherSubjects, fetchGrades, students, fetchStudents, fetchSubjects } = useStore();
   const [mySubjects, setMySubjects] = useState<any[]>([]);
   const [selectedSubject, setSelectedSubject] = useState('');
@@ -123,11 +125,15 @@ const TeacherGrades: React.FC = () => {
     if (user && subjects.length > 0) {
       const teacherSubjects = getTeacherSubjects(user.id);
       setMySubjects(teacherSubjects);
-      if (teacherSubjects.length > 0 && !selectedSubject) {
+      
+      const urlSubject = searchParams.get('subject');
+      if (urlSubject && teacherSubjects.some(s => s.id === urlSubject)) {
+        setSelectedSubject(urlSubject);
+      } else if (teacherSubjects.length > 0 && !selectedSubject) {
         setSelectedSubject(teacherSubjects[0].id);
       }
     }
-  }, [user, subjects, getTeacherSubjects]);
+  }, [user, subjects, getTeacherSubjects, searchParams, selectedSubject]);
 
   // Fetch enrolled students and grades when subject changes
   useEffect(() => {

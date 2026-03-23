@@ -39,12 +39,12 @@ const AdminDashboard: React.FC = () => {
     <DashboardLayout>
       <div className="space-y-8">
         <div>
-          <h1 className="text-3xl font-bold text-white">Admin Dashboard</h1>
+<h1 className="text-4xl lg:text-5xl font-black bg-gradient-to-r from-gold-400 via-yellow-300 to-gold-500 bg-clip-text text-transparent leading-tight">Admin Dashboard</h1>
           <p className="text-gray-400 mt-2">Overview of the academic performance system</p>
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-10">
           <StatCard
             title="Total Students"
             value={students.length}

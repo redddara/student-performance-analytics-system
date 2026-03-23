@@ -14,10 +14,10 @@ export const Card: React.FC<CardProps> = ({ children, className, glass = true, o
     <div
       onClick={onClick}
       className={clsx(
-        'rounded-2xl p-8 transition-all duration-300',
-        glass ? 'bg-black/20 backdrop-blur-sm border border-maroon-600/50 shadow-md shadow-maroon-900/30' : 'bg-white shadow-lg',
+'rounded-3xl p-10 lg:p-12 transition-all duration-500 hover:scale-[1.02] shadow-card',
+        glass ? 'bg-black/25 backdrop-blur-xl border border-gold-400/40 shadow-gold-glow hover:shadow-card-hover hover:border-gold-500/50' : 'bg-white/90 shadow-2xl',
         className,
-        onClick && 'cursor-pointer hover:shadow-lg hover:shadow-gold-500/20 hover:border-gold-500/70'
+        onClick && 'cursor-pointer active:scale-[0.98] hover:gold-glow-strong'
       )}
     >
       {children}
@@ -52,9 +52,9 @@ export const Button: React.FC<ButtonProps> = ({
   };
 
   const sizes = {
-    sm: 'px-6 py-3 text-base gap-2',
-    md: 'px-8 py-4 text-lg gap-2',
-    lg: 'px-10 py-5 text-xl gap-3'
+    sm: 'px-8 py-4 text-lg gap-3 font-semibold',
+    md: 'px-10 py-5 text-xl gap-3 font-semibold',
+    lg: 'px-12 py-6 text-2xl gap-4 font-bold'
   };
 
   return (

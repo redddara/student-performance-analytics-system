@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from '../../store';
 import { DashboardLayout } from '../../components/layouts';
-import { Card, StatCard, Button, Table, Badge } from '../../components/ui';
+import { Card, StatCard, Badge } from '../../components/ui';
 import { 
   GradeDistributionChart, 
   PassingRateChart, 
-  PerformanceTrendChart,
   SubjectComparisonChart 
 } from '../../components/charts';
 import type { StudentPerformance, Subject, Grade } from '../../types';
@@ -19,7 +18,7 @@ import {
 } from 'lucide-react';
 
 const TeacherDashboard: React.FC = () => {
-  const { user, subjects, grades, students, getTeacherSubjects, calculateGWA, fetchGrades } = useStore();
+  const { user, subjects, grades, students, getTeacherSubjects } = useStore();
   const [mySubjects, setMySubjects] = useState<any[]>([]);
 
   useEffect(() => {
@@ -129,7 +128,7 @@ const TeacherDashboard: React.FC = () => {
     };
   });
 
-  const topPerformers = []; // Deprecated - now per subject
+  // const topPerformers = []; // Deprecated - now per subject
   const strugglingStudents = studentPerformance.filter(s => s.needsAttention).slice(0, 5);
 
   // Grade distribution
@@ -208,43 +207,57 @@ const TeacherDashboard: React.FC = () => {
               <Award className="text-yellow-400" size={24} />
               Top Performers Per Subject
             </h3>
-            <Table headers={['Subject', 'Rank', 'Student', 'Avg Grade']}>
-              {subjectTopPerformers.filter(({ topStudents }) => topStudents.length > 0).map(({ subject, topStudents }) => 
-                topStudents.map(({ student, avgGrade }, rank) => (
-                  <tr key={`${subject}-${student.id}`} className="hover:bg-white/10 group even:bg-black/10">
-                    <td className="px-8 py-5 font-semibold text-left">
-                      <div className="inline-flex items-center gap-3 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 px-4 py-2 rounded-xl text-sm shadow-md">
-                      {subject}
-                      </div>
-                    </td>
-                    <td className="px-8 py-5 text-center">
-                      <div className="inline-flex items-center justify-center gap-2 bg-gradient-to-br from-yellow-400/70 to-yellow-500/70 text-black font-black text-xl px-5 py-3 rounded-2xl shadow-xl ring-2 ring-yellow-300/50 min-w-[100px]">
-                        #{rank + 1}
-                      </div>
-                    </td>
-                    <td className="px-8 py-5">
-                      <div className="font-bold text-lg text-white truncate max-w-[200px]">
-                        {student.first_name} {student.last_name}
-                      </div>
-                    </td>
-                    <td className="px-8 py-5 text-right">
-                      <div className="inline-flex items-center gap-3 bg-gradient-to-r from-indigo-500/20 to-purple-500/20 px-6 py-3 rounded-xl font-mono font-bold text-lg text-indigo-200 shadow-lg backdrop-blur-sm border border-indigo-400/40 min-w-[110px]">
-                        {avgGrade.toFixed(1)}
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-              {subjectTopPerformers.filter(({ topStudents }) => topStudents.length > 0).length === 0 && (
-                <tr>
-                  <td colSpan={4} className="px-12 py-20 text-center bg-gradient-to-r from-yellow-500/10 backdrop-blur-sm rounded-b-2xl">
-                    <Award className="mx-auto h-20 w-20 text-yellow-400/40 mb-6 animate-pulse" />
-                    <h4 className="text-2xl font-bold text-white mb-3">No Top Performers Yet</h4>
-                    <p className="text-gray-400 text-xl max-w-lg mx-auto leading-relaxed">Students need 75+ average to appear here</p>
-                  </td>
-                </tr>
-              )}
-          </Table>
+<div className="w-full overflow-x-hidden scrollbar-hide">
+  <table className="table-auto w-full min-w-0">
+    <thead>
+      <tr className="border-b border-white/10">
+        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">Subject</th>
+        <th className="px-3 py-2 text-center text-xs font-semibold text-gray-300 uppercase tracking-wider">Rank</th>
+        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider max-w-xs">Student</th>
+        <th className="px-3 py-2 text-right text-xs font-semibold text-gray-300 uppercase tracking-wider">Grade</th>
+      </tr>
+    </thead>
+    <tbody>
+      {subjectTopPerformers.filter(({ topStudents }) => topStudents.length > 0).map(({ subject, topStudents }) => 
+        topStudents.map(({ student, avgGrade }, rank) => (
+          <tr key={`${subject}-${student.id}`} className="hover:bg-white/10 group even:bg-black/10 border-b border-white/10 last:border-b-0 transition-all duration-200">
+            <td className="max-w-[22%] px-3 py-2.5 text-left truncate">
+              <div className="inline-flex items-center gap-1.5 bg-gradient-to-r from-yellow-500/15 to-orange-500/15 backdrop-blur-sm px-2.5 py-1 rounded-md text-xs font-semibold shadow-sm border border-yellow-400/30">
+                <Award className="w-3 h-3 text-yellow-400 flex-shrink-0" />
+                {subject}
+              </div>
+            </td>
+            <td className="w-16 px-2 py-2.5 text-center">
+              <div className="inline-flex items-center justify-center bg-gradient-to-br from-yellow-400/90 to-yellow-500/90 text-black font-black text-sm px-3 py-1.5 rounded-lg shadow-lg ring-1 ring-yellow-300/70 flex-shrink-0">
+                #{rank + 1}
+              </div>
+            </td>
+            <td className="max-w-xs px-3 py-2.5">
+              <div className="font-semibold text-sm text-white truncate" title={`${student.first_name} ${student.last_name}`}>
+                {student.first_name} {student.last_name}
+              </div>
+            </td>
+            <td className="px-3 py-2.5 text-right">
+              <div className="inline-flex items-center gap-1.5 bg-gradient-to-r from-indigo-500/15 to-purple-500/15 backdrop-blur-sm px-3 py-1.5 rounded-md font-mono font-semibold text-sm text-indigo-200 shadow-sm border border-indigo-400/30 flex-shrink-0">
+                <TrendingUp className="w-3 h-3 text-indigo-400 flex-shrink-0" />
+                {avgGrade.toFixed(1)}
+              </div>
+            </td>
+          </tr>
+        ))
+      )}
+      {subjectTopPerformers.filter(({ topStudents }) => topStudents.length > 0).length === 0 && (
+        <tr>
+          <td colSpan={4} className="px-4 py-12 text-center bg-gradient-to-r from-yellow-500/5 to-orange-500/5 backdrop-blur-sm rounded-b-xl border-t border-yellow-500/20">
+            <Award className="mx-auto h-12 w-12 text-yellow-400/60 mb-3 animate-pulse" />
+            <h4 className="text-lg font-bold text-white mb-1">No Top Performers Yet</h4>
+            <p className="text-gray-400 text-xs max-w-md mx-auto leading-relaxed">Students need 75+ average to qualify. Keep encouraging excellence!</p>
+          </td>
+        </tr>
+      )}
+    </tbody>
+  </table>
+</div>
           </Card>
 
           <Card>
@@ -263,43 +276,68 @@ const TeacherDashboard: React.FC = () => {
               </div>
             </div>
 
-            <Table headers={['Student', 'Overall Avg', 'Weak Subjects (Avg)', 'Priority', 'Action']}>
-              {strugglingStudents.length > 0 ? strugglingStudents.map(({ student, weakSubjects, avgGrade }) => {
-                const weakList = weakSubjects
-                  .map((ws: any) => `${ws.subject.name} (${ws.avgGrade.toFixed(1)})` )
-                  .join(', ');
-                const worstAvg = Math.min(...(weakSubjects as any[]).map(ws => ws.avgGrade));
-                const priorityVariant = worstAvg < 60 ? 'danger' : 'warning';
-                const priorityLabel = worstAvg < 60 ? 'High Risk' : 'Monitor';
-                return (
-                  <tr key={student.id} className="hover:bg-white/10 transition-all duration-200 border-l-4 border-red-400 hover:border-red-300">
-                    <td className="px-4 py-3 font-medium text-white max-w-xs truncate" title={`${student.first_name} ${student.last_name}`}>
-                      {student.first_name} {student.last_name}
-                    </td>
-                    <td className="px-4 py-3 text-indigo-300 font-semibold max-w-xs">
-                      {avgGrade.toFixed(1)}
-                    </td>
-                    <td className="px-4 py-3 text-red-300 max-w-lg truncate" title={weakList}>
-                      {weakList}
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge variant={priorityVariant}>{priorityLabel}</Badge>
-                    </td>
-                    <td className="px-4 py-3">
-                      <Button size="sm" variant="danger" className="text-red-50 hover:shadow-red-500/30">
-                        View Details
-                      </Button>
-                    </td>
-                  </tr>
-                );
-              }) : (
-                <tr>
-                  <td colSpan={5} className="px-4 py-12 text-center text-gray-400">
-                    🎉 No students needing attention!
-                  </td>
-                </tr>
-              )}
-            </Table>
+            <div className="w-full overflow-x-hidden scrollbar-hide">
+  <table className="table-auto w-full min-w-0">
+    <thead>
+      <tr className="border-b border-red-500/20">
+        <th className="px-3 py-2 text-left text-xs font-semibold text-red-200 uppercase tracking-wider">Student</th>
+        <th className="px-3 py-2 text-center text-xs font-semibold text-red-200 uppercase tracking-wider">Avg</th>
+        <th className="px-3 py-2 text-left text-xs font-semibold text-red-200 uppercase tracking-wider max-w-xs">Weak Subjects</th>
+        <th className="px-3 py-2 text-center text-xs font-semibold text-red-200 uppercase tracking-wider">Priority</th>
+      </tr>
+    </thead>
+                <tbody>
+      {strugglingStudents.length > 0 ? strugglingStudents.map(({ student, weakSubjects, avgGrade }) => {
+        const weakList = weakSubjects
+          .slice(0, 2)
+          .map((ws: any) => `${ws.subject.name}`)
+          .join(', ');
+        const moreWeak = weakSubjects.length > 2 ? `+${weakSubjects.length - 2}` : '';
+        const worstAvg = Math.min(...weakSubjects.map((ws: any) => ws.avgGrade));
+        const priorityVariant = worstAvg < 60 ? 'danger' : 'warning';
+        const priorityLabel = worstAvg < 60 ? 'High Risk' : 'Monitor';
+        const priorityColor = worstAvg < 60 ? 'from-red-500/20 to-orange-500/20 text-red-300 border-red-400/40' : 'from-amber-500/20 to-orange-500/20 text-amber-300 border-amber-400/40';
+        return (
+          <tr key={student.id} className="group hover:bg-white/10 even:bg-black/5 border-b border-red-400/20 hover:border-red-400/40 transition-all duration-200 hover:shadow-lg">
+            <td className="w-2/5 max-w-xs px-3 py-2.5 truncate">
+              <div className="font-semibold text-sm text-white truncate" title={`${student.first_name} ${student.last_name}`}>
+                {student.first_name} {student.last_name}
+              </div>
+            </td>
+            <td className="w-1/6 px-2 py-2.5 text-center">
+              <div className="inline-flex bg-gradient-to-r from-red-500/15 to-orange-500/15 px-2 py-1.5 rounded-md font-mono font-semibold text-xs text-red-300 border border-red-400/30 flex-shrink-0">
+                {weakSubjects[0] ? (weakSubjects[0] as any).avgGrade.toFixed(1) : 'N/A'}
+              </div>
+            </td>
+            <td className="w-1/4 px-3 py-2.5 truncate">
+              <div className="flex gap-1 flex-wrap text-xs text-red-300" title={weakSubjects.map((ws: any) => `${ws.subject.name} (${ws.avgGrade.toFixed(1)})`).join(', ')}>
+                {weakList.split(', ').map((subject, i) => (
+                  <span key={i} className="bg-red-500/10 px-1.5 py-0.5 rounded text-xs border border-red-500/30 whitespace-nowrap">
+                    {subject}
+                  </span>
+                ))}
+                {moreWeak && <span className="text-gray-500">+{moreWeak}</span>}
+              </div>
+            </td>
+            <td className="w-1/4 px-2 py-2.5 text-center">
+              <Badge variant={priorityVariant} size="sm" className={`font-bold px-2 py-1 rounded-full shadow-md ${priorityColor}`}>
+                {priorityLabel}
+              </Badge>
+            </td>
+          </tr>
+        );
+      }) : (
+        <tr>
+          <td colSpan={4} className="p-8 text-center bg-gradient-to-r from-emerald-500/10 to-green-500/10 border-t border-emerald-400/30 rounded-b-xl">
+            <GraduationCap className="mx-auto h-12 w-12 text-emerald-400 mb-3 animate-bounce" />
+            <h4 className="text-lg font-bold text-emerald-100 mb-1">Outstanding Performance!</h4>
+            <p className="text-emerald-300 text-sm max-w-sm mx-auto">No students currently need intervention 🎉</p>
+          </td>
+        </tr>
+      )}
+    </tbody>
+  </table>
+</div>
           </Card>
         </div>
       </div>

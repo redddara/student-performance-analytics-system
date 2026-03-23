@@ -69,6 +69,28 @@ const CardSkeleton = () => (
   </div>
 );
 
+// Helper functions for perfect cards
+const getStudentInitials = (firstName: string, lastName: string) => {
+  return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+};
+
+const getQuarterColor = (grade: number | null | undefined) => {
+  if (!grade) return 'from-gray-500 to-gray-600';
+  if (grade >= 90) return 'from-emerald-500 to-emerald-600';
+  if (grade >= 80) return 'from-blue-500 to-blue-600';
+  if (grade >= 75) return 'from-amber-500 to-amber-600';
+  if (grade >= 70) return 'from-orange-500 to-orange-600';
+  return 'from-red-500 to-red-600';
+};
+
+const getQuarterStatus = (grade: number | null | undefined) => {
+  if (!grade) return { label: 'Add', icon: Plus };
+  if (grade >= 90) return { label: 'A', icon: Award };
+  if (grade >= 80) return { label: 'B', icon: TrendingUp };
+  if (grade >= 75) return { label: 'C', icon: CheckCircle };
+  return { label: 'F', icon: XCircle };
+};
+
   const TeacherGrades: React.FC = () => {
   const [searchParams] = useSearchParams();
   const { user, subjects, grades, getTeacherSubjects, fetchGrades, students, fetchStudents, fetchSubjects } = useStore();
@@ -427,7 +449,7 @@ const CardSkeleton = () => (
           </div>
         ) : selectedSubject ? (
           filteredStudents.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-8 gap-4 h-screen overflow-y-auto">
               {filteredStudents.map(es => {
                 const student = es.student;
                 const studentRecordId = student?.id;
@@ -436,90 +458,132 @@ const CardSkeleton = () => (
                 const hasGrades = studentGrades.length > 0;
                 const avgGradeNum = averageGrade ? parseFloat(averageGrade) : null;
                 const gradeStatus = getGradeStatus(avgGradeNum);
+                const initials = getStudentInitials(student?.first_name || '', student?.last_name || '');
                 
                 return (
                   <Card 
                     key={es.id} 
-                    className={`transition-all duration-300 hover:shadow-xl hover:shadow-gold-500/30 ${hasGrades ? 'border-gold-500/60' : 'border-maroon-600/50'}`}
+                    className="group/card w-full h-48 backdrop-blur-lg bg-white/10 border border-white/20 shadow-xl hover:shadow-2xl hover:shadow-gold-500/25 transition-all duration-300 hover:scale-105 hover:border-gold-500/50 rounded-xl overflow-hidden flex flex-col ${hasGrades ? 'ring-2 ring-gold-500/30' : 'ring-maroon-500/30'}"
                   >
-                    {/* Card Header - Student Info */}
-                    <div className="pb-6 border-b border-maroon-600/30">
-                      <div className="flex items-start gap-6">
-                        {/* Avatar with Grade */}
-                        <div className={`w-24 h-24 rounded-2xl bg-gradient-to-br ${getGradeColor(avgGradeNum)} flex flex-col items-center justify-center text-white font-bold shadow-lg flex-shrink-0`}>
-                          {avgGradeNum ? (
-                            <>
-                              <span className="text-5xl leading-none">{averageGrade}</span>
-                              <span className="text-xs font-normal opacity-90 mt-1">AVERAGE</span>
-                            </>
-                          ) : (
-                            <>
-                              <span className="text-5xl leading-none">--</span>
-                              <span className="text-xs font-normal opacity-90 mt-1">NO GRADE</span>
-                            </>
-                          )}
+                    {/* Landscape Header - Horizontal Layout */}
+                    {/* Landscape Main Content - Grades + Subject */}
+                    <div className="flex-1 flex flex-col p-3 gap-2">
+                      {/* Top: Subject */}
+                      <div className="flex items-center gap-2">
+                        <div className="p-1.5 bg-gradient-to-r from-gold-500/40 to-amber-500/40 rounded-lg">
+                          <BookOpen size={14} className="text-gold-400" />
                         </div>
-                        
-                        {/* Student Details */}
-                        <div className="flex-1">
-                          <h3 className="text-white font-bold text-2xl mb-3">
-                            {student?.first_name || ''} {student?.last_name || ''}
-                          </h3>
-                          <div className="grid grid-cols-2 gap-4 mb-4">
-                            <div className="bg-black/30 rounded-lg p-3">
-                              <p className="text-gray-400 text-xs font-bold uppercase mb-1">Year Level</p>
-                              <p className="text-white font-bold text-lg">{student?.grade_level || 'N/A'}</p>
-                            </div>
-                            <div className="bg-black/30 rounded-lg p-3">
-                              <p className="text-gray-400 text-xs font-bold uppercase mb-1">Section</p>
-                              <p className="text-white font-bold text-lg">{student?.section || 'N/A'}</p>
-                            </div>
+                        <p className="text-white font-bold text-xs truncate flex-1">{es.subject?.name || 'Subject Name'}</p>
+                      </div>
+                      {/* Grades Grid */}
+                      <div className="grid grid-cols-4 gap-1.5">
+                        {[1, 2, 3, 4].map(q => {
+                          const semester = 1;
+                          const quarter = q;
+                          const gradeData = getGradeByQuarter(studentGrades, semester, quarter);
+                          const quarterGradeNum = gradeData?.grade || null;
+                          const quarterColor = getQuarterColor(quarterGradeNum);
+                          const quarterStatus = getQuarterStatus(quarterGradeNum);
+                          return (
+                            <button
+                              key={`q${q}`}
+                              onClick={() => gradeData ? openEditModal(gradeData) : openGradeModalWithQuarter(studentRecordId, semester, quarter)}
+                              title={gradeData ? `Edit Q${q} (${quarterGradeNum})` : `Add Q${q} grade`}
+                              className={`group/q h-10 rounded-lg border p-1.5 transition-all duration-200 flex flex-col items-center justify-center font-bold text-xs shadow-md hover:shadow-lg hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-gold-500/50 backdrop-blur-sm ${
+                                gradeData 
+                                  ? `bg-gradient-to-br ${quarterColor} text-white border-white/30 hover:border-white/50` 
+                                  : 'bg-white/10 border-gray-500/40 hover:bg-white/20 hover:border-gray-400/60 text-gray-300'
+                              }`}
+                              aria-label={`Quarter ${q} grade: ${gradeData?.grade || 'Not set'}`}
+                            >
+                              <div className="text-[10px] opacity-90 uppercase tracking-wider mb-0.5">Q{q}</div>
+                              <div className={`font-black leading-none ${
+                                gradeData ? 'text-shadow-lg' : 'text-gray-400'
+                              }`}>
+                                {quarterGradeNum?.toFixed(0) || '--'}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    {/* Footer: Progress + Add */}
+                    <div className="p-2 pt-0 border-t border-white/20">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1 pr-2">
+                          <div className="flex items-center gap-1 mb-1 text-xs">
+                            {hasGrades ? (
+                              <>
+                                <CheckCircle size={12} className="text-emerald-400" />
+                                <span className="font-bold text-emerald-300">{studentGrades.length}/4</span>
+                              </>
+                            ) : (
+                              <>
+                                <AlertCircle size={12} className="text-amber-400" />
+                                <span className="font-bold text-amber-300">No Grades</span>
+                              </>
+                            )}
                           </div>
-                          <Badge 
-                            variant={gradeStatus.variant} 
-                            size="md"
-                            className="inline-flex items-center gap-2"
-                          >
-                            <gradeStatus.icon size={16} />
-                            {gradeStatus.label}
-                          </Badge>
+                          <div className="w-full h-1 bg-white/20 rounded-full overflow-hidden">
+                            <div 
+                              className="bg-gradient-to-r from-emerald-500 to-green-500 h-full rounded-full transition-all" 
+                              style={{width: `${(studentGrades.length / 4) * 100}%`}}
+                            />
+                          </div>
                         </div>
+                        <Button 
+                          size="sm" 
+                          className="px-2.5 h-8 text-xs font-bold shadow-lg hover:shadow-gold-500/50"
+                          onClick={() => openGradeModal(studentRecordId)}
+                        >
+                          <Plus size={12} /> 
+                        </Button>
                       </div>
                     </div>
 
-                    {/* Subject & Grade Grid */}
-                    <div className="py-6 border-b border-maroon-600/30">
-                      <div className="flex items-center gap-3 mb-5">
-                        <div className="p-2 bg-gold-500/25 rounded-lg">
-                          <BookOpen size={20} className="text-gold-400" />
+                    {/* Compact Subject */}
+                    <div className="p-5 border-b border-white/20 bg-black/10">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-gradient-to-r from-gold-500/30 to-amber-500/30 rounded-xl backdrop-blur-sm">
+                          <BookOpen size={18} className="text-gold-400" />
                         </div>
                         <div>
-                          <p className="text-gray-300 text-xs font-bold uppercase">Subject</p>
-                          <p className="text-white font-bold text-lg">{es.subject?.name || 'Subject'}</p>
+                          <p className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1">Subject</p>
+                          <p className="text-white font-bold text-lg md:text-xl truncate pr-2">{es.subject?.name || 'Subject Name'}</p>
                         </div>
                       </div>
-                      
-                      {/* Grade Grid - All 4 Quarters */}
+                    </div>
+                    
+                    {/* Perfect Quarter Grid */}
+                    <div className="p-5">
                       <div className="grid grid-cols-4 gap-3">
                         {[1, 2, 3, 4].map(q => {
                           const semester = 1;
                           const quarter = q;
                           const gradeData = getGradeByQuarter(studentGrades, semester, quarter);
+                          const quarterGradeNum = gradeData?.grade || null;
+                          const quarterColor = getQuarterColor(quarterGradeNum);
+                          const quarterStatus = getQuarterStatus(quarterGradeNum);
                           return (
                             <button
                               key={`q${q}`}
                               onClick={() => gradeData ? openEditModal(gradeData) : openGradeModalWithQuarter(studentRecordId, semester, quarter)}
-                              className={`py-4 px-3 rounded-xl border-2 transition-all text-center font-semibold ${
+                              title={gradeData ? `Edit Q${q} (${quarterGradeNum})` : `Add Q${q} grade`}
+                              className={`group/btn h-16 rounded-2xl border-2 p-2 transition-all duration-200 flex flex-col items-center justify-center font-bold shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 focus:outline-none focus:ring-4 focus:ring-gold-500/50 backdrop-blur-sm ${
                                 gradeData 
-                                  ? 'bg-gold-500/20 border-gold-500/60 hover:border-gold-500 hover:bg-gold-500/30' 
-                                  : 'bg-white/5 border-maroon-600/40 hover:bg-white/10 hover:border-maroon-500/60'
+                                  ? `bg-gradient-to-br ${quarterColor} text-white border-white/30 hover:border-white/50` 
+                                  : 'bg-white/10 border-gray-500/40 hover:bg-white/20 hover:border-gray-400/60 text-gray-300'
                               }`}
+                              aria-label={`Quarter ${q} grade: ${gradeData?.grade || 'Not set'}`}
                             >
-                              <div className="text-xs text-gray-400 mb-2 uppercase">Q{q}</div>
-                              <div className={`text-2xl font-bold ${
-                                gradeData ? 'text-white' : 'text-gray-500'
+                              <div className="text-[11px] text-gray-200/80 uppercase tracking-wider mb-0.5 group-hover/btn:text-white/90">Q{q}</div>
+                              <div className={`text-xl md:text-2xl font-black leading-none ${
+                                gradeData ? 'drop-shadow-lg' : 'text-gray-400'
                               }`}>
-                                {gradeData?.grade || '--'}
+                                {quarterGradeNum?.toFixed(0) || '--'}
+                              </div>
+                              <div className="text-[10px] font-bold opacity-90 mt-0.5">
+                                {quarterStatus.label}
                               </div>
                             </button>
                           );
@@ -527,29 +591,42 @@ const CardSkeleton = () => (
                       </div>
                     </div>
 
-                    {/* Card Footer - Status & Action */}
-                    <div className="pt-6 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        {hasGrades ? (
-                          <div className="flex items-center gap-2 text-green-300 font-semibold">
-                            <CheckCircle size={20} />
-                            <span>{studentGrades.length} of 4 Recorded</span>
+                    {/* Perfect Footer */}
+                    <div className="p-5 pt-0">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1.5">
+                            {hasGrades ? (
+                              <>
+                                <CheckCircle size={16} className="text-emerald-400" />
+                                <span className="text-sm font-bold text-emerald-300">
+                                  {studentGrades.length}/4 Complete
+                                </span>
+                              </>
+                            ) : (
+                              <>
+                                <AlertCircle size={16} className="text-amber-400" />
+                                <span className="text-sm font-bold text-amber-300">
+                                  No Grades
+                                </span>
+                              </>
+                            )}
                           </div>
-                        ) : (
-                          <div className="flex items-center gap-2 text-yellow-300 font-semibold">
-                            <AlertCircle size={20} />
-                            <span>No Grades Yet</span>
+                          <div className="w-full bg-white/20 rounded-full h-1.5 overflow-hidden">
+                            <div 
+                              className="bg-gradient-to-r from-emerald-500 to-green-500 h-1.5 rounded-full transition-all duration-300" 
+                              style={{width: `${(studentGrades.length / 4) * 100}%`}}
+                            />
                           </div>
-                        )}
+                        </div>
+                        <Button 
+                          onClick={() => openGradeModal(studentRecordId)} 
+                          size="sm"
+                          className="px-4 h-10 font-bold shadow-lg hover:shadow-gold-500/50 whitespace-nowrap"
+                        >
+                          <Plus size={16} className="mr-1" />Add
+                        </Button>
                       </div>
-                      <Button 
-                        onClick={() => openGradeModal(studentRecordId)} 
-                        size="md"
-                        className="ml-auto"
-                      >
-                        <Plus size={18} />
-                        Add Grade
-                      </Button>
                     </div>
                   </Card>
                 );

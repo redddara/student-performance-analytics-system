@@ -3,7 +3,12 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = 'https://xlmlrplyfizfhklhaicc.supabase.co';
 const supabaseAnonKey = 'sb_publishable_4cdLLPqeL0NxFsSeqxShtQ_7rFBahBD';
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    storageKey: 'sb-student-auth-token'
+  }
+});
 
 export const signUp = async (email: string, password: string, name: string, role: string) => {
   const { data, error } = await supabase.auth.signUp({

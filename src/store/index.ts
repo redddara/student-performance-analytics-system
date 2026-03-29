@@ -1,8 +1,12 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
-import type { User, Course, Subject, Student, Grade, StudentSubject, AnalyticsData } from '../types';
+import type { AuthStatus, User, Course, Subject, Student, Grade, StudentSubject, AnalyticsData } from '../types';
 
 interface AppState {
+  authStatus: AuthStatus;
+  setAuthStatus: (status: AuthStatus) => void;
+  initializeAuth: () => Promise<void>;
+  handleAuthSync: () => Promise<void>;
   user: User | null;
   isLoading: boolean;
   courses: Course[];
@@ -54,9 +58,57 @@ export const useStore = create<AppState>((set, get) => ({
   grades: [],
   studentSubjects: [],
   analytics: null,
+  authStatus: 'idle' as AuthStatus,
 
-  setUser: (user) => set({ user }),
+  setUser: (user) => {
+    set({ user });
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('authTrigger_v1', Date.now().toString());
+    }
+  },
+
+  setAuthStatus: (status) => set({ authStatus: status }),
+
   setLoading: (isLoading) => set({ isLoading }),
+
+  initializeAuth: async () => {
+    const self = get();
+    self.setAuthStatus('checking');
+    try {
+      const { data: { user: authUser }, error } = await supabase.auth.getUser();
+      if (error || !authUser) {
+        self.setAuthStatus('unauthenticated');
+        return;
+      }
+      const { data: userData } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', authUser.id)
+        .single();
+      if (userData) {
+        self.setUser(userData as User);
+        self.setAuthStatus('authenticated');
+        await Promise.all([
+          self.fetchCourses(),
+          self.fetchSubjects(),
+          self.fetchStudents(),
+          self.fetchGrades(),
+          self.fetchStudentSubjects()
+        ]);
+      } else {
+        self.setAuthStatus('unauthenticated');
+      }
+    } catch (err) {
+      self.setAuthStatus('unauthenticated');
+    }
+  },
+
+  handleAuthSync: async () => {
+    const trigger = localStorage.getItem('authTrigger_v1');
+    if (trigger) {
+      await get().initializeAuth();
+    }
+  },
 
   fetchCourses: async () => {
     const { data, error } = await supabase.from('courses').select('*').order('name');

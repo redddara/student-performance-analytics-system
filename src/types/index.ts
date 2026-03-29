@@ -1,3 +1,5 @@
+export type AuthStatus = 'idle' | 'checking' | 'authenticated' | 'unauthenticated';
+
 export interface User {
   id: string;
   email: string;

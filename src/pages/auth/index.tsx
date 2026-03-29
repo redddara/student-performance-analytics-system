@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useStore } from '../../store';
+import type { User } from '../../types';
 import { Mail, Lock, ArrowRight } from 'lucide-react';
 import { Logo } from '../../components/Logo';
 import { Card, Button, Input, Select } from '../../components/ui';
@@ -38,7 +39,7 @@ export const LoginPage: React.FC = () => {
           .single();
 
         if (userData) {
-          setUser(userData);
+          setUser(userData as User);
           await Promise.all([
             fetchCourses(),
             fetchSubjects(),
@@ -191,7 +192,7 @@ export const RegisterPage: React.FC = () => {
             .single();
 
           if (userData) {
-            setUser(userData);
+            setUser(userData as User);
             await Promise.all([
               fetchCourses(),
               fetchSubjects(),

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+// import { useAuthSync } from '../../hooks';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useStore } from '../../store';
 import { supabase } from '../../lib/supabase';

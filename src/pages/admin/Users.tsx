@@ -230,15 +230,41 @@ const AdminUsers: React.FC = () => {
   };
 
   const handleDeleteUser = async (userId: string) => {
-    if (!confirm('Are you sure you want to delete this user?')) return;
-    
+    if (!confirm('Are you sure you want to delete this user and all related data (student record if exists)? This action cannot be undone.')) return;
+
     try {
-      await supabase.from('users').delete().eq('id', userId);
+      // First, delete student record if exists
+      const { data: student } = await supabase
+        .from('students')
+        .select('id')
+        .eq('user_id', userId)
+        .single();
+
+      if (student) {
+        const { error: studentError } = await supabase
+          .from('students')
+          .delete()
+          .eq('user_id', userId);
+        if (studentError) throw studentError;
+      }
+
+      // Then delete user record
+      const { error: userError } = await supabase
+        .from('users')
+        .delete()
+        .eq('id', userId);
+      if (userError) throw userError;
+
+      // Refresh data
       await fetchAllData();
-    } catch (err) {
+
+      alert('User deleted successfully.');
+    } catch (err: any) {
       console.error('Error deleting user:', err);
+      alert(`Error deleting user: ${err.message}`);
     }
   };
+
 
   const resetForm = () => {
     setFormData({
@@ -394,7 +420,8 @@ const AdminUsers: React.FC = () => {
         onClose={() => { setIsModalOpen(false); resetForm(); }}
         title="Add New User"
       >
-        <form onSubmit={handleCreateUser} className="space-y-4">
+        <form onSubmit={handleCreateUser} className="space-y-3">
+
           <Input
             label="Full Name"
             value={formData.name}
@@ -483,7 +510,8 @@ const AdminUsers: React.FC = () => {
         onClose={() => setIsEditModalOpen(false)}
         title="Edit User Information"
       >
-        <form onSubmit={handleEditUser} className="space-y-4">
+        <form onSubmit={handleEditUser} className="space-y-3">
+
           <Input
             label="Full Name"
             value={editData.name}

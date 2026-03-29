@@ -165,24 +165,24 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, subtitle, 
   if (!isOpen) return null;
   
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
       <div 
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/60 backdrop-blur-md"
         onClick={onClose}
         role="button"
         aria-label="Close modal"
       />
-      <div className="relative bg-maroon-950/70 backdrop-blur-sm rounded-2xl p-8 w-full max-w-md border-2 border-gold-500/60 shadow-2xl shadow-maroon-900/40 animate-fadeIn">
+      <div className="relative bg-maroon-950/80 backdrop-blur-xl rounded-2xl p-6 w-full max-w-md md:max-w-lg lg:max-w-xl h-fit max-h-[90vh] overflow-y-auto border-2 border-gold-500/70 shadow-2xl shadow-maroon-900/50 animate-in fade-in zoom-in duration-200">
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors p-2 rounded-lg hover:bg-white/10"
+          className="absolute top-4 right-4 text-gray-300 hover:text-white transition-all p-2 rounded-xl hover:bg-white/10 active:scale-95"
           aria-label="Close dialog"
         >
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
-        <div className="mb-6 pr-8">
+        <div className="mb-6 pr-10">
           <h2 className="text-2xl font-bold text-white">{title}</h2>
           {subtitle && <p className="text-gray-300 text-base mt-2">{subtitle}</p>}
         </div>
@@ -192,6 +192,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, subtitle, 
       </div>
     </div>
   );
+
 };
 
 // ============ BADGE COMPONENT ============

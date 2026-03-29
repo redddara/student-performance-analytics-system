@@ -66,7 +66,8 @@ export const DashboardLayout: React.FC<LayoutProps> = ({ children }) => {
     { path: '/admin', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/admin/users', label: 'Users', icon: Users },
     { path: '/admin/courses', label: 'Courses', icon: BookOpen },
-    { path: '/admin/subjects', label: 'Subjects', icon: ClipboardList },
+{ path: '/admin/subjects', label: 'Subjects', icon: ClipboardList },
+    { path: '/admin/enrollment', label: 'Enrollment', icon: GraduationCap },
     { path: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
   ] : user?.role === 'teacher' ? [
     { path: '/teacher', label: 'Dashboard', icon: LayoutDashboard },

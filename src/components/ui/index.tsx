@@ -1,384 +1,351 @@
-import React from 'react';
 import { clsx } from 'clsx';
+import { ReactNode, ButtonHTMLAttributes } from 'react';
 
-// ============ CARD COMPONENT ============
-interface CardProps {
-  children: React.ReactNode;
+interface GlassCardProps {
+  children: ReactNode;
   className?: string;
-  glass?: boolean;
   onClick?: () => void;
 }
 
-export const Card: React.FC<CardProps> = ({ children, className, glass = true, onClick }) => {
+export function GlassCard({ children, className, onClick }: GlassCardProps) {
   return (
-    <div
-      onClick={onClick}
+    <div 
       className={clsx(
-'rounded-3xl p-10 lg:p-12 transition-all duration-500 hover:scale-[1.02] shadow-card',
-        glass ? 'bg-black/25 backdrop-blur-xl border border-gold-400/40 shadow-gold-glow hover:shadow-card-hover hover:border-gold-500/50' : 'bg-white/90 shadow-2xl',
-        className,
-        onClick && 'cursor-pointer active:scale-[0.98] hover:gold-glow-strong'
+        'backdrop-blur-2xl bg-[#800000]/20 border border-[#800000]/30 rounded-2xl shadow-xl',
+        onClick && 'cursor-pointer hover:bg-[#800000]/30 hover:shadow-2xl transition-all duration-300',
+        className
       )}
+      onClick={onClick}
     >
       {children}
     </div>
   );
-};
-
-// ============ BUTTON COMPONENT ============
-interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'danger' | 'success' | 'gold';
-  size?: 'sm' | 'md' | 'lg';
-  loading?: boolean;
 }
 
-export const Button: React.FC<ButtonProps> = ({
-  children,
-  variant = 'primary',
-  size = 'md',
+interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
+  size?: 'sm' | 'md' | 'lg';
+  children: ReactNode;
+}
+
+export function Button({ 
+  variant = 'primary', 
+  size = 'md', 
+  children, 
   className,
-  loading = false,
-  disabled = false,
-  ...props
-}) => {
-  const baseStyles = 'inline-flex items-center justify-center rounded-xl font-bold transition-all duration-200 focus:outline-none focus:ring-3 focus:ring-gold-400 focus:ring-offset-2 focus:ring-offset-maroon-950 disabled:opacity-60 disabled:cursor-not-allowed disabled:scale-100';
+  ...props 
+}: ButtonProps) {
+  const baseStyles = 'font-medium rounded-xl transition-all duration-300 flex items-center justify-center gap-2';
   
   const variants = {
-    primary: 'bg-gradient-to-r from-maroon-600 to-maroon-700 text-white hover:from-maroon-500 hover:to-maroon-600 hover:shadow-lg hover:shadow-maroon-900/50 active:scale-95',
-    secondary: 'bg-black/30 backdrop-blur-sm border-2 border-maroon-600/70 text-white hover:bg-maroon-900/40 hover:border-maroon-500 active:scale-95',
-    gold: 'bg-gradient-to-r from-gold-500 to-gold-600 text-black hover:from-gold-400 hover:to-gold-500 hover:shadow-lg hover:shadow-gold-500/40 active:scale-95 font-bold',
-    danger: 'bg-red-600 text-white hover:bg-red-700 hover:shadow-lg hover:shadow-red-900/50 active:scale-95',
-    success: 'bg-green-600 text-white hover:bg-green-700 hover:shadow-lg hover:shadow-green-900/50 active:scale-95'
+    primary: 'bg-gradient-to-r from-[#800000] to-[#a52a2a] text-white hover:from-[#600000] hover:to-[#800000] shadow-lg hover:shadow-xl backdrop-blur-md',
+    secondary: 'bg-white/40 text-[#800000] border border-white/50 hover:bg-white/60 backdrop-blur-md',
+    danger: 'bg-red-600 text-white hover:bg-red-700 backdrop-blur-md',
+    ghost: 'bg-white/20 text-[#800000] hover:bg-white/40 backdrop-blur-md',
   };
-
+  
   const sizes = {
-    sm: 'px-8 py-4 text-lg gap-3 font-semibold',
-    md: 'px-10 py-5 text-xl gap-3 font-semibold',
-    lg: 'px-12 py-6 text-2xl gap-4 font-bold'
+    sm: 'px-3 py-1.5 text-sm',
+    md: 'px-4 py-2 text-base',
+    lg: 'px-6 py-3 text-lg',
   };
-
+  
   return (
-    <button
+    <button 
       className={clsx(baseStyles, variants[variant], sizes[size], className)}
-      disabled={disabled || loading}
       {...props}
     >
-      {loading && (
-        <svg className="animate-spin -ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-      )}
       {children}
     </button>
   );
-};
+}
 
-// ============ INPUT COMPONENT ============
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
-  icon?: React.ReactNode;
-  helperText?: string;
 }
 
-export const Input: React.FC<InputProps> = ({ label, error, icon, helperText, className, ...props }) => {
+export function Input({ label, error, className, ...props }: InputProps) {
   return (
-    <div className="space-y-2">
+    <div className="space-y-1">
       {label && (
-        <label className="block text-base font-bold text-white mb-3">
+        <label className="block text-sm font-medium text-gray-700 ml-1">
           {label}
-          {props.required && <span className="text-red-400 ml-1">*</span>}
         </label>
       )}
-      <div className="relative">
-        {icon && (
-          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
-            {icon}
-          </div>
+      <input
+        className={clsx(
+          'w-full px-4 py-2.5 rounded-xl border border-white/50 bg-white/40 backdrop-blur-md',
+          'focus:outline-none focus:ring-2 focus:ring-[#800000]/50 focus:border-[#800000]',
+          'placeholder:text-gray-400 text-gray-800',
+          error && 'border-red-500 focus:ring-red-500/50',
+          className
         )}
-        <input
-          className={clsx(
-            'w-full px-5 py-4 text-base rounded-xl bg-black/25 backdrop-blur-sm border-2 border-maroon-600/60 text-white placeholder-gray-500 transition-all',
-            'focus:outline-none focus:ring-3 focus:ring-gold-400 focus:ring-offset-2 focus:ring-offset-maroon-950 focus:border-gold-500',
-            'hover:border-maroon-500/80',
-            icon && 'pl-12',
-            error && 'border-red-500 focus:ring-red-400',
-            className
-          )}
-          {...props}
-        />
-      </div>
-      {error && <p className="text-red-300 text-base font-medium mt-2">{error}</p>}
-      {helperText && !error && <p className="text-gray-400 text-sm mt-1">{helperText}</p>}
+        {...props}
+      />
+      {error && <p className="text-sm text-red-500 ml-1">{error}</p>}
     </div>
   );
-};
+}
 
-// ============ SELECT COMPONENT ============
 interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   label?: string;
   options: { value: string; label: string }[];
-  helperText?: string;
 }
 
-export const Select: React.FC<SelectProps> = ({ label, options, helperText, className, ...props }) => {
+export function Select({ label, options, className, ...props }: SelectProps) {
   return (
-    <div className="space-y-2">
+    <div className="space-y-1">
       {label && (
-        <label className="block text-base font-bold text-white mb-3">
+        <label className="block text-sm font-medium text-gray-700 ml-1">
           {label}
-          {props.required && <span className="text-red-400 ml-1">*</span>}
         </label>
       )}
       <select
         className={clsx(
-          'w-full px-5 py-4 text-base rounded-xl bg-black/25 backdrop-blur-sm border-2 border-maroon-600/60 text-white transition-all',
-          'focus:outline-none focus:ring-3 focus:ring-gold-400 focus:ring-offset-2 focus:ring-offset-maroon-950 focus:border-gold-500',
-          'hover:border-maroon-500/80',
-          'appearance-none cursor-pointer',
+          'w-full px-4 py-2.5 rounded-xl border border-white/50 bg-white/40 backdrop-blur-md',
+          'focus:outline-none focus:ring-2 focus:ring-[#800000]/50 focus:border-[#800000]',
+          'text-gray-800',
           className
         )}
         {...props}
       >
         {options.map(opt => (
-          <option key={opt.value} value={opt.value} className="bg-maroon-950 text-white">
-            {opt.label}
-          </option>
+          <option key={opt.value} value={opt.value}>{opt.label}</option>
         ))}
       </select>
-      {helperText && <p className="text-gray-400 text-sm mt-1">{helperText}</p>}
     </div>
   );
-};
-
-// ============ MODAL COMPONENT ============
-interface ModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  title: string;
-  children: React.ReactNode;
-  subtitle?: string;
 }
 
-export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, subtitle, children }) => {
-  if (!isOpen) return null;
+interface BadgeProps {
+  children: ReactNode;
+  variant?: 'success' | 'warning' | 'danger' | 'info';
+  className?: string;
+}
+
+export function Badge({ children, variant = 'info', className }: BadgeProps) {
+  const variants = {
+    success: 'bg-green-500/30 text-green-800 border-green-500/40 backdrop-blur-sm',
+    warning: 'bg-yellow-500/30 text-yellow-800 border-yellow-500/40 backdrop-blur-sm',
+    danger: 'bg-red-500/30 text-red-800 border-red-500/40 backdrop-blur-sm',
+    info: 'bg-blue-500/30 text-blue-800 border-blue-500/40 backdrop-blur-sm',
+  };
   
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-      <div 
-        className="absolute inset-0 bg-black/60 backdrop-blur-md"
-        onClick={onClose}
-        role="button"
-        aria-label="Close modal"
-      />
-      <div className="relative bg-maroon-950/80 backdrop-blur-xl rounded-2xl p-6 w-full max-w-md md:max-w-lg lg:max-w-xl h-fit max-h-[90vh] overflow-y-auto border-2 border-gold-500/70 shadow-2xl shadow-maroon-900/50 animate-in fade-in zoom-in duration-200">
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-gray-300 hover:text-white transition-all p-2 rounded-xl hover:bg-white/10 active:scale-95"
-          aria-label="Close dialog"
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-        <div className="mb-6 pr-10">
-          <h2 className="text-2xl font-bold text-white">{title}</h2>
-          {subtitle && <p className="text-gray-300 text-base mt-2">{subtitle}</p>}
-        </div>
-        <div className="space-y-4">
-          {children}
-        </div>
-      </div>
-    </div>
-  );
-
-};
-
-// ============ BADGE COMPONENT ============
-interface BadgeProps {
-  children: React.ReactNode;
-  variant?: 'success' | 'warning' | 'danger' | 'info' | 'gold';
-  className?: string;
-  size?: 'sm' | 'md' | 'lg';
-}
-
-export const Badge: React.FC<BadgeProps> = ({ children, variant = 'info', className, size = 'md' }) => {
-  const variants = {
-    success: 'bg-green-500/30 text-green-200 border-green-500/70 font-semibold',
-    warning: 'bg-yellow-500/30 text-yellow-200 border-yellow-500/70 font-semibold',
-    danger: 'bg-red-500/30 text-red-200 border-red-500/70 font-semibold',
-    info: 'bg-maroon-500/30 text-maroon-100 border-maroon-500/70 font-semibold',
-    gold: 'bg-gold-500/30 text-gold-100 border-gold-500/70 font-semibold'
-  };
-
-  const sizes = {
-    sm: 'px-3 py-2 text-sm',
-    md: 'px-4 py-2 text-base',
-    lg: 'px-5 py-3 text-lg'
-  };
-
-  return (
     <span className={clsx(
-      'inline-flex items-center rounded-full border-2 transition-all',
+      'px-3 py-1 rounded-full text-xs font-medium border backdrop-blur-sm',
       variants[variant],
-      sizes[size],
       className
     )}>
       {children}
     </span>
   );
-};
-
-// ============ STAT CARD COMPONENT ============
-interface StatCardProps {
-  title: string;
-  value: string | number;
-  icon: React.ReactNode;
-  trend?: { value: number; isPositive: boolean };
-  subtitle?: string;
 }
 
-export const StatCard: React.FC<StatCardProps> = ({ title, value, icon, trend, subtitle }) => {
-  return (
-    <Card className="relative overflow-hidden">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex-1">
-          <p className="text-gray-300 text-base font-bold mb-2">{title}</p>
-          <p className="text-4xl font-bold text-white mb-2">{value}</p>
-          {subtitle && <p className="text-gray-400 text-sm mb-3">{subtitle}</p>}
-          {trend && (
-            <p className={clsx(
-              'text-base font-semibold flex items-center gap-2',
-              trend.isPositive ? 'text-green-300' : 'text-red-300'
-            )}>
-              <span className="text-xl">{trend.isPositive ? '↑' : '↓'}</span>
-              <span>{Math.abs(trend.value)}%</span>
-            </p>
-          )}
-        </div>
-        <div className="p-4 bg-gold-500/25 rounded-xl text-gold-300 flex-shrink-0">
-          {icon}
-        </div>
-      </div>
-    </Card>
-  );
-};
-
-// ============ TABLE COMPONENT ============
 interface TableProps {
   headers: string[];
-  children: React.ReactNode;
+  children: ReactNode;
 }
 
-export const Table: React.FC<TableProps> = ({ headers, children }) => {
+export function Table({ headers, children }: TableProps) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-maroon-600/50">
+    <div className="overflow-x-auto">
       <table className="w-full">
         <thead>
-          <tr className="bg-black/30 border-b border-maroon-600/50">
+          <tr className="border-b border-white/40 bg-white/20">
             {headers.map((h, i) => (
-              <th key={i} className="px-6 py-4 text-left text-base font-bold text-white">
+              <th key={i} className="px-4 py-3 text-left text-sm font-semibold text-[#800000] backdrop-blur-sm">
                 {h}
               </th>
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-maroon-600/30">
+        <tbody className="divide-y divide-white/20">
           {children}
         </tbody>
       </table>
     </div>
   );
-};
+}
 
-// ============ LOADING SPINNER COMPONENT ============
-interface LoadingSpinnerProps {
+interface ModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
+  children: ReactNode;
   size?: 'sm' | 'md' | 'lg';
-  text?: string;
 }
 
-export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({ size = 'md', text }) => {
-  const sizeClasses = {
-    sm: 'h-8 w-8',
-    md: 'h-12 w-12',
-    lg: 'h-16 w-16'
+export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalProps) {
+  if (!isOpen) return null;
+  
+  const sizes = {
+    sm: 'max-w-sm',
+    md: 'max-w-lg',
+    lg: 'max-w-2xl',
   };
-
-  const textSizes = {
-    sm: 'text-sm',
-    md: 'text-base',
-    lg: 'text-lg'
-  };
-
+  
   return (
-    <div className="flex flex-col items-center justify-center gap-4">
-      <svg className={clsx('animate-spin', sizeClasses[size])} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-      </svg>
-      {text && <p className={clsx('text-gray-300 font-medium', textSizes[size])}>{text}</p>}
-    </div>
-  );
-};
-
-// ============ ALERT COMPONENT ============
-interface AlertProps {
-  variant?: 'success' | 'error' | 'warning' | 'info';
-  title?: string;
-  message: string;
-  onClose?: () => void;
-}
-
-export const Alert: React.FC<AlertProps> = ({ variant = 'info', title, message, onClose }) => {
-  const variants = {
-    success: {
-      bg: 'bg-green-500/20',
-      border: 'border-green-500/60',
-      text: 'text-green-100',
-      icon: '✓'
-    },
-    error: {
-      bg: 'bg-red-500/20',
-      border: 'border-red-500/60',
-      text: 'text-red-100',
-      icon: '✕'
-    },
-    warning: {
-      bg: 'bg-yellow-500/20',
-      border: 'border-yellow-500/60',
-      text: 'text-yellow-100',
-      icon: '⚠'
-    },
-    info: {
-      bg: 'bg-maroon-500/20',
-      border: 'border-maroon-500/60',
-      text: 'text-maroon-100',
-      icon: 'ⓘ'
-    }
-  };
-
-  const style = variants[variant];
-
-  return (
-    <div className={clsx('rounded-xl border-2 p-4 animate-slideInFromLeft', style.bg, style.border, style.text)}>
-      <div className="flex items-start gap-4">
-        <div className="text-2xl flex-shrink-0 mt-1">{style.icon}</div>
-        <div className="flex-1">
-          {title && <h3 className="font-bold text-base mb-1">{title}</h3>}
-          <p className="text-base">{message}</p>
-        </div>
-        {onClose && (
-          <button
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div 
+        className="absolute inset-0 bg-black/30 backdrop-blur-md"
+        onClick={onClose}
+      />
+      <div className={clsx(
+        'relative w-full bg-white/60 backdrop-blur-2xl rounded-2xl shadow-2xl border border-white/50',
+        sizes[size]
+      )}>
+        <div className="flex items-center justify-between p-5 border-b border-white/40 bg-white/20 backdrop-blur-sm">
+          <h2 className="text-xl font-semibold text-[#800000]">{title}</h2>
+          <button 
             onClick={onClose}
-            className="ml-4 p-2 rounded-lg hover:bg-white/10 transition-colors flex-shrink-0"
-            aria-label="Close alert"
+            className="p-2 rounded-lg hover:bg-white/50 text-[#800000] transition-colors"
           >
-            ✕
+            <i className="hgi-stroke hgi-close-circle"></i>
           </button>
-        )}
+        </div>
+        <div className="p-4">{children}</div>
       </div>
     </div>
   );
-};
+}
 
+interface TabsProps {
+  tabs: { id: string; label: string }[];
+  activeTab: string;
+  onChange: (id: string) => void;
+}
+
+export function Tabs({ tabs, activeTab, onChange }: TabsProps) {
+  return (
+    <div className="flex gap-2 p-1 bg-white/20 rounded-xl">
+      {tabs.map(tab => (
+        <button
+          key={tab.id}
+          onClick={() => onChange(tab.id)}
+          className={clsx(
+            'px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300',
+            activeTab === tab.id
+              ? 'bg-[#800000] text-white shadow-lg'
+              : 'text-gray-600 hover:bg-white/30'
+          )}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function Spinner({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
+  const sizes = {
+    sm: 'w-4 h-4',
+    md: 'w-8 h-8',
+    lg: 'w-12 h-12',
+  };
+  
+  return (
+    <div className={clsx('animate-spin rounded-full border-2 border-[#800000]/30 border-t-[#800000]', sizes[size])} />
+  );
+}
+
+interface EmptyStateProps {
+  icon?: string;
+  title: string;
+  description?: string;
+  action?: ReactNode;
+}
+
+export function EmptyState({ title, description, action }: EmptyStateProps) {
+  return (
+    <div className="flex flex-col items-center justify-center py-12 text-center">
+      <div className="w-16 h-16 mb-4 rounded-full bg-white/30 flex items-center justify-center">
+        <span className="text-3xl">📭</span>
+      </div>
+      <h3 className="text-lg font-semibold text-gray-700">{title}</h3>
+      {description && <p className="text-sm text-gray-500 mt-1">{description}</p>}
+      {action && <div className="mt-4">{action}</div>}
+    </div>
+  );
+}
+
+interface ConfirmModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  title: string;
+  message: string;
+  confirmText?: string;
+  cancelText?: string;
+  variant?: 'danger' | 'warning' | 'info';
+}
+
+export function ConfirmModal({ 
+  isOpen, 
+  onClose, 
+  onConfirm, 
+  title, 
+  message, 
+  confirmText = 'Confirm',
+  cancelText = 'Cancel',
+  variant = 'danger'
+}: ConfirmModalProps) {
+  if (!isOpen) return null;
+  
+  const variants = {
+    danger: {
+      bg: 'bg-red-500/20 border-red-500/40',
+      text: 'text-red-700',
+      button: 'bg-red-600 hover:bg-red-700',
+    },
+    warning: {
+      bg: 'bg-yellow-500/20 border-yellow-500/40',
+      text: 'text-yellow-700',
+      button: 'bg-yellow-600 hover:bg-yellow-700',
+    },
+    info: {
+      bg: 'bg-blue-500/20 border-blue-500/40',
+      text: 'text-blue-700',
+      button: 'bg-[#800000] hover:bg-[#600000]',
+    },
+  };
+  
+  const v = variants[variant];
+  
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div 
+        className="absolute inset-0 bg-black/50 backdrop-blur-md"
+        onClick={onClose}
+      />
+      <div className="relative w-full max-w-sm bg-white/80 backdrop-blur-2xl rounded-2xl shadow-2xl border border-white/50 overflow-hidden animate-in fade-in zoom-in duration-200">
+        <div className={`p-6 ${v.bg} border-b border-white/30`}>
+          <div className="flex items-center gap-4">
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center ${v.bg}`}>
+              <i className={`hgi-stroke hgi-warning-02 ${v.text}`}></i>
+            </div>
+            <h2 className={`text-xl font-semibold ${v.text}`}>{title}</h2>
+          </div>
+        </div>
+        <div className="p-6">
+          <p className="text-gray-600 mb-6">{message}</p>
+          <div className="flex gap-3 justify-end">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-100 transition-all duration-300"
+            >
+              {cancelText}
+            </button>
+            <button
+              onClick={() => { onConfirm(); onClose(); }}
+              className={`px-4 py-2 rounded-xl text-white ${v.button} transition-all duration-300 shadow-lg hover:shadow-xl`}
+            >
+              {confirmText}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -1,13 +1,11 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /// <reference types="vite/client" />
 
-// some global object injected by platform
-declare global {
-  interface Window {
-    aiSdk?: Record<string, any>;
-    ywConfig?: Record<string, any>;
-    ywSdk?: Record<string, any>;
-  }
+interface ImportMetaEnv {
+  readonly VITE_SUPABASE_URL: string
+  readonly VITE_SUPABASE_ANON_KEY: string
 }
 
-export {};
+interface ImportMeta {
+  readonly env: ImportMetaEnv
+}
+

@@ -1,109 +1,68 @@
-import React, { useEffect, useState } from 'react';
-import { useStore } from '../../store';
-import { DashboardLayout } from '../../components/layouts';
-import { Card, Badge, Table } from '../../components/ui';
-import { 
-  BookOpen, 
-  GraduationCap,
-  User,
-  Clock
-} from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { DashboardLayout } from '../../components/layouts/DashboardLayout';
+import { GlassCard, Spinner, Badge } from '../../components/ui';
+import { useAuthStore } from '../../store';
 import { supabase } from '../../lib/supabase';
 
-const StudentSubjects: React.FC = () => {
-  const { user, subjects } = useStore();
-  const [myEnrollments, setMyEnrollments] = useState<any[]>([]);
+export default function StudentSubjectsPage() {
+  const { user } = useAuthStore();
+  const [mySubjects, setMySubjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchMyEnrollments();
-  }, [user, subjects]);
+    loadData();
+  }, []);
 
-  const fetchMyEnrollments = async () => {
-    if (!user) return;
-    setLoading(true);
+  const loadData = async () => {
+    try {
+      const { data: studentData } = await supabase
+        .from('students')
+        .select('*')
+        .eq('user_id', user?.id)
+        .single();
 
-    // Get current student's record
-    const { data: studentData } = await supabase
-      .from('students')
-      .select('*')
-      .eq('user_id', user.id)
-      .single();
+      if (!studentData) return;
 
-    if (studentData) {
-      const { data: enrollments } = await supabase
+      const { data: studentSubjects } = await supabase
         .from('student_subjects')
-        .select('*, subject:subjects(*, course:courses(*), teacher:users!subjects_teacher_id_fkey(*))')
+        .select('*, subject:subjects(*, course:courses(*), teacher:users(*))')
         .eq('student_id', studentData.id);
 
-      if (enrollments) setMyEnrollments(enrollments);
+      setMySubjects(studentSubjects || []);
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   if (loading) {
-    return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-white">Loading...</div>
-        </div>
-      </DashboardLayout>
-    );
+    return <DashboardLayout title="My Subjects"><Spinner size="lg" /></DashboardLayout>;
   }
 
   return (
-    <DashboardLayout>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-white">My Subjects</h1>
-          <p className="text-gray-400 mt-2">View your enrolled subjects</p>
-        </div>
-
-        {/* Subject Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {myEnrollments.map(enrollment => (
-            <Card key={enrollment.id}>
-              <div className="flex items-start justify-between mb-4">
-                <div className="w-12 h-12 rounded-xl bg-indigo-500/20 flex items-center justify-center text-indigo-300">
-                  <BookOpen size={24} />
-                </div>
-                <Badge variant="info">
-                  {enrollment.subject?.course?.name || 'No Course'}
-                </Badge>
-              </div>
-              
-              <h3 className="text-xl font-semibold text-white mb-2">
-                {enrollment.subject?.name}
-              </h3>
-
-              <div className="mt-4 pt-4 border-t border-white/10 space-y-3">
-                <div className="flex items-center gap-3 text-gray-300">
-                  <User size={16} className="text-gray-400" />
-                  <span>
-                    {enrollment.subject?.teacher?.name || 'No Teacher Assigned'}
-                  </span>
-                </div>
-                <div className="flex items-center gap-3 text-gray-300">
-                  <Clock size={16} className="text-gray-400" />
-                  <span>Enrolled: {new Date(enrollment.created_at).toLocaleDateString()}</span>
+    <DashboardLayout title="My Subjects">
+      <GlassCard className="p-6">
+        {mySubjects.length === 0 ? (
+          <p className="text-gray-500 text-center py-8">No subjects enrolled</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {mySubjects.map(ss => (
+              <div key={ss.id} className="p-6 rounded-xl bg-white/30 border border-white/40">
+                <h3 className="text-lg font-semibold text-[#800000] mb-2">{ss.subject?.name}</h3>
+                <div className="space-y-1 text-sm text-gray-600">
+                  <p><span className="font-medium">Course:</span> {ss.subject?.course?.name}</p>
+                  <p><span className="font-medium">Year Level:</span> {ss.subject?.year_level}</p>
+                  <p><span className="font-medium">Semester:</span> {ss.subject?.semester}</p>
+                  {ss.subject?.teacher && (
+                    <p><span className="font-medium">Teacher:</span> {ss.subject.teacher.name || `${ss.subject.teacher.first_name} ${ss.subject.teacher.last_name}`}</p>
+                  )}
                 </div>
               </div>
-            </Card>
-          ))}
-        </div>
-
-        {myEnrollments.length === 0 && (
-          <Card>
-            <div className="text-center py-12 text-gray-400">
-              <GraduationCap size={48} className="mx-auto mb-4 opacity-50" />
-              <p>You are not enrolled in any subjects yet</p>
-              <p className="text-sm mt-2">Contact your administrator to enroll</p>
-            </div>
-          </Card>
+            ))}
+          </div>
         )}
-      </div>
+      </GlassCard>
     </DashboardLayout>
   );
-};
-
-export default StudentSubjects;
+}

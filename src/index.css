@@ -1,6 +1,78 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gradient-to-br from-[#f8f9fa] via-[#ffffff] to-[#f0f0f5] text-gray-800 antialiased min-h-screen;
+    background-image: 
+      radial-gradient(circle at 20% 80%, rgba(128, 0, 0, 0.08) 0%, transparent 50%),
+      radial-gradient(circle at 80% 20%, rgba(212, 175, 55, 0.08) 0%, transparent 50%),
+      radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.9) 0%, transparent 100%);
+  }
+}
+
+@layer components {
+  .glass {
+    @apply backdrop-blur-2xl bg-white/40 border border-white/50 rounded-2xl shadow-xl;
+  }
+  
+  .glass-hover {
+    @apply hover:bg-white/60 transition-all duration-300;
+  }
+  
+  .glass-card {
+    @apply backdrop-blur-xl bg-white/30 border border-white/40 rounded-2xl shadow-lg;
+  }
+  
+  .glass-input {
+    @apply backdrop-blur-md bg-white/40 border border-white/50 rounded-xl;
+  }
+  
+  .glass-button {
+    @apply backdrop-blur-md bg-gradient-to-r from-[#800000] to-[#a52a2a] text-white border border-white/30 shadow-lg hover:shadow-xl hover:bg-white/20 transition-all duration-300;
+  }
+}
+
+@layer utilities {
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+  }
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-white/20 rounded-full;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-[#800000]/30 rounded-full hover:bg-[#800000]/50;
+}
+
+/* File input styling */
+input[type="file"]::file-selector-button {
+  @apply mr-4 px-4 py-2 rounded-xl border-0 text-sm font-semibold bg-[#800000] text-white hover:bg-[#600000] transition-colors;
+}
+
+/* Background pattern */
+.bg-pattern {
+  background-image: 
+    radial-gradient(circle at 20% 80%, rgba(128, 0, 0, 0.05) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(212, 175, 55, 0.05) 0%, transparent 50%);
+}

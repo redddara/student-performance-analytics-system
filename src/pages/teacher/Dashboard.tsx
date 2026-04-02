@@ -1,349 +1,140 @@
-import React, { useEffect, useState } from 'react';
-import { useStore } from '../../store';
-import { DashboardLayout } from '../../components/layouts';
-import { Card, StatCard, Badge } from '../../components/ui';
-import { 
-  GradeDistributionChart, 
-  PassingRateChart, 
-  SubjectComparisonChart 
-} from '../../components/charts';
-import type { StudentPerformance, Subject, Grade } from '../../types';
-import { 
-  BookOpen, 
-  GraduationCap, 
-  TrendingUp,
-  Award,
-  AlertTriangle,
-  Users
-} from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { DashboardLayout } from '../../components/layouts/DashboardLayout';
+import { GlassCard, Button, Select, Table, Spinner, Badge } from '../../components/ui';
+import { useAuthStore, useDataStore } from '../../store';
+import { supabase, isPassing } from '../../lib/supabase';
 
-const TeacherDashboard: React.FC = () => {
-  const { user, subjects, grades, students, getTeacherSubjects } = useStore();
+export default function TeacherDashboard() {
+  const { user } = useAuthStore();
+  const { subjects, grades } = useDataStore();
+  const [loading, setLoading] = useState(true);
   const [mySubjects, setMySubjects] = useState<any[]>([]);
+  const [myStudents, setMyStudents] = useState<any[]>([]);
 
   useEffect(() => {
-    if (user) {
-      const teacherSubjects = getTeacherSubjects(user.id);
-      setMySubjects(teacherSubjects);
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      // Get subjects assigned to this teacher
+      const { data: teacherSubjects } = await supabase
+        .from('subjects')
+        .select('*, course:courses(*)')
+        .eq('teacher_id', user?.id);
+
+      setMySubjects(teacherSubjects || []);
+
+      // Get grades
+      const { data: gradesData } = await supabase.from('grades').select('*');
+      useDataStore.getState().setGrades(gradesData || []);
+
+      // Get unique students in teacher's subjects
+      if (teacherSubjects && teacherSubjects.length > 0) {
+        const subjectIds = teacherSubjects.map((s: any) => s.id);
+        const { data: studentSubjects } = await supabase
+          .from('student_subjects')
+          .select('student_id')
+          .in('subject_id', subjectIds);
+        
+        const uniqueStudentIds = [...new Set((studentSubjects || []).map((ss: any) => ss.student_id))];
+        setMyStudents(uniqueStudentIds);
+      }
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
+      setLoading(false);
     }
-  }, [user, subjects]);
+  };
 
-  // Get grades for my subjects
-  const mySubjectGrades = grades.filter(g => 
-    mySubjects.some(s => s.id === g.subject_id)
-  );
+  if (loading) {
+    return <DashboardLayout title="Dashboard"><Spinner size="lg" /></DashboardLayout>;
+  }
 
-  // Calculate stats
-  const totalStudents = new Set(
-    mySubjectGrades.map(g => g.student_id)
-  ).size;
-
-  const passingGrades = mySubjectGrades.filter(g => Number(g.grade) >= 75);
-  const passingRate = mySubjectGrades.length > 0 
-    ? (passingGrades.length / mySubjectGrades.length) * 100 
-    : 0;
-
-  const avgGrade = mySubjectGrades.length > 0
-    ? mySubjectGrades.reduce((sum, g) => sum + Number(g.grade), 0) / mySubjectGrades.length
-    : 0;
-
-  // Subject performance
-  const subjectPerformance = mySubjects.map(subject => {
-    const subjectGrades = mySubjectGrades.filter(g => g.subject_id === subject.id);
-    const avg = subjectGrades.length > 0
-      ? subjectGrades.reduce((sum, g) => sum + Number(g.grade), 0) / subjectGrades.length
-      : 0;
-    return {
-      subject: subject.name,
-      avgGrade: Math.round(avg * 100) / 100,
-      studentCount: new Set(subjectGrades.map(g => g.student_id)).size
-    };
-  });
-
-  // Student performance for my subjects - per subject evaluation
-  const studentGradesMap = new Map();
-  mySubjectGrades.forEach(g => {
-    if (!studentGradesMap.has(g.student_id)) {
-      studentGradesMap.set(g.student_id, []);
-    }
-    studentGradesMap.get(g.student_id).push(g);
-  });
-
-  const studentPerformance: StudentPerformance[] = Array.from(studentGradesMap.entries()).map(([studentId, studentGrades]) => {
-    const student = students.find(s => s.id === studentId);
-    const avg = studentGrades.reduce((sum: number, g: Grade) => sum + Number(g.grade), 0) / studentGrades.length;
-    
-    // Group by subject and calculate average grade per subject
-    const subjectAvgMap = new Map<string, { subject: Subject; grades: number[] }>();
-    studentGrades.forEach((g: Grade) => {
-      const subjectId = g.subject_id;
-      if (!subjectAvgMap.has(subjectId)) {
-        subjectAvgMap.set(subjectId, { subject: g.subject!, grades: [] });
-      }
-      const current = subjectAvgMap.get(subjectId)!;
-      current.grades.push(Number(g.grade));
-    });
-
-    const weakSubjects: { subject: Subject; avgGrade: number }[] = [];
-    subjectAvgMap.forEach(({ subject, grades }) => {
-      const avgGrade = grades.reduce((sum: number, grade: number) => sum + grade, 0) / grades.length;
-      if (avgGrade < 75) {
-        weakSubjects.push({ subject, avgGrade: Math.round(avgGrade * 100) / 100 });
-      }
-    });
-    
-    const needsAttention = weakSubjects.length > 0;
-    
-    return {
-      student: student!,
-      avgGrade: Math.round(avg * 100) / 100,
-      weakSubjects: weakSubjects as any, // Type compatible with original
-      needsAttention
-    };
-  }).sort((a, b) => b.avgGrade - a.avgGrade);
-
-  // Per-subject top performers (top 3 students per subject, avg >= 75 only)
-  const subjectTopPerformers = mySubjects.map(subject => {
-    const subjectGrades = mySubjectGrades.filter(g => g.subject_id === subject.id);
-    const studentSubjectAvgs = new Map();
-    subjectGrades.forEach(g => {
-      if (!studentSubjectAvgs.has(g.student_id)) {
-        studentSubjectAvgs.set(g.student_id, {student: g.student!, sum: 0, count: 0});
-      }
-      const current = studentSubjectAvgs.get(g.student_id)!;
-      current.sum += Number(g.grade);
-      current.count += 1;
-    });
-    const perf = Array.from(studentSubjectAvgs.values())
-      .map(({student, sum, count}) => {
-        const avgGrade = Math.round((sum / count) * 100) / 100;
-        return { student, avgGrade };
-      })
-      .filter(p => p.avgGrade >= 75)
-      .sort((a,b) => b.avgGrade - a.avgGrade)
-      .slice(0, 3);
-    return { 
-      subject: subject.name, 
-      topStudents: perf 
-    };
-  });
-
-  // const topPerformers = []; // Deprecated - now per subject
-  const strugglingStudents = studentPerformance.filter(s => s.needsAttention).slice(0, 5);
-
-  // Grade distribution
-  const gradeRanges = [
-    { range: '90-100', min: 90, max: 100, count: 0 },
-    { range: '85-89', min: 85, max: 89, count: 0 },
-    { range: '80-84', min: 80, max: 84, count: 0 },
-    { range: '75-79', min: 75, max: 79, count: 0 },
-    { range: 'Below 75', min: 0, max: 74, count: 0 },
-  ];
-
-  mySubjectGrades.forEach(g => {
-    const grade = Number(g.grade);
-    gradeRanges.forEach(r => {
-      if (grade >= r.min && grade <= r.max) r.count++;
-    });
-  });
+  // Calculate stats - only teacher's subjects grades
+  const mySubjectIds = mySubjects.map((s: any) => s.id);
+  const myGrades = grades.filter((g: any) => mySubjectIds.includes(g.subject_id));
+  const totalGrades = myGrades.length;
+  const passingGrades = myGrades.filter((g: any) => isPassing(g.grade)).length;
+  const passRate = totalGrades > 0 ? Math.round((passingGrades / totalGrades) * 100) : 0;
 
   return (
-    <DashboardLayout>
-      <div className="space-y-8">
-        <div>
-          <h1 className="text-3xl font-bold text-white">Teacher Dashboard</h1>
-          <p className="text-gray-400 mt-2">Welcome back, {user?.name}</p>
-        </div>
-
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <StatCard
-            title="My Subjects"
-            value={mySubjects.length}
-            icon={<BookOpen size={24} />}
-          />
-          <StatCard
-            title="Students"
-            value={totalStudents}
-            icon={<Users size={24} />}
-          />
-          <StatCard
-            title="Average Grade"
-            value={avgGrade.toFixed(2)}
-            icon={<TrendingUp size={24} />}
-          />
-          <StatCard
-            title="Passing Rate"
-            value={`${passingRate.toFixed(1)}%`}
-            icon={<Award size={24} />}
-          />
-        </div>
-
-        {/* Subject Performance */}
-        {subjectPerformance.length > 0 && (
-          <Card>
-            <h3 className="text-xl font-semibold text-white mb-4">Subject Performance</h3>
-            <SubjectComparisonChart data={subjectPerformance} />
-          </Card>
-        )}
-
-        {/* Grade Distribution & Passing Rate */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card>
-            <h3 className="text-xl font-semibold text-white mb-4">Grade Distribution</h3>
-            <GradeDistributionChart data={gradeRanges.map(r => ({ range: r.range, count: r.count }))} />
-          </Card>
-
-          <Card>
-            <h3 className="text-xl font-semibold text-white mb-4">Passing Rate</h3>
-            <PassingRateChart passingRate={passingRate} failingRate={100 - passingRate} />
-          </Card>
-        </div>
-
-        {/* Top & Struggling Students */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card>
-            <h3 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
-              <Award className="text-yellow-400" size={24} />
-              Top Performers Per Subject
-            </h3>
-<div className="w-full overflow-x-hidden scrollbar-hide">
-  <table className="table-auto w-full min-w-0">
-    <thead>
-      <tr className="border-b border-white/10">
-        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">Subject</th>
-        <th className="px-3 py-2 text-center text-xs font-semibold text-gray-300 uppercase tracking-wider">Rank</th>
-        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider max-w-xs">Student</th>
-        <th className="px-3 py-2 text-right text-xs font-semibold text-gray-300 uppercase tracking-wider">Grade</th>
-      </tr>
-    </thead>
-    <tbody>
-      {subjectTopPerformers.filter(({ topStudents }) => topStudents.length > 0).map(({ subject, topStudents }) => 
-        topStudents.map(({ student, avgGrade }, rank) => (
-          <tr key={`${subject}-${student.id}`} className="hover:bg-white/10 group even:bg-black/10 border-b border-white/10 last:border-b-0 transition-all duration-200">
-            <td className="max-w-[22%] px-3 py-2.5 text-left truncate">
-              <div className="inline-flex items-center gap-1.5 bg-gradient-to-r from-yellow-500/15 to-orange-500/15 backdrop-blur-sm px-2.5 py-1 rounded-md text-xs font-semibold shadow-sm border border-yellow-400/30">
-                <Award className="w-3 h-3 text-yellow-400 flex-shrink-0" />
-                {subject}
-              </div>
-            </td>
-            <td className="w-16 px-2 py-2.5 text-center">
-              <div className="inline-flex items-center justify-center bg-gradient-to-br from-yellow-400/90 to-yellow-500/90 text-black font-black text-sm px-3 py-1.5 rounded-lg shadow-lg ring-1 ring-yellow-300/70 flex-shrink-0">
-                #{rank + 1}
-              </div>
-            </td>
-            <td className="max-w-xs px-3 py-2.5">
-              <div className="font-semibold text-sm text-white truncate" title={`${student.first_name} ${student.last_name}`}>
-                {student.first_name} {student.last_name}
-              </div>
-            </td>
-            <td className="px-3 py-2.5 text-right">
-              <div className="inline-flex items-center gap-1.5 bg-gradient-to-r from-indigo-500/15 to-purple-500/15 backdrop-blur-sm px-3 py-1.5 rounded-md font-mono font-semibold text-sm text-indigo-200 shadow-sm border border-indigo-400/30 flex-shrink-0">
-                <TrendingUp className="w-3 h-3 text-indigo-400 flex-shrink-0" />
-                {avgGrade.toFixed(1)}
-              </div>
-            </td>
-          </tr>
-        ))
-      )}
-      {subjectTopPerformers.filter(({ topStudents }) => topStudents.length > 0).length === 0 && (
-        <tr>
-          <td colSpan={4} className="px-4 py-12 text-center bg-gradient-to-r from-yellow-500/5 to-orange-500/5 backdrop-blur-sm rounded-b-xl border-t border-yellow-500/20">
-            <Award className="mx-auto h-12 w-12 text-yellow-400/60 mb-3 animate-pulse" />
-            <h4 className="text-lg font-bold text-white mb-1">No Top Performers Yet</h4>
-            <p className="text-gray-400 text-xs max-w-md mx-auto leading-relaxed">Students need 75+ average to qualify. Keep encouraging excellence!</p>
-          </td>
-        </tr>
-      )}
-    </tbody>
-  </table>
-</div>
-          </Card>
-
-          <Card>
-            <h3 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-              <AlertTriangle className="text-red-400" size={24} />
-              Needs Attention
-            </h3>
-            {/* Summary */}
-            <div className="mb-6 p-4 bg-gradient-to-r from-red-500/20 to-orange-500/20 border-2 border-red-400/50 rounded-xl backdrop-blur-sm">
-              <div className="flex items-center gap-3">
-                <AlertTriangle className="w-6 h-6 text-red-400" />
-                <div>
-                  <p className="text-lg font-semibold text-white">{strugglingStudents.length} students need attention</p>
-                  <p className="text-sm text-orange-200">Focus on these students for intervention</p>
-                </div>
-              </div>
+    <DashboardLayout title="Teacher Dashboard">
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <GlassCard className="p-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#800000] to-[#a52a2a] flex items-center justify-center">
+              <i className="hgi-stroke hgi-school-tie text-white text-xl"></i>
             </div>
+            <div>
+              <p className="text-2xl font-bold text-[#800000]">{mySubjects.length}</p>
+              <p className="text-sm text-gray-500">My Subjects</p>
+            </div>
+          </div>
+        </GlassCard>
 
-            <div className="w-full overflow-x-hidden scrollbar-hide">
-  <table className="table-auto w-full min-w-0">
-    <thead>
-      <tr className="border-b border-red-500/20">
-        <th className="px-3 py-2 text-left text-xs font-semibold text-red-200 uppercase tracking-wider">Student</th>
-        <th className="px-3 py-2 text-center text-xs font-semibold text-red-200 uppercase tracking-wider">Avg</th>
-        <th className="px-3 py-2 text-left text-xs font-semibold text-red-200 uppercase tracking-wider max-w-xs">Weak Subjects</th>
-        <th className="px-3 py-2 text-center text-xs font-semibold text-red-200 uppercase tracking-wider">Priority</th>
-      </tr>
-    </thead>
-                <tbody>
-      {strugglingStudents.length > 0 ? strugglingStudents.map(({ student, weakSubjects, avgGrade }) => {
-        const weakList = weakSubjects
-          .slice(0, 2)
-          .map((ws: any) => `${ws.subject.name}`)
-          .join(', ');
-        const moreWeak = weakSubjects.length > 2 ? `+${weakSubjects.length - 2}` : '';
-        const worstAvg = Math.min(...weakSubjects.map((ws: any) => ws.avgGrade));
-        const priorityVariant = worstAvg < 60 ? 'danger' : 'warning';
-        const priorityLabel = worstAvg < 60 ? 'High Risk' : 'Monitor';
-        const priorityColor = worstAvg < 60 ? 'from-red-500/20 to-orange-500/20 text-red-300 border-red-400/40' : 'from-amber-500/20 to-orange-500/20 text-amber-300 border-amber-400/40';
-        return (
-          <tr key={student.id} className="group hover:bg-white/10 even:bg-black/5 border-b border-red-400/20 hover:border-red-400/40 transition-all duration-200 hover:shadow-lg">
-            <td className="w-2/5 max-w-xs px-3 py-2.5 truncate">
-              <div className="font-semibold text-sm text-white truncate" title={`${student.first_name} ${student.last_name}`}>
-                {student.first_name} {student.last_name}
-              </div>
-            </td>
-            <td className="w-1/6 px-2 py-2.5 text-center">
-              <div className="inline-flex bg-gradient-to-r from-red-500/15 to-orange-500/15 px-2 py-1.5 rounded-md font-mono font-semibold text-xs text-red-300 border border-red-400/30 flex-shrink-0">
-                {weakSubjects[0] ? (weakSubjects[0] as any).avgGrade.toFixed(1) : 'N/A'}
-              </div>
-            </td>
-            <td className="w-1/4 px-3 py-2.5 truncate">
-              <div className="flex gap-1 flex-wrap text-xs text-red-300" title={weakSubjects.map((ws: any) => `${ws.subject.name} (${ws.avgGrade.toFixed(1)})`).join(', ')}>
-                {weakList.split(', ').map((subject, i) => (
-                  <span key={i} className="bg-red-500/10 px-1.5 py-0.5 rounded text-xs border border-red-500/30 whitespace-nowrap">
-                    {subject}
-                  </span>
-                ))}
-                {moreWeak && <span className="text-gray-500">+{moreWeak}</span>}
-              </div>
-            </td>
-            <td className="w-1/4 px-2 py-2.5 text-center">
-              <Badge variant={priorityVariant} size="sm" className={`font-bold px-2 py-1 rounded-full shadow-md ${priorityColor}`}>
-                {priorityLabel}
-              </Badge>
-            </td>
-          </tr>
-        );
-      }) : (
-        <tr>
-          <td colSpan={4} className="p-8 text-center bg-gradient-to-r from-emerald-500/10 to-green-500/10 border-t border-emerald-400/30 rounded-b-xl">
-            <GraduationCap className="mx-auto h-12 w-12 text-emerald-400 mb-3 animate-bounce" />
-            <h4 className="text-lg font-bold text-emerald-100 mb-1">Outstanding Performance!</h4>
-            <p className="text-emerald-300 text-sm max-w-sm mx-auto">No students currently need intervention 🎉</p>
-          </td>
-        </tr>
-      )}
-    </tbody>
-  </table>
-</div>
-          </Card>
-        </div>
+        <GlassCard className="p-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#d4af37] to-[#b8962e] flex items-center justify-center">
+              <i className="hgi-stroke hgi-student text-white text-xl"></i>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-[#d4af37]">{myStudents.length}</p>
+              <p className="text-sm text-gray-500">Students</p>
+            </div>
+          </div>
+        </GlassCard>
+
+        <GlassCard className="p-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+              <i className="hgi-stroke hgi-edit-user-02 text-white text-xl"></i>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-blue-600">{totalGrades}</p>
+              <p className="text-sm text-gray-500">Total Grades</p>
+            </div>
+          </div>
+        </GlassCard>
+
+        <GlassCard className="p-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center">
+              <i className="hgi-stroke hgi-checkmark-circle text-white text-xl"></i>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-green-600">{passRate}%</p>
+              <p className="text-sm text-gray-500">Pass Rate</p>
+            </div>
+          </div>
+        </GlassCard>
       </div>
+
+      {/* My Subjects */}
+      <GlassCard className="p-6">
+        <h2 className="text-xl font-semibold text-[#800000] mb-4">My Assigned Subjects</h2>
+        {mySubjects.length === 0 ? (
+          <p className="text-gray-500 text-center py-8">No subjects assigned yet</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {mySubjects.map(subject => (
+              <div key={subject.id} className="p-4 rounded-xl bg-white/30 border border-white/40">
+                <h3 className="font-semibold text-gray-800">{subject.name}</h3>
+                <p className="text-sm text-gray-500">{subject.course?.name} - {subject.year_level} - {subject.semester}</p>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="mt-2"
+                  onClick={() => window.location.href = `/teacher/subjects?id=${subject.id}`}
+                >
+                  View Grades →
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </GlassCard>
     </DashboardLayout>
   );
-};
-
-export default TeacherDashboard;
-
+}

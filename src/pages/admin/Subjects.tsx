@@ -1,292 +1,142 @@
-import React, { useState, useEffect } from 'react';
-import { useStore } from '../../store';
-import { DashboardLayout } from '../../components/layouts';
-import { Card, Button, Input, Select, Modal, Table, Badge } from '../../components/ui';
-import { 
-  ClipboardList, 
-  Plus, 
-  Search,
-  Trash2,
-  Edit,
-  X,
-  User,
-  BookOpen
-} from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { DashboardLayout } from '../../components/layouts/DashboardLayout';
+import { GlassCard, Button, Input, Table, Modal, Spinner, Select, ConfirmModal } from '../../components/ui';
+import { useDataStore } from '../../store';
 import { supabase } from '../../lib/supabase';
 
-const AdminSubjects: React.FC = () => {
-  const { subjects, courses, fetchSubjects, fetchCourses } = useStore();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [courseFilter, setCourseFilter] = useState('all');
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [selectedSubject, setSelectedSubject] = useState<any>(null);
+export default function AdminSubjectsPage() {
+  const { subjects, courses, setSubjects, setCourses } = useDataStore();
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [editingSubject, setEditingSubject] = useState<any>(null);
   const [teachers, setTeachers] = useState<any[]>([]);
+  const [deleteConfirm, setDeleteConfirm] = useState<{isOpen: boolean; id: string | null; name: string | null}>({ isOpen: false, id: null, name: null });
   
-  const [newSubject, setNewSubject] = useState({
+  const [formData, setFormData] = useState({
     name: '',
-    courseId: '',
-    teacherId: ''
-  });
-
-  const [editSubject, setEditSubject] = useState({
-    name: '',
-    courseId: '',
-    teacherId: ''
+    course_id: '',
+    year_level: '1st',
+    semester: '1st Sem',
+    teacher_id: '',
   });
 
   useEffect(() => {
-    fetchTeachers();
-    fetchCourses();
+    loadData();
   }, []);
 
-  const fetchTeachers = async () => {
-    const { data } = await supabase.from('users').select('*').eq('role', 'teacher');
-    if (data) setTeachers(data);
+  const loadData = async () => {
+    const [subjectsRes, coursesRes, teachersRes] = await Promise.all([
+      supabase.from('subjects').select('*, course:courses(*), teacher:users(*)').order('name'),
+      supabase.from('courses').select('*'),
+      supabase.from('users').select('*').eq('role', 'teacher'),
+    ]);
+    setSubjects(subjectsRes.data || []);
+    setCourses(coursesRes.data || []);
+    setTeachers(teachersRes.data || []);
+    setLoading(false);
   };
 
-  const handleCreateSubject = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     
-    try {
-      await supabase.from('subjects').insert({
-        name: newSubject.name,
-        course_id: newSubject.courseId,
-        teacher_id: newSubject.teacherId || null
-      });
-      await fetchSubjects();
-      setIsModalOpen(false);
-      setNewSubject({ name: '', courseId: '', teacherId: '' });
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
+    const data = {
+      name: formData.name,
+      course_id: formData.course_id,
+      year_level: formData.year_level,
+      semester: formData.semester,
+      teacher_id: formData.teacher_id || null,
+    };
+    
+    if (editingSubject) {
+      await supabase.from('subjects').update(data).eq('id', editingSubject.id);
+    } else {
+      await supabase.from('subjects').insert(data);
     }
+    
+    setShowModal(false);
+    setFormData({ name: '', course_id: '', year_level: '1st', semester: '1st Sem', teacher_id: '' });
+    setEditingSubject(null);
+    loadData();
   };
 
-  const handleUpdateSubject = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    
-    try {
-      await supabase.from('subjects').update({
-        name: editSubject.name,
-        course_id: editSubject.courseId,
-        teacher_id: editSubject.teacherId || null
-      }).eq('id', selectedSubject.id);
-      await fetchSubjects();
-      setIsEditModalOpen(false);
-      setSelectedSubject(null);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const openEditModal = (subject: any) => {
-    setSelectedSubject(subject);
-    setEditSubject({
+  const handleEdit = (subject: any) => {
+    setEditingSubject(subject);
+    setFormData({
       name: subject.name,
-      courseId: subject.course_id,
-      teacherId: subject.teacher_id || ''
+      course_id: subject.course_id,
+      year_level: subject.year_level || '1st',
+      semester: subject.semester || '1st Sem',
+      teacher_id: subject.teacher_id || '',
     });
-    setIsEditModalOpen(true);
+    setShowModal(true);
   };
 
-  const handleDeleteSubject = async (subjectId: string) => {
-    if (!confirm('Are you sure you want to delete this subject?')) return;
-    await supabase.from('subjects').delete().eq('id', subjectId);
-    fetchSubjects();
+  const handleDelete = (id: string, name: string) => {
+    setDeleteConfirm({ isOpen: true, id, name });
   };
 
-  const filteredSubjects = subjects.filter(subject => {
-    const matchesSearch = subject.name?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCourse = courseFilter === 'all' || subject.course_id === courseFilter;
-    return matchesSearch && matchesCourse;
-  });
-
-  const getCourseName = (courseId: string) => {
-    const course = courses.find(c => c.id === courseId);
-    return course?.name || 'No Course';
+  const confirmDelete = async () => {
+    if (deleteConfirm.id) {
+      await supabase.from('subjects').delete().eq('id', deleteConfirm.id);
+      loadData();
+      setDeleteConfirm({ isOpen: false, id: null, name: null });
+    }
   };
+
+  if (loading) {
+    return <DashboardLayout title="Subjects"><Spinner size="lg" /></DashboardLayout>;
+  }
 
   return (
-    <DashboardLayout>
-      <div className="space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-white">Subject Management</h1>
-            <p className="text-gray-400 mt-2">Manage subjects and teacher assignments</p>
+    <DashboardLayout title="Subject Management">
+      <Button onClick={() => setShowModal(true)} className="mb-6">➕ Add Subject</Button>
+      
+      <GlassCard className="p-6">
+        <Table headers={['Subject Name', 'Course', 'Year Level', 'Semester', 'Teacher', 'Actions']}>
+          {subjects.map(subject => (
+            <tr key={subject.id} className="hover:bg-white/20">
+              <td className="px-4 py-3 font-medium text-gray-800">{subject.name}</td>
+              <td className="px-4 py-3 text-gray-600">{subject.course?.name || '-'}</td>
+              <td className="px-4 py-3 text-gray-600">{subject.year_level || '-'}</td>
+              <td className="px-4 py-3 text-gray-600">{subject.semester || '-'}</td>
+              <td className="px-4 py-3 text-gray-600">
+                {subject.teacher ? `${subject.teacher.first_name || ''} ${subject.teacher.last_name || ''}`.trim() || subject.teacher.name || '-' : '-'}
+              </td>
+              <td className="px-4 py-3">
+                <Button variant="ghost" size="sm" onClick={() => handleEdit(subject)}>Edit</Button>
+                <Button variant="ghost" size="sm" className="text-red-600" onClick={() => handleDelete(subject.id, subject.name)}>Delete</Button>
+              </td>
+            </tr>
+          ))}
+        </Table>
+        {subjects.length === 0 && <p className="text-center text-gray-500 py-8">No subjects yet</p>}
+      </GlassCard>
+
+      <Modal isOpen={showModal} onClose={() => { setShowModal(false); setFormData({ name: '', course_id: '', year_level: '1st', semester: '1st Sem', teacher_id: '' }); setEditingSubject(null); }} title={editingSubject ? 'Edit Subject' : 'Add Subject'}>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <Input label="Subject Name" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} required />
+          <Select label="Course" value={formData.course_id} onChange={e => setFormData({ ...formData, course_id: e.target.value })} options={courses.map(c => ({ value: c.id, label: c.name }))} required />
+          <div className="grid grid-cols-2 gap-4">
+            <Select label="Year Level" value={formData.year_level} onChange={e => setFormData({ ...formData, year_level: e.target.value })} options={[{ value: '1st', label: '1st Year' }, { value: '2nd', label: '2nd Year' }, { value: '3rd', label: '3rd Year' }, { value: '4th', label: '4th Year' }]} />
+            <Select label="Semester" value={formData.semester} onChange={e => setFormData({ ...formData, semester: e.target.value })} options={[{ value: '1st Sem', label: '1st Sem' }, { value: '2nd Sem', label: '2nd Sem' }]} />
           </div>
-          <Button onClick={() => setIsModalOpen(true)}>
-            <Plus size={18} className="mr-2" />
-            Add Subject
-          </Button>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Card>
-            <Input
-              placeholder="Search subjects..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              icon={<Search size={18} />}
-            />
-          </Card>
-          <Card>
-            <Select
-              value={courseFilter}
-              onChange={(e) => setCourseFilter(e.target.value)}
-              options={[
-                { value: 'all', label: 'All Courses' },
-                ...courses.map(c => ({ value: c.id, label: c.name }))
-              ]}
-            />
-          </Card>
-        </div>
-
-        <Card>
-          <Table headers={['Subject Name', 'Course', 'Teacher', 'Actions']}>
-            {filteredSubjects.map(subject => (
-              <tr key={subject.id} className="hover:bg-white/5 transition-colors">
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center text-purple-300"> 
-                      <ClipboardList size={18} />
-                    </div>
-                    <span className="text-white font-medium">{subject.name}</span>
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-gray-300">
-                  {getCourseName(subject.course_id)}
-                </td>
-                <td className="px-4 py-3">
-                  {subject.teacher?.name ? (
-                    <Badge variant="success">{subject.teacher.name}</Badge>
-                  ) : (
-                    <Badge variant="warning">Unassigned</Badge>
-                  )}
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => openEditModal(subject)}
-                      className="p-2 rounded-lg text-gold-400 hover:bg-gold-500/10 transition-colors"
-                      title="Edit Subject"
-                    >
-                      <Edit size={18} />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteSubject(subject.id)}
-                      className="p-2 rounded-lg text-red-400 hover:bg-red-500/10 transition-colors"
-                      title="Delete Subject"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </Table>
-          {filteredSubjects.length === 0 && (
-            <div className="text-center py-8 text-gray-400">
-              No subjects found. Create your first subject!
-            </div>
-          )}
-        </Card>
-      </div>
-
-      {/* Add Subject Modal */}
-      <Modal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title="Add New Subject"
-      >
-        <form onSubmit={handleCreateSubject} className="space-y-4">
-          <Input
-            label="Subject Name"
-            value={newSubject.name}
-            onChange={(e) => setNewSubject({ ...newSubject, name: e.target.value })}
-            placeholder="e.g., Mathematics"
-            required
-          />
-          <Select
-            label="Course"
-            value={newSubject.courseId}
-            onChange={(e) => setNewSubject({ ...newSubject, courseId: e.target.value })}
-            options={[
-              { value: '', label: 'Select Course' },
-              ...courses.map(c => ({ value: c.id, label: c.name }))
-            ]}
-            required
-          />
-          <Select
-            label="Assign Teacher (Optional)"
-            value={newSubject.teacherId}
-            onChange={(e) => setNewSubject({ ...newSubject, teacherId: e.target.value })}
-            options={[
-              { value: '', label: 'No Teacher Assigned' },
-              ...teachers.map(t => ({ value: t.id, label: t.name || t.email }))
-            ]}
-          />
-          <div className="flex gap-3 pt-4">
-            <Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)} className="flex-1">
-              Cancel
-            </Button>
-            <Button type="submit" disabled={loading} className="flex-1">
-              {loading ? 'Creating...' : 'Create Subject'}
-            </Button>
+          <Select label="Teacher (Optional)" value={formData.teacher_id} onChange={e => setFormData({ ...formData, teacher_id: e.target.value })} options={[{ value: '', label: 'No Teacher' }, ...teachers.map(t => ({ value: t.id, label: t.name || `${t.first_name} ${t.last_name}` || t.username }))]} />
+          <div className="flex gap-4 pt-4">
+            <Button type="button" variant="secondary" className="flex-1" onClick={() => { setShowModal(false); setFormData({ name: '', course_id: '', year_level: '1st', semester: '1st Sem', teacher_id: '' }); setEditingSubject(null); }}>Cancel</Button>
+            <Button type="submit" className="flex-1">{editingSubject ? 'Update' : 'Create'}</Button>
           </div>
         </form>
       </Modal>
 
-      {/* Edit Subject Modal */}
-      <Modal
-        isOpen={isEditModalOpen}
-        onClose={() => { setIsEditModalOpen(false); setSelectedSubject(null); }}
-        title="Edit Subject"
-      >
-        <form onSubmit={handleUpdateSubject} className="space-y-4">
-          <Input
-            label="Subject Name"
-            value={editSubject.name}
-            onChange={(e) => setEditSubject({ ...editSubject, name: e.target.value })}
-            required
-          />
-          <Select
-            label="Course"
-            value={editSubject.courseId}
-            onChange={(e) => setEditSubject({ ...editSubject, courseId: e.target.value })}
-            options={[
-              { value: '', label: 'Select Course' },
-              ...courses.map(c => ({ value: c.id, label: c.name }))
-            ]}
-            required
-          />
-          <Select
-            label="Assign Teacher (Optional)"
-            value={editSubject.teacherId}
-            onChange={(e) => setEditSubject({ ...editSubject, teacherId: e.target.value })}
-            options={[
-              { value: '', label: 'No Teacher Assigned' },
-              ...teachers.map(t => ({ value: t.id, label: t.name || t.email }))
-            ]}
-          />
-          <div className="flex gap-3 pt-4">
-            <Button type="button" variant="secondary" onClick={() => { setIsEditModalOpen(false); setSelectedSubject(null); }} className="flex-1">
-              Cancel
-            </Button>
-            <Button type="submit" disabled={loading} className="flex-1">
-              {loading ? 'Saving...' : 'Save Changes'}
-            </Button>
-          </div>
-        </form>
-      </Modal>
+      <ConfirmModal
+        isOpen={deleteConfirm.isOpen}
+        onClose={() => setDeleteConfirm({ isOpen: false, id: null, name: null })}
+        onConfirm={confirmDelete}
+        title="Delete Subject"
+        message={`Are you sure you want to delete "${deleteConfirm.name}"? This action cannot be undone.`}
+        confirmText="Delete"
+        variant="danger"
+      />
     </DashboardLayout>
   );
-};
-
-export default AdminSubjects;
+}

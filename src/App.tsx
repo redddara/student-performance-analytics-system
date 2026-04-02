@@ -1,77 +1,150 @@
-import React, { Suspense } from 'react';
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useAuthStore } from './store';
+// import { supabase } from './lib/supabase';
 
 // Auth Pages
-const LoginPage = React.lazy(() => import('./pages/auth').then(module => ({ default: module.LoginPage })));
-const RegisterPage = React.lazy(() => import('./pages/auth').then(module => ({ default: module.RegisterPage })));
+import LoginPage from './pages/auth/Login';
+import ChangePasswordPage from './pages/auth/ChangePassword';
 
 // Admin Pages
-const AdminDashboard = React.lazy(() => import('./pages/admin/Dashboard'));
-const AdminUsers = React.lazy(() => import('./pages/admin/Users'));
-const AdminCourses = React.lazy(() => import('./pages/admin/Courses'));
-const AdminSubjects = React.lazy(() => import('./pages/admin/Subjects'));
-const AdminAnalytics = React.lazy(() => import('./pages/admin/Analytics'));
-const AdminEnrollment = React.lazy(() => import('./pages/admin/Enrollment'));
+import AdminDashboard from './pages/admin/Dashboard';
+import AdminUsersPage from './pages/admin/Users';
+import AdminCoursesPage from './pages/admin/Courses';
+import AdminSubjectsPage from './pages/admin/Subjects';
+import AdminAnalyticsPage from './pages/admin/Analytics';
 
 // Teacher Pages
-const TeacherDashboard = React.lazy(() => import('./pages/teacher/Dashboard'));
-const TeacherSubjects = React.lazy(() => import('./pages/teacher/MySubjects'));
-const TeacherGrades = React.lazy(() => import('./pages/teacher/Grades'));
-const TeacherAnalytics = React.lazy(() => import('./pages/teacher/Analytics'));
+import TeacherDashboard from './pages/teacher/Dashboard';
+import TeacherSubjectsPage from './pages/teacher/Subjects';
+import TeacherGradesPage from './pages/teacher/Grades';
+import TeacherStudentsPage from './pages/teacher/Students';
+import TeacherAnalyticsPage from './pages/teacher/Analytics';
+import TeacherUploadPage from './pages/teacher/Upload';
 
 // Student Pages
-const StudentDashboard = React.lazy(() => import('./pages/student/Dashboard'));
-const StudentSubjects = React.lazy(() => import('./pages/student/Subjects'));
-const StudentGrades = React.lazy(() => import('./pages/student/Grades'));
-const StudentAnalytics = React.lazy(() => import('./pages/student/Analytics'));
+import StudentDashboard from './pages/student/Dashboard';
+import StudentSubjectsPage from './pages/student/Subjects';
+import StudentGradesPage from './pages/student/Grades';
+import StudentAnalyticsPage from './pages/student/Analytics';
 
-// Layouts
-import { AuthLayout } from './components/layouts';
-
-function App() {
+// Loading Spinner
+function LoadingScreen() {
   return (
-    <BrowserRouter>
-      <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading...</div>}>
-        <Routes>
-          {/* Auth Routes */}
-          <Route path="/auth/login" element={
-            <AuthLayout>
-              <LoginPage />
-            </AuthLayout>
-          } />
-          <Route path="/auth/register" element={
-            <AuthLayout>
-              <RegisterPage />
-            </AuthLayout>
-          } />
-
-          {/* Admin Routes */}
-          <Route path="/admin" element={<AdminDashboard />} />
-          <Route path="/admin/users" element={<AdminUsers />} />
-          <Route path="/admin/courses" element={<AdminCourses />} />
-          <Route path="/admin/subjects" element={<AdminSubjects />} />
-          <Route path="/admin/enrollment" element={<AdminEnrollment />} />
-          <Route path="/admin/analytics" element={<AdminAnalytics />} />
-
-          {/* Teacher Routes */}
-          <Route path="/teacher" element={<TeacherDashboard />} />
-          <Route path="/teacher/my-subjects" element={<TeacherSubjects />} />
-          <Route path="/teacher/grades" element={<TeacherGrades />} />
-          <Route path="/teacher/analytics" element={<TeacherAnalytics />} />
-
-          {/* Student Routes */}
-          <Route path="/student" element={<StudentDashboard />} />
-          <Route path="/student/subjects" element={<StudentSubjects />} />
-          <Route path="/student/grades" element={<StudentGrades />} />
-          <Route path="/student/analytics" element={<StudentAnalytics />} />
-
-          {/* Default Redirect */}
-          <Route path="/" element={<Navigate to="/auth/login" replace />} />
-          <Route path="*" element={<Navigate to="/auth/login" replace />} />
-        </Routes>
-      </Suspense>
-    </BrowserRouter>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#f5f5f5] via-[#e8e8e8] to-[#d4d4d4]">
+      <div className="text-center">
+        <div className="w-16 h-16 mx-auto mb-4 rounded-full border-4 border-[#800000]/30 border-t-[#800000] animate-spin" />
+        <p className="text-gray-600">Loading...</p>
+      </div>
+    </div>
   );
 }
 
-export default App;
+// Protected Route Component
+function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: string[] }) {
+  const { user, isLoading } = useAuthStore();
+  
+  if (isLoading) return <LoadingScreen />;
+  
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+  
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
+    // Redirect to appropriate dashboard based on role
+    if (user.role === 'admin') return <Navigate to="/admin/dashboard" replace />;
+    if (user.role === 'teacher') return <Navigate to="/teacher/dashboard" replace />;
+    if (user.role === 'student') return <Navigate to="/student/dashboard" replace />;
+    return <Navigate to="/login" replace />;
+  }
+  
+  return <>{children}</>;
+}
+
+// App Initializer
+function AppInitializer({ children }: { children: React.ReactNode }) {
+  const { setUser, setLoading, user } = useAuthStore();
+  
+  useEffect(() => {
+    // Check current session
+    const checkSession = async () => {
+      try {
+        // For demo, we'll check localStorage
+        const savedUser = localStorage.getItem('sapas_user');
+        if (savedUser) {
+          const parsed = JSON.parse(savedUser);
+          setUser(parsed);
+        }
+      } catch (error) {
+        console.error('Error checking session:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    checkSession();
+  }, []);
+  
+  return <>{children}</>;
+}
+
+// Main App
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AppInitializer>
+        <Routes>
+          {/* Public Routes */}
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/change-password" element={<ChangePasswordPage />} />
+          
+          {/* Admin Routes */}
+          <Route path="/admin/*" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <Routes>
+                <Route path="dashboard" element={<AdminDashboard />} />
+                <Route path="users" element={<AdminUsersPage />} />
+                <Route path="courses" element={<AdminCoursesPage />} />
+                <Route path="subjects" element={<AdminSubjectsPage />} />
+                <Route path="analytics" element={<AdminAnalyticsPage />} />
+                <Route path="*" element={<Navigate to="dashboard" replace />} />
+              </Routes>
+            </ProtectedRoute>
+          } />
+          
+          {/* Teacher Routes */}
+          <Route path="/teacher/*" element={
+            <ProtectedRoute allowedRoles={['teacher']}>
+              <Routes>
+                <Route path="dashboard" element={<TeacherDashboard />} />
+                <Route path="subjects" element={<TeacherSubjectsPage />} />
+                <Route path="grades" element={<TeacherGradesPage />} />
+                <Route path="students" element={<TeacherStudentsPage />} />
+                <Route path="analytics" element={<TeacherAnalyticsPage />} />
+                <Route path="upload" element={<TeacherUploadPage />} />
+                <Route path="*" element={<Navigate to="dashboard" replace />} />
+              </Routes>
+            </ProtectedRoute>
+          } />
+          
+          {/* Student Routes */}
+          <Route path="/student/*" element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <Routes>
+                <Route path="dashboard" element={<StudentDashboard />} />
+                <Route path="subjects" element={<StudentSubjectsPage />} />
+                <Route path="grades" element={<StudentGradesPage />} />
+                <Route path="analytics" element={<StudentAnalyticsPage />} />
+                <Route path="*" element={<Navigate to="dashboard" replace />} />
+              </Routes>
+            </ProtectedRoute>
+          } />
+          
+          {/* Default Redirect */}
+          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </AppInitializer>
+    </BrowserRouter>
+  );
+}

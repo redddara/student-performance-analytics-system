@@ -1,297 +1,229 @@
-import React, { useEffect, useState } from 'react';
-import { useStore } from '../../store';
-import { DashboardLayout } from '../../components/layouts';
-import { Card, StatCard, Select, Badge } from '../../components/ui';
-import { 
-  GradeDistributionChart, 
-  StudentProgressChart,
-  PassingRateChart,
-  PerformanceTrendChart
-} from '../../components/charts';
-import { 
-  BookOpen, 
-  GraduationCap, 
-  TrendingUp,
-  Award,
-  AlertTriangle,
-  Star,
-  Target,
-  Calendar
-} from 'lucide-react';
-import { supabase } from '../../lib/supabase';
+import { useState, useEffect } from 'react';
+import { DashboardLayout } from '../../components/layouts/DashboardLayout';
+import { GlassCard, Spinner, Badge } from '../../components/ui';
+import { useAuthStore } from '../../store';
+import { supabase, isPassing, calculateGWA } from '../../lib/supabase';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 
-const StudentAnalytics: React.FC = () => {
-  const { user, subjects } = useStore();
+export default function StudentAnalyticsPage() {
+  const { user } = useAuthStore();
+  const [mySubjects, setMySubjects] = useState<any[]>([]);
   const [myGrades, setMyGrades] = useState<any[]>([]);
-  const [semesterFilter, setSemesterFilter] = useState('all');
   const [loading, setLoading] = useState(true);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [strengths, setStrengths] = useState<string[]>([]);
+  const [weaknesses, setWeaknesses] = useState<string[]>([]);
 
   useEffect(() => {
-    fetchMyGrades();
-  }, [user, subjects]);
+    loadData();
+  }, []);
 
-  const fetchMyGrades = async () => {
-    if (!user) return;
-    setLoading(true);
+  const loadData = async () => {
+    try {
+      const { data: studentData } = await supabase
+        .from('students')
+        .select('*, course:courses(*)')
+        .eq('user_id', user?.id)
+        .single();
 
-    const { data: studentData } = await supabase
-      .from('students')
-      .select('*')
-      .eq('user_id', user.id)
-      .single();
+      if (!studentData) return;
 
-    if (studentData) {
-      const { data: grades } = await supabase
-        .from('grades')
-        .select('*, subject:subjects(*)')
-        .eq('student_id', studentData.id)
-        .order('created_at', { ascending: false });
+      const [subjectsRes, gradesRes] = await Promise.all([
+        supabase.from('student_subjects').select('*, subject:subjects(*, course:courses(*))').eq('student_id', studentData.id),
+        supabase.from('grades').select('*').eq('student_id', studentData.id),
+      ]);
 
-      if (grades) setMyGrades(grades);
+      setMySubjects(subjectsRes.data || []);
+      setMyGrades(gradesRes.data || []);
+
+      // Analyze performance
+      analyzePerformance(subjectsRes.data || [], gradesRes.data || []);
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
-  // Filter grades
-  let filteredGrades = myGrades;
-  if (semesterFilter !== 'all') {
-    filteredGrades = myGrades.filter(g => g.semester === parseInt(semesterFilter));
-  }
+  const analyzePerformance = (subjects: any[], grades: any[]) => {
+    const newSuggestions: string[] = [];
+    const newStrengths: string[] = [];
+    const newWeaknesses: string[] = [];
 
-  // Calculate GWA
-  const gwa = filteredGrades.length > 0
-    ? filteredGrades.reduce((sum, g) => sum + Number(g.grade), 0) / filteredGrades.length
-    : 0;
-
-  // Passing rate
-  const passingCount = filteredGrades.filter(g => Number(g.grade) >= 75).length;
-  const passingRate = filteredGrades.length > 0 
-    ? (passingCount / filteredGrades.length) * 100 
-    : 0;
-
-  // Subject performance
-  const subjectGrades = new Map();
-  filteredGrades.forEach(g => {
-    if (!subjectGrades.has(g.subject_id)) {
-      subjectGrades.set(g.subject_id, []);
-    }
-    subjectGrades.get(g.subject_id).push(g);
-  });
-
-  const subjectPerformance = Array.from(subjectGrades.entries()).map(([subjectId, subjectGradesList]: [string, any]) => {
-    const subject = subjects.find(s => s.id === subjectId);
-    const avg = subjectGradesList.reduce((sum: number, g: any) => sum + Number(g.grade), 0) / subjectGradesList.length;
-    const semester = subjectGradesList[0]?.semester;
-    return {
-      subject: subject?.name || 'Unknown',
-      grade: Math.round(avg * 100) / 100,
-      semester
-    };
-  }).sort((a, b) => b.grade - a.grade);
-
-  // Best and weakest
-  const bestSubject = subjectPerformance[0];
-  const weakestSubject = subjectPerformance[subjectPerformance.length - 1];
-
-  // Grade distribution
-  const gradeRanges = [
-    { range: '90-100', min: 90, max: 100, count: 0 },
-    { range: '85-89', min: 85, max: 89, count: 0 },
-    { range: '80-84', min: 80, max: 84, count: 0 },
-    { range: '75-79', min: 75, max: 79, count: 0 },
-    { range: 'Below 75', min: 0, max: 74, count: 0 },
-  ];
-
-  filteredGrades.forEach(g => {
-    const grade = Number(g.grade);
-    gradeRanges.forEach(r => {
-      if (grade >= r.min && grade <= r.max) r.count++;
+    // Calculate subject averages
+    const subjectAverages: { [key: string]: number } = {};
+    subjects.forEach(ss => {
+      const subjectGrades = grades.filter(g => g.subject_id === ss.subject_id);
+      if (subjectGrades.length > 0) {
+        subjectAverages[ss.subject_id] = calculateGWA(subjectGrades);
+      }
     });
-  });
 
-  // Quarterly performance
-  const quarterlyData = [1, 2, 3, 4].map(q => {
-    const quarterGrades = filteredGrades.filter(g => g.quarter === q);
-    const avg = quarterGrades.length > 0
-      ? quarterGrades.reduce((sum, g) => sum + Number(g.grade), 0) / quarterGrades.length
-      : 0;
-    return {
-      quarter: `Q${q}`,
-      avgGrade: Math.round(avg * 100) / 100
-    };
-  });
+    // Find strengths (avg >= 85)
+    Object.entries(subjectAverages).forEach(([subjectId, avg]) => {
+      const subject = subjects.find(s => s.subject_id === subjectId);
+      if (avg >= 85) {
+        newStrengths.push(`${subject?.subject?.name}: ${avg.toFixed(2)}`);
+      } else if (avg < 75) {
+        newWeaknesses.push(`${subject?.subject?.name}: ${avg.toFixed(2)}`);
+      }
+    });
 
-  // Progress trend (mock data based on actual)
-  const progressData = [
-    { month: 'Q1', avgGrade: quarterlyData[0]?.avgGrade || 80 },
-    { month: 'Q2', avgGrade: quarterlyData[1]?.avgGrade || 82 },
-    { month: 'Q3', avgGrade: quarterlyData[2]?.avgGrade || gwa },
-    { month: 'Q4', avgGrade: quarterlyData[3]?.avgGrade || gwa + 1 },
-  ];
+    // Check for incomplete quarters
+    const failingSubjects = Object.entries(subjectAverages).filter(([_, avg]) => avg < 75);
+    failingSubjects.forEach(([subjectId, avg]) => {
+      const subject = subjects.find(s => s.subject_id === subjectId);
+      newSuggestions.push(`Focus on ${subject?.subject?.name} — currently at ${avg.toFixed(2)}, below passing`);
+    });
 
-  // Strengths and weaknesses
-  const strengths = subjectPerformance.filter(s => s.grade >= 80).map(s => s.subject);
-  const weaknesses = subjectPerformance.filter(s => s.grade < 75).map(s => s.subject);
+    // Check for missing grades
+    const allQuarters = [1, 2, 3, 4];
+    subjects.forEach(ss => {
+      const subjectGrades = grades.filter(g => g.subject_id === ss.subject_id);
+      const hasFinals = subjectGrades.some(g => g.quarter === 4);
+      
+      if (subjectGrades.length > 0 && !hasFinals) {
+        const currentAvg = subjectAverages[ss.subject_id];
+        const neededForPass = Math.max(0, 75 - (currentAvg * 0.4) / 0.6);
+        if (neededForPass <= 100) {
+          newSuggestions.push(`Score at least ${neededForPass.toFixed(0)} in Finals to pass ${ss.subject?.name}`);
+        }
+      }
+    });
 
-  const getStatus = () => {
-    if (gwa >= 90) return { label: 'With Honors', variant: 'success' as const };
-    if (gwa >= 85) return { label: 'Excellent', variant: 'success' as const };
-    if (gwa >= 80) return { label: 'Very Good', variant: 'info' as const };
-    if (gwa >= 75) return { label: 'Passing', variant: 'warning' as const };
-    return { label: 'Needs Improvement', variant: 'danger' as const };
+    // Overall GWA suggestion
+    const overallGWA = grades.length > 0 ? calculateGWA(grades) : 0;
+    if (overallGWA >= 85) {
+      newSuggestions.push('Great job! Maintain your excellent performance');
+    } else if (overallGWA >= 75) {
+      newSuggestions.push('Keep working to improve your GWA above 85');
+    } else {
+      newSuggestions.push('Focus on improving your grades across all subjects');
+    }
+
+    setSuggestions(newSuggestions);
+    setStrengths(newStrengths);
+    setWeaknesses(newWeaknesses);
   };
 
   if (loading) {
-    return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-white">Loading...</div>
-        </div>
-      </DashboardLayout>
-    );
+    return <DashboardLayout title="Analytics"><Spinner size="lg" /></DashboardLayout>;
   }
 
+  // Prepare chart data
+  const subjectPerformance = mySubjects.map(ss => {
+    const subjectGrades = myGrades.filter(g => g.subject_id === ss.subject_id);
+    const avg = subjectGrades.length > 0 ? calculateGWA(subjectGrades) : 0;
+    return {
+      name: ss.subject?.name?.substring(0, 12) || 'Subject',
+      average: avg,
+    };
+  }).filter(s => s.average > 0);
+
+  // Quarterly trends
+  const quarterlyData = [1, 2, 3, 4].map(q => {
+    const qGrades = myGrades.filter(g => g.quarter === q);
+    return {
+      quarter: `Q${q}`,
+      average: qGrades.length > 0 ? calculateGWA(qGrades) : 0,
+    };
+  });
+
+  const overallGWA = myGrades.length > 0 ? calculateGWA(myGrades) : 0;
+  const passingCount = myGrades.filter(g => isPassing(g.grade)).length;
+  const passRate = myGrades.length > 0 ? Math.round((passingCount / myGrades.length) * 100) : 0;
+
   return (
-    <DashboardLayout>
-      <div className="space-y-8">
-        <div>
-          <h1 className="text-3xl font-bold text-white">My Analytics</h1>
-          <p className="text-gray-400 mt-2">Track your academic progress and performance insights</p>
-        </div>
+    <DashboardLayout title="My Analytics">
+      {/* Summary Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <GlassCard className="p-6 text-center">
+          <p className="text-4xl font-bold text-[#800000]">{overallGWA.toFixed(2)}</p>
+          <p className="text-gray-500">Overall GWA</p>
+        </GlassCard>
+        <GlassCard className="p-6 text-center">
+          <p className="text-4xl font-bold text-green-600">{passRate}%</p>
+          <p className="text-gray-500">Pass Rate</p>
+        </GlassCard>
+        <GlassCard className="p-6 text-center">
+          <p className="text-4xl font-bold text-[#d4af37]">{mySubjects.length}</p>
+          <p className="text-gray-500">Enrolled Subjects</p>
+        </GlassCard>
+      </div>
 
-        {/* Filter */}
-        <Select
-          value={semesterFilter}
-          onChange={(e) => setSemesterFilter(e.target.value)}
-          options={[
-            { value: 'all', label: 'All Semesters' },
-            { value: '1', label: 'First Semester' },
-            { value: '2', label: 'Second Semester' }
-          ]}
-        />
+      {/* Charts */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <GlassCard className="p-6">
+          <h3 className="text-lg font-semibold text-[#800000] mb-4">Performance by Subject</h3>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={subjectPerformance}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="name" fontSize={10} />
+              <YAxis domain={[0, 100]} />
+              <Tooltip />
+              <Bar dataKey="average" fill="#800000" name="Average" />
+            </BarChart>
+          </ResponsiveContainer>
+        </GlassCard>
 
-        {/* Main Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <StatCard
-            title="GWA"
-            value={gwa.toFixed(2)}
-            icon={<TrendingUp size={24} />}
-          />
-          <StatCard
-            title="Passing Rate"
-            value={`${passingRate.toFixed(0)}%`}
-            icon={<Award size={24} />}
-          />
-          <StatCard
-            title="Subjects"
-            value={subjectPerformance.length}
-            icon={<BookOpen size={24} />}
-          />
-          <StatCard
-            title="Total Grades"
-            value={filteredGrades.length}
-            icon={<GraduationCap size={24} />}
-          />
-        </div>
+        <GlassCard className="p-6">
+          <h3 className="text-lg font-semibold text-[#800000] mb-4">Quarterly Trend</h3>
+          <ResponsiveContainer width="100%" height={200}>
+            <LineChart data={quarterlyData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="quarter" />
+              <YAxis domain={[0, 100]} />
+              <Tooltip />
+              <Line type="monotone" dataKey="average" stroke="#d4af37" strokeWidth={2} name="Average" />
+            </LineChart>
+          </ResponsiveContainer>
+        </GlassCard>
+      </div>
 
-        {/* Best/Worst Performance */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card>
-            <h3 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-              <Star className="text-yellow-400" size={24} />
-              Strengths
-            </h3>
-            {strengths.length > 0 ? (
-              <div className="space-y-2">
-                {strengths.map((subject, i) => (
-                  <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-green-500/10 border border-green-500/20">
-                    <span className="text-white">{subject}</span>
-                    <Badge variant="success">Strong</Badge>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-gray-400">No strong subjects yet</p>
-            )}
-          </Card>
+      {/* Analysis */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Strengths */}
+        <GlassCard className="p-6">
+          <h3 className="text-lg font-semibold text-green-600 mb-4">🌟 Strengths</h3>
+          {strengths.length === 0 ? (
+            <p className="text-gray-500">No strong subjects yet</p>
+          ) : (
+            <ul className="space-y-2">
+              {strengths.map((s, i) => (
+                <li key={i} className="p-2 rounded-lg bg-green-50 text-green-700 text-sm">{s}</li>
+              ))}
+            </ul>
+          )}
+        </GlassCard>
 
-          <Card>
-            <h3 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-              <Target className="text-red-400" size={24} />
-              Areas for Improvement
-            </h3>
-            {weaknesses.length > 0 ? (
-              <div className="space-y-2">
-                {weaknesses.map((subject, i) => (
-                  <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-red-500/10 border border-red-500/20">
-                    <span className="text-white">{subject}</span>
-                    <Badge variant="danger">Needs Work</Badge>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-gray-400">No weak subjects - keep it up!</p>
-            )}
-          </Card>
-        </div>
+        {/* Weaknesses */}
+        <GlassCard className="p-6">
+          <h3 className="text-lg font-semibold text-red-600 mb-4">⚠️ Areas to Improve</h3>
+          {weaknesses.length === 0 ? (
+            <p className="text-gray-500">No weak subjects — great job!</p>
+          ) : (
+            <ul className="space-y-2">
+              {weaknesses.map((w, i) => (
+                <li key={i} className="p-2 rounded-lg bg-red-50 text-red-700 text-sm">{w}</li>
+              ))}
+            </ul>
+          )}
+        </GlassCard>
 
-        {/* Charts */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card>
-            <h3 className="text-xl font-semibold text-white mb-4">Grade Distribution</h3>
-            <GradeDistributionChart data={gradeRanges.map(r => ({ range: r.range, count: r.count }))} />
-          </Card>
-
-          <Card>
-            <h3 className="text-xl font-semibold text-white mb-4">Subject Performance</h3>
-            <StudentProgressChart data={subjectPerformance} />
-          </Card>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card>
-            <h3 className="text-xl font-semibold text-white mb-4">Quarterly Progress</h3>
-            <PerformanceTrendChart data={progressData} />
-          </Card>
-
-          <Card>
-            <h3 className="text-xl font-semibold text-white mb-4">Passing Status</h3>
-            <PassingRateChart passingRate={passingRate} failingRate={100 - passingRate} />
-          </Card>
-        </div>
-
-        {/* Subject Breakdown */}
-        <Card>
-          <h3 className="text-xl font-semibold text-white mb-4">Subject Breakdown</h3>
-          <div className="space-y-3">
-            {subjectPerformance.map((sp, i) => (
-              <div key={i} className="flex items-center justify-between p-4 rounded-xl bg-white/5">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-300">
-                    <BookOpen size={18} />
-                  </div>
-                  <div>
-                    <p className="text-white font-medium">{sp.subject}</p>
-                    <p className="text-gray-400 text-sm">Semester {sp.semester}</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className={`text-2xl font-bold ${
-                    sp.grade >= 75 ? 'text-green-400' : 'text-red-400'
-                  }`}>
-                    {sp.grade.toFixed(2)}
-                  </p>
-                  <Badge variant={sp.grade >= 75 ? 'success' : 'danger'}>
-                    {sp.grade >= 75 ? 'Passed' : 'Failed'}
-                  </Badge>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
+        {/* Suggestions */}
+        <GlassCard className="p-6">
+          <h3 className="text-lg font-semibold text-[#800000] mb-4">💡 Suggestions</h3>
+          {suggestions.length === 0 ? (
+            <p className="text-gray-500">Keep studying!</p>
+          ) : (
+            <ul className="space-y-2">
+              {suggestions.map((s, i) => (
+                <li key={i} className="p-2 rounded-lg bg-[#800000]/10 text-[#800000] text-sm">{s}</li>
+              ))}
+            </ul>
+          )}
+        </GlassCard>
       </div>
     </DashboardLayout>
   );
-};
-
-export default StudentAnalytics;
+}

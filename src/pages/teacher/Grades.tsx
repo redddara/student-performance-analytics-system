@@ -1,690 +1,89 @@
-import React, { useEffect, useState } from 'react';
-import { useStore } from '../../store';
-import { useLocation } from 'react-router-dom';
-import { DashboardLayout } from '../../components/layouts';
-import { Card, Button, Input, Select, Modal, Badge, LoadingSpinner, Table } from '../../components/ui';
-import { 
-  ClipboardList, 
-  Plus, 
-  Search,
-  Edit,
-  Trash2,
-  User,
-  BookOpen,
-  Filter,
-  Loader2,
-  AlertCircle,
-  GraduationCap,
-  Calendar,
-  Award,
-  CheckCircle,
-  XCircle,
-  TrendingUp
-} from 'lucide-react';
-// @ts-ignore lucide-react types
-import { supabase } from '../../lib/supabase';
+import { useState, useEffect } from 'react';
+import { DashboardLayout } from '../../components/layouts/DashboardLayout';
+import { GlassCard, Select, Table, Spinner, Badge } from '../../components/ui';
+import { useAuthStore } from '../../store';
+import { supabase, isPassing, getGradeRemarks } from '../../lib/supabase';
 
-const GRADE_LEVELS = [
-  { value: 'all', label: 'All Year Levels' },
-  { value: '1st-Year', label: '1st-Year' },
-  { value: '2nd-Year', label: '2nd-Year' },
-  { value: '3rd-Year', label: '3rd-Year' },
-  { value: '4th-Year', label: '4th-Year' },
-];
-
-const SECTIONS = [
-  { value: 'all', label: 'All Sections' },
-  { value: '1m1', label: '1m1' },
-  { value: '1m2', label: '1m2' },
-  { value: '1n1', label: '1n1' },
-  { value: '1n2', label: '1n2' },
-  { value: '2m1', label: '2m1' },
-  { value: '2m2', label: '2m2' },
-  { value: '2n1', label: '2n1' },
-  { value: '2n2', label: '2n2' },
-  { value: '3m1', label: '3m1' },
-  { value: '3m2', label: '3m2' },
-  { value: '3n1', label: '3n1' },
-  { value: '3n2', label: '3n2' },
-  { value: '4m1', label: '4m1' },
-  { value: '4m2', label: '4m2' },
-  { value: '4n1', label: '4n1' },
-  { value: '4n2', label: '4n2' },
-];
-
-// Loading Skeleton Component
-const CardSkeleton = () => (
-  <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-4 animate-pulse">
-    <div className="flex items-center gap-3 mb-4">
-      <div className="w-12 h-12 rounded-full bg-white/10"></div>
-      <div className="flex-1">
-        <div className="h-4 bg-white/10 rounded w-32 mb-2"></div>
-        <div className="h-3 bg-white/10 rounded w-24"></div>
-      </div>
-    </div>
-    <div className="space-y-2">
-      <div className="h-3 bg-white/10 rounded w-full"></div>
-      <div className="h-3 bg-white/10 rounded w-3/4"></div>
-      <div className="h-6 bg-white/10 rounded w-16 mt-3"></div>
-    </div>
-  </div>
-);
-
-// Helper functions for perfect cards
-const getStudentInitials = (firstName: string, lastName: string) => {
-  return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
-};
-
-const getQuarterColor = (grade: number | null | undefined) => {
-  if (!grade) return 'from-gray-500 to-gray-600';
-  if (grade >= 90) return 'from-emerald-500 to-emerald-600';
-  if (grade >= 80) return 'from-blue-500 to-blue-600';
-  if (grade >= 75) return 'from-amber-500 to-amber-600';
-  if (grade >= 70) return 'from-orange-500 to-orange-600';
-  return 'from-red-500 to-red-600';
-};
-
-const getQuarterStatus = (grade: number | null | undefined) => {
-  if (!grade) return { label: 'Add', icon: Plus };
-  if (grade >= 90) return { label: 'A', icon: Award };
-  if (grade >= 80) return { label: 'B', icon: TrendingUp };
-  if (grade >= 75) return { label: 'C', icon: CheckCircle };
-  return { label: 'F', icon: XCircle };
-};
-
-  const TeacherGrades: React.FC = () => {
-  const location = useLocation();
-  const { user, subjects, grades, getTeacherSubjects, fetchGrades, students, fetchStudents, fetchSubjects } = useStore();
+export default function TeacherGradesPage() {
+  const { user } = useAuthStore();
   const [mySubjects, setMySubjects] = useState<any[]>([]);
+  const [grades, setGrades] = useState<any[]>([]);
+  const [students, setStudents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedSubject, setSelectedSubject] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [gradeLevelFilter, setGradeLevelFilter] = useState('all');
-  const [sectionFilter, setSectionFilter] = useState('all');
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [initialLoading, setInitialLoading] = useState(true);
-  const [enrolledStudents, setEnrolledStudents] = useState<any[]>([]);
-  const [allGrades, setAllGrades] = useState<any[]>([]);
-  const [selectedGrade, setSelectedGrade] = useState<any>(null);
-  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-  
-  // Grade entry form
-  const [gradeForm, setGradeForm] = useState({
-    studentId: '',
-    semester: '1',
-    quarter: '1',
-    grade: '',
-    remarks: ''
-  });
+  const [selectedSemester, setSelectedSemester] = useState(1);
 
-  // Edit grade form
-  const [editGradeForm, setEditGradeForm] = useState({
-    grade: '',
-    semester: '1',
-    quarter: '1',
-    remarks: ''
-  });
-
-  // Initial data fetch
   useEffect(() => {
-    const initData = async () => {
-      setInitialLoading(true);
-      try {
-        await fetchStudents();
-        await fetchGrades();
-        await fetchSubjects();
-      } catch (err) {
-        console.error('Error loading data:', err);
-      } finally {
-        setInitialLoading(false);
-      }
-    };
-    initData();
+    loadData();
   }, []);
 
-  // Set teacher subjects
-  useEffect(() => {
-    if (user && subjects.length > 0) {
-      const teacherSubjects = getTeacherSubjects(user.id);
-      setMySubjects(teacherSubjects);
-      
-      const urlSubject = new URLSearchParams(location.search).get('subject');
-      if (urlSubject && teacherSubjects.some(s => s.id === urlSubject)) {
-        setSelectedSubject(urlSubject);
-      } else if (teacherSubjects.length > 0 && !selectedSubject) {
-        setSelectedSubject(teacherSubjects[0].id);
-      }
-    }
-  }, [user, subjects, getTeacherSubjects, location.search, selectedSubject]);
-
-  // Fetch enrolled students and grades when subject changes
-  useEffect(() => {
-    if (selectedSubject) {
-      fetchEnrolledStudents();
-      fetchAllGrades();
-    }
-  }, [selectedSubject]);
-
-  const fetchEnrolledStudents = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('student_subjects')
-        .select('*, student:students(*, user:users(*)), subject:subjects(*)')
-        .eq('subject_id', selectedSubject);
-      
-      if (error) {
-        console.error('Error fetching enrolled students:', error);
-        return;
-      }
-      
-      console.log('Enrolled students data:', data);
-      setEnrolledStudents(data || []);
-    } catch (err) {
-      console.error('Error:', err);
-    }
+  const loadData = async () => {
+    const [subjectsRes, gradesRes, studentsRes] = await Promise.all([
+      supabase.from('subjects').select('*, course:courses(*)').eq('teacher_id', user?.id),
+      supabase.from('grades').select('*'),
+      supabase.from('students').select('*, user:users(*)'),
+    ]);
+    setMySubjects(subjectsRes.data || []);
+    setGrades(gradesRes.data || []);
+    setStudents(studentsRes.data || []);
+    if (subjectsRes.data?.length) setSelectedSubject(subjectsRes.data[0].id);
+    setLoading(false);
   };
 
-  const fetchAllGrades = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('grades')
-        .select('*')
-        .eq('subject_id', selectedSubject)
-        .order('created_at', { ascending: false });
-      
-      if (error) {
-        console.error('Error fetching grades:', error);
-        return;
-      }
-      
-      console.log('Grades for subject:', data);
-      setAllGrades(data || []);
-    } catch (err) {
-      console.error('Error:', err);
-    }
+  const getSubjectGrades = () => {
+    if (!selectedSubject) return [];
+    return grades.filter(g => g.subject_id === selectedSubject && g.semester === selectedSemester);
   };
 
-  // Get ALL grades for a student (all quarters and semesters)
-  const getAllStudentGrades = (studentRecordId: string) => {
-    if (!studentRecordId || allGrades.length === 0) return [];
-    return allGrades
-      .filter(g => g.student_id === studentRecordId)
-      .sort((a, b) => {
-        // Sort by semester, then by quarter
-        if (a.semester !== b.semester) return a.semester - b.semester;
-        return a.quarter - b.quarter;
-      });
+  const getStudentName = (id: string) => {
+    const s = students.find(st => st.id === id);
+    return s ? `${s.first_name} ${s.last_name}` : 'Unknown';
   };
 
-  // Calculate average grade for a student
-  const getAverageGrade = (grades: any[]) => {
-    if (grades.length === 0) return null;
-    const sum = grades.reduce((acc, g) => acc + (g.grade || 0), 0);
-    return (sum / grades.length).toFixed(1);
+  const getSubjectName = (id: string) => {
+    const s = mySubjects.find(sub => sub.id === id);
+    return s?.name || 'Unknown';
   };
 
-  // Get grade by quarter
-  const getGradeByQuarter = (grades: any[], semester: number, quarter: number) => {
-    return grades.find(g => g.semester === semester && g.quarter === quarter);
-  };
-
-  const handleEncodeGrade = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-
-    try {
-      const { error } = await supabase.from('grades').insert({
-        student_id: gradeForm.studentId,
-        subject_id: selectedSubject,
-        semester: parseInt(gradeForm.semester),
-        quarter: parseInt(gradeForm.quarter),
-        grade: parseFloat(gradeForm.grade),
-        remarks: gradeForm.remarks || null
-      });
-
-      if (error) {
-        console.error('Error inserting grade:', error);
-        alert('Error saving grade: ' + error.message);
-        return;
-      }
-
-      await fetchAllGrades();
-      setIsModalOpen(false);
-      setGradeForm({
-        studentId: '',
-        semester: '1',
-        quarter: '1',
-        grade: '',
-        remarks: ''
-      });
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleUpdateGrade = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-
-    try {
-      await supabase.from('grades').update({
-        grade: parseFloat(editGradeForm.grade),
-        semester: parseInt(editGradeForm.semester),
-        quarter: parseInt(editGradeForm.quarter),
-        remarks: editGradeForm.remarks || null
-      }).eq('id', selectedGrade.id);
-
-      await fetchAllGrades();
-      setIsEditModalOpen(false);
-      setSelectedGrade(null);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDeleteGrade = async (gradeId: string) => {
-    try {
-      await supabase.from('grades').delete().eq('id', gradeId);
-      await fetchAllGrades();
-      setDeleteConfirm(null);
-    } catch (err) {
-      console.error('Error deleting grade:', err);
-    }
-  };
-
-  const openGradeModal = (studentRecordId: string) => {
-    setGradeForm({ ...gradeForm, studentId: studentRecordId });
-    setIsModalOpen(true);
-  };
-
-  // Open encode modal with pre-selected semester and quarter
-  const openGradeModalWithQuarter = (studentRecordId: string, semester: number, quarter: number) => {
-    setGradeForm({
-      ...gradeForm,
-      studentId: studentRecordId,
-      semester: semester.toString(),
-      quarter: quarter.toString()
-    });
-    setIsModalOpen(true);
-  };
-
-  const openEditModal = (grade: any) => {
-    setSelectedGrade(grade);
-    setEditGradeForm({
-      grade: grade.grade.toString(),
-      semester: grade.semester.toString(),
-      quarter: grade.quarter.toString(),
-      remarks: grade.remarks || ''
-    });
-    setIsEditModalOpen(true);
-  };
-
-  const filteredStudents = enrolledStudents.filter(es => {
-    const student = es.student;
-    if (!student) return false;
-    const fullName = `${student.first_name || ''} ${student.last_name || ''}`.toLowerCase();
-    const matchesSearch = fullName.includes(searchQuery.toLowerCase());
-    const matchesGradeLevel = gradeLevelFilter === 'all' || student.grade_level === gradeLevelFilter;
-    const matchesSection = sectionFilter === 'all' || student.section === sectionFilter;
-    return matchesSearch && matchesGradeLevel && matchesSection;
-  });
-
-  const getGradeStatus = (grade: number | null | undefined) => {
-    if (grade === null || grade === undefined) return { label: 'No Grade', variant: 'warning' as const, icon: AlertCircle };
-    if (grade >= 90) return { label: 'Excellent', variant: 'success' as const, icon: Award };
-    if (grade >= 80) return { label: 'Very Good', variant: 'info' as const, icon: Award };
-    if (grade >= 75) return { label: 'Passed', variant: 'success' as const, icon: CheckCircle };
-    if (grade >= 70) return { label: 'Fair', variant: 'warning' as const, icon: AlertCircle };
-    return { label: 'Failed', variant: 'danger' as const, icon: XCircle };
-  };
-
-  const getGradeColor = (grade: number | null | undefined) => {
-    if (grade === null || grade === undefined) return 'from-gray-500 to-gray-600';
-    if (grade >= 90) return 'from-green-500 to-emerald-600';
-    if (grade >= 80) return 'from-blue-500 to-indigo-600';
-    if (grade >= 75) return 'from-amber-500 to-yellow-600';
-    if (grade >= 70) return 'from-orange-500 to-red-500';
-    return 'from-red-500 to-red-700';
-  };
-
-  const getSemesterLabel = (sem: number) => sem === 1 ? '1st Semester' : '2nd Semester';
-  const getQuarterLabel = (q: number) => {
-    const labels = ['', '1st Quarter', '2nd Quarter', '3rd Quarter', '4th Quarter'];
-    return labels[q] || `Q${q}`;
-  };
-
-  const selectedSubjectData = subjects.find(s => s.id === selectedSubject);
+  if (loading) {
+    return <DashboardLayout title="Grades"><Spinner size="lg" /></DashboardLayout>;
+  }
 
   return (
-    <DashboardLayout>
-      <div className="space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <h1 className="text-4xl font-bold text-white">Student Grade Reports</h1>
-            <p className="text-gray-300 mt-3 text-lg">Manage and track student performance</p>
+    <DashboardLayout title="Grade Management">
+      <GlassCard className="p-6 mb-6">
+        <div className="flex gap-4 flex-wrap">
+          <div className="min-w-[200px]">
+            <Select label="Subject" value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)} options={mySubjects.map(s => ({ value: s.id, label: s.name }))} />
           </div>
-          <div className="flex items-center gap-2 text-base text-green-300 bg-green-500/20 px-6 py-3 rounded-xl border border-green-500/60">
-            <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse"></div>
-            <span className="font-semibold">System Ready</span>
+          <div className="min-w-[150px]">
+            <Select label="Semester" value={selectedSemester} onChange={e => setSelectedSemester(parseInt(e.target.value))} options={[{ value: 1, label: '1st Semester' }, { value: 2, label: '2nd Semester' }]} />
           </div>
         </div>
+      </GlassCard>
 
-        {/* Subject Selection */}
-        <Card className="border-gold-500/60 bg-gold-500/5">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-            <div className="flex items-center gap-4 flex-1">
-              <div className="p-4 bg-gold-500/25 rounded-xl text-gold-400">
-                <BookOpen size={28} />
-              </div>
-              <div>
-                <p className="text-gray-300 text-sm font-bold uppercase tracking-wide">Current Subject</p>
-                <p className="text-white font-bold text-2xl mt-1">
-                  {selectedSubjectData?.name || 'Select a subject'}
-                </p>
-              </div>
-            </div>
-            <div className="w-full md:w-64">
-              <Select
-                label="Switch Subject"
-                value={selectedSubject}
-                onChange={(e) => setSelectedSubject(e.target.value)}
-                options={[
-                  { value: '', label: 'Choose Subject...' },
-                  ...mySubjects.map(s => ({ value: s.id, label: s.name }))
-                ]}
-              />
-            </div>
-          </div>
-        </Card>
-
-        {/* Filters */}
-        {selectedSubject && !initialLoading && (
-          <Card>
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="md:col-span-2">
-                  <Input
-                    label="Search Students"
-                    placeholder="Enter student name..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    icon={<Search size={18} />}
-                  />
-                </div>
-                <Select
-                  label="Year Level"
-                  value={gradeLevelFilter}
-                  onChange={(e) => setGradeLevelFilter(e.target.value)}
-                  options={GRADE_LEVELS}
-                />
-                <Select
-                  label="Section"
-                  value={sectionFilter}
-                  onChange={(e) => setSectionFilter(e.target.value)}
-                  options={SECTIONS}
-                />
-              </div>
-              <div className="bg-black/30 rounded-xl p-4 border border-maroon-600/30 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <div className="flex flex-col gap-2">
-                  <span className="text-gray-300 text-sm font-bold">Students Found</span>
-                  <span className="text-white font-bold text-2xl">{filteredStudents.length} <span className="text-gray-400 text-base font-normal">of {enrolledStudents.length}</span></span>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <span className="text-gray-300 text-sm font-bold">Grades Recorded</span>
-                  <span className="text-gold-300 font-bold text-2xl">{allGrades.length} <span className="text-gray-400 text-base font-normal">entries</span></span>
-                </div>
-              </div>
-            </div>
-          </Card>
-        )}
-
-        {/* Students Grid - Card Layout */}
-        {initialLoading ? (
-          <div className="flex items-center justify-center min-h-96">
-            <LoadingSpinner size="lg" text="Loading student records..." />
-          </div>
-        ) : selectedSubject ? (
-          filteredStudents.length > 0 ? (
-            <Card className="overflow-hidden">
-              <div className="w-full overflow-x-auto">
-                <table className="w-full table-fixed border-collapse min-w-[800px]">
-                  <thead>
-                    <tr className="bg-black/20 backdrop-blur-sm sticky top-0 z-10 [&th]:py-3">
-                      <th className="w-64 px-4 text-left text-xs font-bold uppercase tracking-wider text-gray-200">Student</th>
-                      <th className="w-20 text-center text-xs font-bold uppercase tracking-wider text-gray-200 hidden md:table-cell">Year</th>
-                      <th className="w-20 text-center text-xs font-bold uppercase tracking-wider text-gray-200">Q1</th>
-                      <th className="w-20 text-center text-xs font-bold uppercase tracking-wider text-gray-200">Q2</th>
-                      <th className="w-20 text-center text-xs font-bold uppercase tracking-wider text-gray-200">Q3</th>
-                      <th className="w-20 text-center text-xs font-bold uppercase tracking-wider text-gray-200">Q4</th>
-                      <th className="w-20 text-center text-xs font-bold uppercase tracking-wider text-gray-200">Avg</th>
-                      <th className="w-24 px-2 text-center text-xs font-bold uppercase tracking-wider text-gray-200 hidden lg:table-cell">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredStudents.map((es, index) => {
-                      const student = es.student;
-                      const studentRecordId = student?.id;
-                      const studentGrades = getAllStudentGrades(studentRecordId);
-                      const averageGrade = getAverageGrade(studentGrades);
-                      const avgGradeNum = averageGrade ? parseFloat(averageGrade) : null;
-                      const gradeStatus = getGradeStatus(avgGradeNum);
-                      const hasGrades = studentGrades.length > 0;
-                      return (
-                        <tr key={es.id} className="hover:bg-white/10 transition-colors border-b border-white/10 last:border-b-0 [&>td]:py-3">
-                          {/* Student Name */}
-                          <td className="w-64 px-4 min-w-[200px] max-w-[250px]">
-                            <div className="flex items-center gap-3 truncate">
-                              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-gold-500/40 to-amber-500/40 flex items-center justify-center flex-shrink-0">
-                                <span className="text-lg font-bold text-gold-800">
-                                  {getStudentInitials(student?.first_name || '', student?.last_name || '')}
-                                </span>
-                              </div>
-                              <div className="truncate">
-                                <div className="font-bold text-white text-sm line-clamp-1" title={`${student?.first_name} ${student?.last_name}`}>
-                                  {`${student?.first_name || ''} ${student?.last_name || ''}`}
-                                </div>
-                                <div className="text-gray-400 text-xs truncate" title={es.subject?.name}>{es.subject?.name}</div>
-                              </div>
-                            </div>
-                          </td>
-                          {/* Grade Level */}
-                          <td className="w-20 text-center hidden md:table-cell">
-                            <Badge variant="gold" size="sm">
-                              {student?.grade_level}
-                            </Badge>
-                          </td>
-                          {/* Quarters */}
-                          {[1,2,3,4].map(q => {
-                            const semester = 1;
-                            const quarter = q;
-                            const gradeData = getGradeByQuarter(studentGrades, semester, quarter);
-                            const quarterGradeNum = gradeData?.grade || null;
-                            const quarterColor = getQuarterColor(quarterGradeNum);
-                            return (
-                              <td key={q} className="w-20 px-1 text-center">
-                                <button
-                                  onClick={() => gradeData ? openEditModal(gradeData) : openGradeModalWithQuarter(studentRecordId, semester, quarter)}
-                                  title={gradeData ? `Edit Q${q} (${quarterGradeNum})` : `Add Q${q} grade`}
-                                  className={`w-16 h-14 rounded-lg font-bold text-base shadow-md hover:shadow-lg hover:scale-105 transition-all mx-auto flex flex-col items-center justify-center text-center ${
-                                    gradeData 
-                                      ? `bg-gradient-to-br ${quarterColor} text-white border border-white/40` 
-                                      : 'bg-gray-800/40 border border-gray-500/50 text-gray-200 hover:bg-gray-700/60'
-                                  }`}
-                                >
-                                  <div className="text-xs uppercase tracking-wide mb-0.5 opacity-90">Q{q}</div>
-                                  <div className="font-black text-xl leading-none">
-                                    {quarterGradeNum?.toFixed(0) || '--'}
-                                  </div>
-                                </button>
-                              </td>
-                            );
-                          })}
-                          {/* Average */}
-                          <td className="w-20 px-2 text-center">
-                            <div className={`px-3 py-1.5 rounded-lg font-bold text-base shadow-md inline-block min-w-[3rem] ${
-                              avgGradeNum 
-                                ? `bg-gradient-to-r from-emerald-500/90 to-green-600 text-white` 
-                                : 'bg-gray-800/50 text-gray-300 border border-gray-600/50'
-                            }`}>
-                              {avgGradeNum?.toFixed(1) || '--'}
-                            </div>
-                          </td>
-                          {/* Status */}
-                          <td className="w-24 px-2 text-center hidden lg:table-cell">
-                            <Badge 
-                              variant={gradeStatus.variant === 'success' ? 'success' : gradeStatus.variant === 'warning' ? 'warning' : 'danger'} 
-                              size="sm"
-                            >
-                              {gradeStatus.label}
-                            </Badge>
-                          </td>
-                          </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
-          ) : (
-
-            <Card>
-              <div className="text-center py-12">
-                <Filter size={48} className="mx-auto mb-4 text-gray-600" />
-                <p className="text-gray-400 text-lg">No students match your filter criteria</p>
-                <p className="text-gray-500 text-sm mt-2">Try adjusting your search or filters</p>
-              </div>
-            </Card>
-          )
-        ) : (
-          <Card>
-            <div className="text-center py-12">
-              <BookOpen size={48} className="mx-auto mb-4 text-gray-600" />
-              <p className="text-gray-400 text-lg">Select a subject to view and manage grades</p>
-              <p className="text-gray-500 text-sm mt-2">Choose a subject from the dropdown above</p>
-            </div>
-          </Card>
-        )}
-      </div>
-
-      {/* Encode Grade Modal */}
-      <Modal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title="Encode Student Grade"
-      >
-        <form onSubmit={handleEncodeGrade} className="space-y-4">
-          <Select
-            label="Quarter"
-            value={gradeForm.quarter}
-            onChange={(e) => setGradeForm({ ...gradeForm, quarter: e.target.value })}
-            options={[
-              { value: '1', label: '1st Quarter' },
-              { value: '2', label: '2nd Quarter' },
-              { value: '3', label: '3rd Quarter' },
-              { value: '4', label: '4th Quarter' },
-            ]}
-          />
-          <Input
-            label="Grade (0-100)"
-            type="number"
-            min="0"
-            max="100"
-            value={gradeForm.grade}
-            onChange={(e) => setGradeForm({ ...gradeForm, grade: e.target.value })}
-            placeholder="Enter grade between 0-100"
-            required
-          />
-          <Input
-            label="Remarks (Optional)"
-            value={gradeForm.remarks}
-            onChange={(e) => setGradeForm({ ...gradeForm, remarks: e.target.value })}
-            placeholder="e.g., Excellent work! Keep it up!"
-          />
-          <div className="flex gap-3 pt-4">
-            <Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)} className="flex-1">
-              Cancel
-            </Button>
-            <Button type="submit" disabled={loading} className="flex-1">
-              {loading ? <Loader2 className="animate-spin" size={18} /> : 'Save Grade'}
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Edit Grade Modal */}
-      <Modal
-        isOpen={isEditModalOpen}
-        onClose={() => { setIsEditModalOpen(false); setSelectedGrade(null); }}
-        title="Edit Student Grade"
-      >
-        <form onSubmit={handleUpdateGrade} className="space-y-4">
-          <Select
-            label="Quarter"
-            value={editGradeForm.quarter}
-            onChange={(e) => setEditGradeForm({ ...editGradeForm, quarter: e.target.value })}
-            options={[
-              { value: '1', label: '1st Quarter' },
-              { value: '2', label: '2nd Quarter' },
-              { value: '3', label: '3rd Quarter' },
-              { value: '4', label: '4th Quarter' },
-            ]}
-          />
-          <Input
-            label="Grade (0-100)"
-            type="number"
-            min="0"
-            max="100"
-            value={editGradeForm.grade}
-            onChange={(e) => setEditGradeForm({ ...editGradeForm, grade: e.target.value })}
-            required
-          />
-          <Input
-            label="Remarks (Optional)"
-            value={editGradeForm.remarks}
-            onChange={(e) => setEditGradeForm({ ...editGradeForm, remarks: e.target.value })}
-          />
-          <div className="flex gap-3 pt-4">
-            <Button type="button" variant="secondary" onClick={() => { setIsEditModalOpen(false); setSelectedGrade(null); }} className="flex-1">
-              Cancel
-            </Button>
-            <Button type="submit" disabled={loading} className="flex-1">
-              {loading ? <Loader2 className="animate-spin" size={18} /> : 'Update Grade'}
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Delete Confirmation Modal */}
-      <Modal
-        isOpen={!!deleteConfirm}
-        onClose={() => setDeleteConfirm(null)}
-        title="Confirm Delete"
-      >
-        <div className="text-center py-4">
-          <AlertCircle size={48} className="mx-auto text-red-500 mb-4" />
-          <p className="text-white text-lg mb-2">Are you sure you want to delete this grade?</p>
-          <p className="text-gray-400 text-sm">This action cannot be undone. The student's grade will be removed.</p>
-        </div>
-        <div className="flex gap-3 mt-6">
-          <Button variant="secondary" onClick={() => setDeleteConfirm(null)} className="flex-1">
-            Cancel
-          </Button>
-          <Button 
-            onClick={() => deleteConfirm && handleDeleteGrade(deleteConfirm)} 
-            variant="danger"
-            className="flex-1"
-          >
-            Delete Grade
-          </Button>
-        </div>
-      </Modal>
+      <GlassCard className="p-6">
+        <Table headers={['Student', 'Subject', 'Semester', 'Quarter', 'Grade', 'Remarks', 'Status']}>
+          {getSubjectGrades().map(grade => (
+            <tr key={grade.id} className="hover:bg-white/20">
+              <td className="px-4 py-3 font-medium text-gray-800">{getStudentName(grade.student_id)}</td>
+              <td className="px-4 py-3 text-gray-600">{getSubjectName(grade.subject_id)}</td>
+              <td className="px-4 py-3 text-gray-600">{grade.semester === 1 ? '1st Sem' : '2nd Sem'}</td>
+              <td className="px-4 py-3 text-gray-600">
+                {['', 'Prelim', 'Midterm', 'Pre-Finals', 'Finals'][grade.quarter]}
+              </td>
+              <td className="px-4 py-3 font-medium text-gray-800">{grade.grade}</td>
+              <td className="px-4 py-3 text-gray-600">{grade.remarks || '-'}</td>
+              <td className="px-4 py-3">
+                <Badge variant={isPassing(grade.grade) ? 'success' : 'danger'}>
+                  {isPassing(grade.grade) ? 'Passing' : 'Failing'}
+                </Badge>
+              </td>
+            </tr>
+          ))}
+        </Table>
+        {getSubjectGrades().length === 0 && <p className="text-center text-gray-500 py-8">No grades found</p>}
+      </GlassCard>
     </DashboardLayout>
   );
-};
-
-export default TeacherGrades;
+}

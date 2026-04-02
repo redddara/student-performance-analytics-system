@@ -1,172 +1,115 @@
-import React, { useEffect, useState } from 'react';
-import { useStore } from '../../store';
-import { DashboardLayout } from '../../components/layouts';
-import { Card, Table, Badge, Select } from '../../components/ui';
-import { 
-  GraduationCap, 
-  Filter,
-  TrendingUp,
-  Calendar
-} from 'lucide-react';
-import { supabase } from '../../lib/supabase';
+import { useState, useEffect } from 'react';
+import { DashboardLayout } from '../../components/layouts/DashboardLayout';
+import { GlassCard, Select, Table, Spinner, Badge } from '../../components/ui';
+import { useAuthStore } from '../../store';
+import { supabase, isPassing, calculateGWA } from '../../lib/supabase';
 
-const StudentGrades: React.FC = () => {
-  const { user, subjects } = useStore();
+export default function StudentGradesPage() {
+  const { user } = useAuthStore();
+  const [mySubjects, setMySubjects] = useState<any[]>([]);
   const [myGrades, setMyGrades] = useState<any[]>([]);
-  const [semesterFilter, setSemesterFilter] = useState('all');
   const [loading, setLoading] = useState(true);
+  const [selectedSemester, setSelectedSemester] = useState(1);
 
   useEffect(() => {
-    fetchMyGrades();
-  }, [user, subjects]);
+    loadData();
+  }, []);
 
-  const fetchMyGrades = async () => {
-    if (!user) return;
-    setLoading(true);
+  const loadData = async () => {
+    try {
+      const { data: studentData } = await supabase
+        .from('students')
+        .select('*')
+        .eq('user_id', user?.id)
+        .single();
 
-    const { data: studentData } = await supabase
-      .from('students')
-      .select('*')
-      .eq('user_id', user.id)
-      .single();
+      if (!studentData) return;
 
-    if (studentData) {
-      const { data: grades } = await supabase
-        .from('grades')
-        .select('*, subject:subjects(*)')
-        .eq('student_id', studentData.id)
-        .order('created_at', { ascending: false });
+      const [subjectsRes, gradesRes] = await Promise.all([
+        supabase.from('student_subjects').select('*, subject:subjects(*, course:courses(*))').eq('student_id', studentData.id),
+        supabase.from('grades').select('*').eq('student_id', studentData.id),
+      ]);
 
-      if (grades) setMyGrades(grades);
+      setMySubjects(subjectsRes.data || []);
+      setMyGrades(gradesRes.data || []);
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
-  // Filter grades
-  let filteredGrades = myGrades;
-  if (semesterFilter !== 'all') {
-    filteredGrades = myGrades.filter(g => g.semester === parseInt(semesterFilter));
-  }
+  const getSubjectGrade = (subjectId: string, quarter: number) => {
+    const grade = myGrades.find(g => 
+      g.subject_id === subjectId && g.quarter === quarter && g.semester === selectedSemester
+    );
+    return grade?.grade || '-';
+  };
 
-  // Calculate GWA
-  const gwa = filteredGrades.length > 0
-    ? filteredGrades.reduce((sum, g) => sum + Number(g.grade), 0) / filteredGrades.length
-    : 0;
+  const getSubjectAverage = (subjectId: string) => {
+    const subjectGrades = myGrades.filter(g => 
+      g.subject_id === subjectId && g.semester === selectedSemester
+    );
+    if (subjectGrades.length === 0) return '-';
+    const avg = calculateGWA(subjectGrades);
+    return avg.toFixed(2);
+  };
 
-  const getGradeStatus = (grade: number) => {
-    if (grade >= 90) return { label: 'Excellent', variant: 'success' as const };
-    if (grade >= 85) return { label: 'Very Good', variant: 'success' as const };
-    if (grade >= 80) return { label: 'Good', variant: 'info' as const };
-    if (grade >= 75) return { label: 'Passing', variant: 'warning' as const };
-    return { label: 'Failed', variant: 'danger' as const };
+  const calculateSemesterGWA = () => {
+    const semesterGrades = myGrades.filter(g => g.semester === selectedSemester);
+    if (semesterGrades.length === 0) return '-';
+    return calculateGWA(semesterGrades).toFixed(2);
   };
 
   if (loading) {
-    return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-white">Loading...</div>
-        </div>
-      </DashboardLayout>
-    );
+    return <DashboardLayout title="My Grades"><Spinner size="lg" /></DashboardLayout>;
   }
 
+  const subjectIds = [...new Set(mySubjects.map(ss => ss.subject_id))];
+  const semesterSubjects = mySubjects.filter(ss => ss.subject?.semester === (selectedSemester === 1 ? '1st Sem' : '2nd Sem'));
+
   return (
-    <DashboardLayout>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-white">My Grades</h1>
-          <p className="text-gray-400 mt-2">View your academic performance</p>
-        </div>
-
-        {/* GWA Summary */}
-        <Card className="bg-gradient-to-r from-indigo-600/20 to-purple-600/20 border-indigo-500/30">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-300">Overall GWA</p>
-              <p className="text-5xl font-bold text-white mt-2">{gwa.toFixed(2)}</p>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <p className="text-gray-400 text-sm">Total Subjects</p>
-                <p className="text-2xl font-bold text-white">{filteredGrades.length}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-gray-400 text-sm">Passing</p>
-                <p className="text-2xl font-bold text-green-400">
-                  {filteredGrades.filter(g => Number(g.grade) >= 75).length}
-                </p>
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        {/* Filter */}
-        <Card>
-          <div className="flex items-center gap-4">
-            <Filter size={20} className="text-gray-400" />
-            <Select
-              value={semesterFilter}
-              onChange={(e) => setSemesterFilter(e.target.value)}
-              options={[
-                { value: 'all', label: 'All Semesters' },
-                { value: '1', label: 'First Semester' },
-                { value: '2', label: 'Second Semester' }
-              ]}
-            />
-          </div>
-        </Card>
-
-        {/* Grades Table */}
-        <Card>
-          <Table headers={['Subject', 'Grade', 'Quarter', 'Semester', 'Remarks', 'Status']}>
-            {filteredGrades.map(grade => {
-              const status = getGradeStatus(Number(grade.grade));
-              return (
-                <tr key={grade.id} className="hover:bg-white/5">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-300">
-                        <GraduationCap size={18} />
-                      </div>
-                      <span className="text-white font-medium">
-                        {grade.subject?.name || 'Unknown'}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="text-2xl font-bold text-white">{grade.grade}</span>
-                  </td>
-                  <td className="px-4 py-3 text-gray-300">
-                    <div className="flex items-center gap-2">
-                      <Calendar size={14} className="text-gray-400" />
-                      Quarter {grade.quarter}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-gray-300">
-                    Semester {grade.semester}
-                  </td>
-                  <td className="px-4 py-3 text-gray-300">
-                    {grade.remarks || '-'}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge variant={status.variant}>{status.label}</Badge>
-                  </td>
-                </tr>
-              );
-            })}
-          </Table>
-
-          {filteredGrades.length === 0 && (
-            <div className="text-center py-12 text-gray-400">
-              <GraduationCap size={48} className="mx-auto mb-4 opacity-50" />
-              <p>No grades recorded yet</p>
-            </div>
-          )}
-        </Card>
+    <DashboardLayout title="My Grades">
+      <div className="mb-6">
+        <Select
+          label="Semester"
+          value={selectedSemester.toString()}
+          onChange={e => setSelectedSemester(parseInt(e.target.value))}
+          options={[{ value: '1', label: '1st Semester' }, { value: '2', label: '2nd Semester' }]}
+        />
       </div>
+
+      <GlassCard className="p-6">
+        <h2 className="text-xl font-semibold text-[#800000] mb-4">
+          {selectedSemester === 1 ? '1st' : '2nd'} Semester Grades
+        </h2>
+        
+        <Table headers={['Subject', 'Prelim', 'Midterm', 'Pre-Finals', 'Finals', 'Average']}>
+          {semesterSubjects.map(ss => (
+            <tr key={ss.id} className="hover:bg-white/20">
+              <td className="px-4 py-3 font-medium text-gray-800">{ss.subject?.name}</td>
+              <td className="px-4 py-3 text-gray-600">{getSubjectGrade(ss.subject_id, 1)}</td>
+              <td className="px-4 py-3 text-gray-600">{getSubjectGrade(ss.subject_id, 2)}</td>
+              <td className="px-4 py-3 text-gray-600">{getSubjectGrade(ss.subject_id, 3)}</td>
+              <td className="px-4 py-3 text-gray-600">{getSubjectGrade(ss.subject_id, 4)}</td>
+              <td className="px-4 py-3 font-semibold text-[#800000]">{getSubjectAverage(ss.subject_id)}</td>
+            </tr>
+          ))}
+        </Table>
+
+        {semesterSubjects.length === 0 && (
+          <p className="text-center text-gray-500 py-8">No subjects for this semester</p>
+        )}
+
+        {semesterSubjects.length > 0 && (
+          <div className="mt-6 p-4 rounded-xl bg-gradient-to-r from-[#800000] to-[#d4af37] text-white">
+            <div className="flex justify-between items-center">
+              <span className="font-semibold">Semester GWA:</span>
+              <span className="text-2xl font-bold">{calculateSemesterGWA()}</span>
+            </div>
+          </div>
+        )}
+      </GlassCard>
     </DashboardLayout>
   );
-};
-
-export default StudentGrades;
+}

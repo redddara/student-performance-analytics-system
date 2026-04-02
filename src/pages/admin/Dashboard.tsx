@@ -42,7 +42,7 @@ export default function AdminDashboard() {
   const totalStudents = students.length;
   const totalTeachers = teachers.length;
   const totalSubjects = subjects.length;
-const totalCourses = courses.length; // unused warning fixed
+  const totalCourses = courses.length; // unused warning fixed
 
   // Calculate pass rate
   const passRate = grades.length > 0

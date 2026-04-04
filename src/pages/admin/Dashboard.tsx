@@ -215,49 +215,80 @@ function CreateUserModal({ isOpen, onClose, type, courses }: CreateUserModalProp
     setLoading(true);
 
     try {
-      const course = courses.find(c => c.id === formData.course_id);
       const tempPassword = generateTempPassword();
       const passwordHash = await hashPassword(tempPassword);
 
-      // Get next student number for username
-      const { data: existingUsers } = await supabase
-        .from('users')
-        .select('username')
-        .like('username', 'STUD-%')
-        .order('username', { ascending: false })
-        .limit(1);
-
-      let nextNumber = 1001;
-      if (existingUsers && existingUsers.length > 0) {
-        const lastNum = parseInt(existingUsers[0].username?.split('-')[2] || '1000');
-        nextNumber = lastNum + 1;
-      }
-
-      const username = generateStudentUsername(course?.name || 'BSCS', nextNumber);
-
-      // Create user
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .insert({
+      if (type === 'teacher') {
+        const { error: teacherUserError } = await supabase.from('users').insert({
           email: formData.email,
           password_hash: passwordHash,
-          role: type,
-          username,
+          role: 'teacher',
+          username: null,
           is_temp_password: true,
           temp_password_visible: tempPassword,
           first_name: formData.first_name,
           last_name: formData.last_name,
-          course_id: formData.course_id,
-          year_level: formData.grade_level,
-          section: formData.section,
-        })
-        .select()
-        .single();
+          course_id: null,
+          year_level: null,
+          section: null,
+        });
 
-      if (userError) throw userError;
+        if (teacherUserError) throw teacherUserError;
 
-      if (type === 'student') {
-        // Create student record
+        let emailNote = '';
+        if (formData.email) {
+          const emailData = generateStudentCredentialEmail(
+            formData.first_name,
+            formData.email,
+            tempPassword,
+            'teacher'
+          );
+          const sent = await sendEmail(formData.email, emailData.subject, emailData.html);
+          emailNote = sent.success
+            ? `Credentials sent to ${formData.email}.`
+            : `Email could not be sent (${sent.error ?? 'unknown error'}). Share the password manually.`;
+        }
+
+        alert(
+          `Teacher created successfully!\n\nLogin email: ${formData.email}\nTemporary password: ${tempPassword}\n\n${emailNote}`
+        );
+      } else {
+        const course = courses.find(c => c.id === formData.course_id);
+        const { data: existingUsers } = await supabase
+          .from('users')
+          .select('username')
+          .like('username', 'STUD-%')
+          .order('username', { ascending: false })
+          .limit(1);
+
+        let nextNumber = 1001;
+        if (existingUsers && existingUsers.length > 0) {
+          const lastNum = parseInt(existingUsers[0].username?.split('-')[2] || '1000');
+          nextNumber = lastNum + 1;
+        }
+
+        const username = generateStudentUsername(course?.name || 'BSCS', nextNumber);
+
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .insert({
+            email: formData.email,
+            password_hash: passwordHash,
+            role: 'student',
+            username,
+            is_temp_password: true,
+            temp_password_visible: tempPassword,
+            first_name: formData.first_name,
+            last_name: formData.last_name,
+            course_id: formData.course_id,
+            year_level: formData.grade_level,
+            section: formData.section,
+          })
+          .select()
+          .single();
+
+        if (userError) throw userError;
+
         const { data: studentData, error: studentError } = await supabase
           .from('students')
           .insert({
@@ -273,7 +304,6 @@ function CreateUserModal({ isOpen, onClose, type, courses }: CreateUserModalProp
 
         if (studentError) throw studentError;
 
-        // Auto-enroll in subjects matching course, year level, semester
         const { data: matchingSubjects } = await supabase
           .from('subjects')
           .select('*')
@@ -286,29 +316,29 @@ function CreateUserModal({ isOpen, onClose, type, courses }: CreateUserModalProp
             student_id: studentData.id,
             subject_id: sub.id,
           }));
-
           await supabase.from('student_subjects').insert(enrollments);
         }
 
-        // Update local store
         const updatedStudents: any[] = [...(students as any[]), studentData];
         setStudents(updatedStudents);
 
-        // Send email notification
+        let emailNote = '';
         if (formData.email) {
-          const emailData = generateStudentCredentialEmail(formData.first_name, username, tempPassword, 'student');
-          await sendEmail(formData.email, emailData.subject, emailData.html);
+          const emailData = generateStudentCredentialEmail(
+            formData.first_name,
+            username,
+            tempPassword,
+            'student'
+          );
+          const sent = await sendEmail(formData.email, emailData.subject, emailData.html);
+          emailNote = sent.success
+            ? `Credentials sent to ${formData.email}.`
+            : `Email could not be sent (${sent.error ?? 'unknown error'}). Share the password manually.`;
         }
 
-        alert(`Student created successfully!\n\nUsername: ${username}\nTemporary Password: ${tempPassword}\n\nCredentials sent to ${formData.email || 'email not provided'}`);
-      } else {
-        // Send email notification
-        if (formData.email) {
-          const emailData = generateStudentCredentialEmail(formData.first_name, username, tempPassword, 'teacher');
-          await sendEmail(formData.email, emailData.subject, emailData.html);
-        }
-
-        alert(`Teacher created successfully!\n\nUsername: ${username}\nTemporary Password: ${tempPassword}\n\nCredentials sent to ${formData.email || 'email not provided'}`);
+        alert(
+          `Student created successfully!\n\nStudent ID: ${username}\nTemporary password: ${tempPassword}\n\n${emailNote}`
+        );
       }
 
       onClose();

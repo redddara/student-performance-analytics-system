@@ -1,0 +1,4 @@
+# https://supabase.com/docs/guides/cli/config
+
+[functions.send-email]
+verify_jwt = false

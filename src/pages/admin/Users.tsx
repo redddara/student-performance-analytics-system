@@ -9,7 +9,7 @@ export default function AdminUsersPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [createType, setCreateType] = useState<'student' | 'teacher'>('student');
+  const [createType, setCreateType] = useState<'student' | 'teacher' | 'admin'>('student');
   const [courses, setCourses] = useState<any[]>([]);
   
   // Confirmation modal states
@@ -59,13 +59,16 @@ export default function AdminUsersPage() {
       })
       .eq('id', confirmModal.userId);
 
-    // Send email notification
+    let emailNote = user.email ? '' : 'No email on file for this user.';
     if (user.email) {
       const emailData = generatePasswordResetEmail(user.first_name || 'User', tempPassword);
-      await sendEmail(user.email, emailData.subject, emailData.html);
+      const sent = await sendEmail(user.email, emailData.subject, emailData.html);
+      emailNote = sent.success
+        ? `Notification sent to ${user.email}.`
+        : `Email could not be sent (${sent.error ?? 'unknown error'}). Share the new password manually.`;
     }
 
-    alert(`Password reset successful!\n\nTemporary Password: ${tempPassword}\n\nNotification sent to ${user.email || 'email not found'}`);
+    alert(`Password reset successful!\n\nTemporary password: ${tempPassword}\n\n${emailNote}`);
   };
 
   const handleDeleteUser = async () => {
@@ -148,6 +151,9 @@ export default function AdminUsersPage() {
         </Button>
         <Button variant="secondary" onClick={() => { setCreateType('teacher'); setShowCreateModal(true); }}>
           <i className="hgi-stroke hgi-add-to-list"></i> Add Teacher
+        </Button>
+        <Button variant="ghost" onClick={() => { setCreateType('admin'); setShowCreateModal(true); }}>
+          <i className="hgi-stroke hgi-add-to-list"></i> Add Admin
         </Button>
       </div>
 
@@ -235,7 +241,7 @@ export default function AdminUsersPage() {
 interface CreateUserModalProps {
   isOpen: boolean;
   onClose: () => void;
-  type: 'student' | 'teacher';
+  type: 'student' | 'teacher' | 'admin';
   courses: any[];
   onSuccess: () => void;
 }
@@ -261,9 +267,8 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess }: CreateUs
       const tempPassword = generateTempPassword();
       const passwordHash = await hashPassword(tempPassword);
 
-      // For students: generate student ID. For teachers: use email as identifier (no username needed)
       let username: string | null = null;
-      
+
       if (type === 'student') {
         // Generate student ID for students
         const { data: existingUsers } = await supabase
@@ -281,7 +286,6 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess }: CreateUs
 
         username = generateStudentUsername(course?.name || 'BSCS', nextNumber);
       }
-      // For teachers: username is not needed (they login with email)
 
       // Check if email already exists (including soft-deleted users)
       const { data: existingEmail } = await supabase
@@ -321,7 +325,7 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess }: CreateUs
           temp_password_visible: tempPassword,
           first_name: formData.first_name,
           last_name: formData.last_name,
-          course_id: formData.course_id || null,
+          course_id: type === 'admin' ? null : formData.course_id || null,
           year_level: type === 'student' ? formData.grade_level : null,
           section: type === 'student' ? formData.section : null,
         })
@@ -385,18 +389,32 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess }: CreateUs
         }
       }
 
-      // Send email with credentials
+      let emailNote = formData.email
+        ? ''
+        : 'No email on file; share credentials manually.';
       if (formData.email) {
+        const credentialRole =
+          type === 'admin' ? 'admin' : type === 'teacher' ? 'teacher' : 'student';
         const emailData = generateStudentCredentialEmail(
-          formData.first_name, 
-          username || formData.email, 
-          tempPassword, 
-          type
+          formData.first_name,
+          username || formData.email,
+          tempPassword,
+          credentialRole
         );
-        await sendEmail(formData.email, emailData.subject, emailData.html);
+        const sent = await sendEmail(formData.email, emailData.subject, emailData.html);
+        emailNote = sent.success
+          ? `Credentials sent to ${formData.email}.`
+          : `Email could not be sent (${sent.error ?? 'unknown error'}). Share credentials manually.`;
       }
 
-      alert(`User created successfully!\n\n${type === 'student' ? `Student ID: ${username}` : 'Email: ' + formData.email}\nTemporary Password: ${tempPassword}\n\nCredentials have been sent to ${formData.email || 'email not provided'}`);
+      const loginLine =
+        type === 'student'
+          ? `Student ID: ${username}`
+          : `Login email: ${formData.email}`;
+
+      alert(
+        `User created successfully!\n\n${loginLine}\nTemporary password: ${tempPassword}\n\n${emailNote}`
+      );
       onSuccess();
       onClose();
       setFormData({
@@ -435,9 +453,7 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess }: CreateUs
         )}
         
         {type === 'teacher' && (
-          <>
-            <Select label="Course" value={formData.course_id} onChange={e => setFormData({ ...formData, course_id: e.target.value })} options={courses.map(c => ({ value: c.id, label: c.name }))} />
-          </>
+          <Select label="Course" value={formData.course_id} onChange={e => setFormData({ ...formData, course_id: e.target.value })} options={courses.map(c => ({ value: c.id, label: c.name }))} />
         )}
 
         <div className="flex gap-4 pt-4">

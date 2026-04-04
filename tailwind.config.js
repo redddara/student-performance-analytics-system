@@ -33,8 +33,8 @@ export default {
           900: '#614a00',
           950: '#423100',
         },
+        'maroon-glass': 'rgba(223, 68, 68, 0.05)',
       },
-      // Enhanced typography for accessibility
       fontSize: {
         'xs': ['12px', { lineHeight: '18px' }],
         'sm': ['14px', { lineHeight: '21px' }],
@@ -45,7 +45,6 @@ export default {
         '3xl': ['30px', { lineHeight: '36px' }],
         '4xl': ['36px', { lineHeight: '40px' }],
       },
-      // Enhanced spacing for better visual hierarchy
       spacing: {
         '0.5': '2px',
         '1': '4px',
@@ -75,12 +74,8 @@ export default {
       backdropBlur: {
         xs: '2px',
       },
-      colors: {
-        // Add low opacity for glassmorphism
-        'maroon-glass': 'rgba(223, 68, 68, 0.05)',
-      },
     },
   },
-
   plugins: [],
 }
+

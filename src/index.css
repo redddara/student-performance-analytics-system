@@ -11,27 +11,27 @@
 
 @layer components {
   .glass {
-    @apply backdrop-blur-2xl bg-white/70 border border-maroon-500/30 shadow-xl ring-1 ring-maroon-500/20;
+    @apply backdrop-blur-2xl bg-white/70 border border-maroon-500/20 shadow-xl ring-1 ring-maroon-500/20;
   }
   
   .glass-hover {
-    @apply hover:bg-white/80 hover:shadow-2xl hover:ring-maroon-500/40 transition-all duration-300;
+    @apply hover:bg-white/80 hover:shadow-2xl hover:ring-maroon-500/30 transition-all duration-300;
   }
   
   .glass-card {
-    @apply backdrop-blur-xl bg-white/60 border border-maroon-400/40 rounded-3xl shadow-2xl ring-1 ring-gold-400/20;
+    @apply backdrop-blur-xl bg-white/60 border border-maroon-400/20 rounded-3xl shadow-2xl ring-1 ring-gold-400/20;
   }
   
   .maroon-glass-card {
-    @apply backdrop-blur-2xl bg-gradient-to-br from-maroon-500/5 to-white/60 border border-maroon-500/30 rounded-3xl shadow-2xl ring-1 ring-gold-500/20 hover:shadow-gold-glow;
+    @apply backdrop-blur-2xl bg-gradient-to-br from-maroon-glass to-white/60 border border-maroon-500/20 rounded-3xl shadow-2xl ring-1 ring-gold-400/20 hover:shadow-gold-glow;
   }
   
   .glass-input {
-    @apply bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500;
+    @apply bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500;
   }
   
   .glass-button {
-    @apply bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-md hover:shadow-lg transition-all duration-300;
+    @apply bg-gradient-to-r from-maroon-500 to-maroon-600 text-white shadow-md hover:shadow-lg transition-all duration-300;
   }
 }
 
@@ -59,7 +59,7 @@
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-white/50 backdrop-blur-sm rounded-full border border-maroon-500/20;
+  @apply bg-white/50 backdrop-blur-sm rounded-full border border-maroon-500/10;
 }
 
 ::-webkit-scrollbar-thumb {
@@ -76,7 +76,7 @@ input[type="file"]::file-selector-button {
 
 /* White sidebar - Clean styling like reference images */
 .maroon-sidebar {
-  @apply bg-gradient-to-b from-maroon-950 to-maroon-900 border-r border-maroon-500/30 shadow-2xl backdrop-blur-xl;
+  @apply bg-gradient-to-b from-maroon-950 to-maroon-900 border-r border-maroon-500/20 shadow-2xl backdrop-blur-xl;
 }
 
 .maroon-glow {
@@ -99,7 +99,7 @@ input[type="file"]::file-selector-button {
   transform: translateY(-50%);
   width: 4px;
   height: 60%;
-  background: linear-gradient(to bottom, theme('colors.gold.400'), theme('colors.maroon.500'));
+  background: linear-gradient(to bottom, #ffd000, #df4444);
   border-radius: 0 2px 2px 0;
 }
 

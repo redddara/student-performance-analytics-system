@@ -39,7 +39,7 @@ export function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
 
         {/* Footer */}
         <p className="text-center text-gray-500 text-xs mt-8">
-          Student Academic Performance Analytics System
+          Student Performance Analytics System
         </p>
       </div>
     </div>

@@ -9,8 +9,8 @@ interface AuthLayoutProps {
 export function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
-      {/* Maroon Gradient Background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[#1a0505] via-[#4a0e0e] to-[#2d0808]">
+      {/* White Background */}
+      <div className="absolute inset-0 bg-white/90 backdrop-blur-xl">
         {/* Animated orbs */}
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute top-20 left-20 w-72 h-72 bg-[#800000]/30 rounded-full blur-[100px] animate-pulse" />

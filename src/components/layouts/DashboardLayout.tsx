@@ -50,8 +50,8 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
 
   return (
     <div className="min-h-screen flex relative">
-      {/* Plain white background */}
-      <div className="fixed inset-0 bg-white" />
+      {/* Glassmorphism background */}
+      <div className="fixed inset-0 bg-white/10 backdrop-blur-3xl border border-white/20" />
 
       {/* Mobile Overlay */}
       {sidebarOpen && (
@@ -128,7 +128,7 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
         <header className="flex items-center justify-between mb-6 md:mb-10">
           <div className="flex items-center gap-4">
             <button 
-              className="md:hidden p-3 rounded-2xl bg-white/30 backdrop-blur-md text-maroon-100 border border-white/30 shadow-md hover:shadow-lg transition-all duration-300"
+            className="md:hidden p-3 rounded-2xl bg-white/40 backdrop-blur-lg text-maroon-100 border border-white/40 shadow-lg hover:shadow-xl transition-all duration-300 glass-hover"
               onClick={() => setSidebarOpen(true)}
             >
               <i className="hgi-stroke hgi-menu-05 text-xl"></i>
@@ -139,7 +139,7 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <div className="px-4 py-2 md:px-5 rounded-2xl bg-white/40 backdrop-blur-md border border-white/50 shadow-md">
+            <div className="px-4 py-2 md:px-5 rounded-2xl glass-card glass-hover">
               <span className="text-sm text-gray-700 font-medium"><i className="hgi-stroke hgi-calendar-01 mr-2"></i>{new Date().toLocaleDateString()}</span>
             </div>
           </div>

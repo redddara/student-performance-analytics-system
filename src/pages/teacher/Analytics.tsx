@@ -147,19 +147,19 @@ export default function TeacherAnalyticsPage() {
       <GlassCard className="p-6">
         <h3 className="text-lg font-semibold text-[#800000] mb-4">Summary</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="text-center p-4 rounded-xl bg-white/30">
+          <div className="text-center p-4 glass-card">
             <p className="text-2xl font-bold text-[#800000]">{students.length}</p>
             <p className="text-sm text-gray-600">Students</p>
           </div>
-          <div className="text-center p-4 rounded-xl bg-white/30">
+          <div className="text-center p-4 glass-card">
             <p className="text-2xl font-bold text-[#d4af37]">{mySubjects.length}</p>
             <p className="text-sm text-gray-600">Subjects</p>
           </div>
-          <div className="text-center p-4 rounded-xl bg-white/30">
+          <div className="text-center p-4 glass-card">
             <p className="text-2xl font-bold text-green-600">{myGrades.length > 0 ? Math.round((passingCount / myGrades.length) * 100) : 0}%</p>
             <p className="text-sm text-gray-600">Pass Rate</p>
           </div>
-          <div className="text-center p-4 rounded-xl bg-white/30">
+          <div className="text-center p-4 glass-card">
             <p className="text-2xl font-bold text-blue-600">{myGrades.length > 0 ? Math.round(myGrades.reduce((sum, g) => sum + g.grade, 0) / myGrades.length * 100) / 100 : 0}</p>
             <p className="text-sm text-gray-600">Average</p>
           </div>

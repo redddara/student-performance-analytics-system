@@ -138,7 +138,7 @@ export default function AdminDashboard() {
           ) : (
             <div className="space-y-3">
               {students.slice(0, 5).map(student => (
-                <div key={student.id} className="flex items-center justify-between p-3 rounded-xl bg-white/30">
+                <div key={student.id} className="flex items-center justify-between p-3 glass-card">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#800000] to-[#d4af37] flex items-center justify-center text-white font-bold">
                       {student.first_name[0]}
@@ -164,7 +164,7 @@ export default function AdminDashboard() {
           ) : (
             <div className="space-y-3">
               {subjects.slice(0, 5).map(subject => (
-                <div key={subject.id} className="flex items-center justify-between p-3 rounded-xl bg-white/30">
+                <div key={subject.id} className="flex items-center justify-between p-3 glass-card">
                   <div>
                     <p className="font-medium text-gray-800">{subject.name}</p>
                     <p className="text-sm text-gray-500">{subject.year_level} - {subject.semester}</p>

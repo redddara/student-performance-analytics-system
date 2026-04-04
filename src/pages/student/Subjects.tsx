@@ -48,7 +48,7 @@ export default function StudentSubjectsPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {mySubjects.map(ss => (
-              <div key={ss.id} className="p-6 rounded-xl bg-white/30 border border-white/40">
+              <div key={ss.id} className="p-6 glass-card">
                 <h3 className="text-lg font-semibold text-[#800000] mb-2">{ss.subject?.name}</h3>
                 <div className="space-y-1 text-sm text-gray-600">
                   <p><span className="font-medium">Course:</span> {ss.subject?.course?.name}</p>

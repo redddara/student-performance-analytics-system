@@ -10,14 +10,16 @@ interface GlassCardProps {
 
 export function GlassCard({ children, className, style, onClick }: GlassCardProps) {
   return (
-    <div 
+    <div
+      onClick={onClick}
       className={clsx(
-        'backdrop-blur-2xl bg-[#800000]/20 border border-[#800000]/30 rounded-2xl shadow-xl',
-        onClick && 'cursor-pointer hover:bg-[#800000]/30 hover:shadow-2xl transition-all duration-300',
+        'rounded-3xl p-8 lg:p-10 transition-all duration-300',
+        'bg-white/5 bg-gradient-to-br from-maroon-500/10 to-maroon-500/20',
+        'backdrop-blur-xl border border-white/20 shadow-xl',
+        onClick && 'cursor-pointer hover:shadow-2xl active:scale-[0.98]',
         className
       )}
       style={style}
-      onClick={onClick}
     >
       {children}
     </div>
@@ -40,10 +42,10 @@ export function Button({
   const baseStyles = 'font-medium rounded-xl transition-all duration-300 flex items-center justify-center gap-2';
   
   const variants = {
-    primary: 'bg-gradient-to-r from-[#800000] to-[#a52a2a] text-white hover:from-[#600000] hover:to-[#800000] shadow-lg hover:shadow-xl backdrop-blur-md',
-    secondary: 'bg-white/40 text-[#800000] border border-white/50 hover:bg-white/60 backdrop-blur-md',
+primary: 'bg-gradient-to-r from-maroon-500 to-maroon-600 text-white hover:from-maroon-600 hover:to-maroon-700 shadow-lg hover:shadow-xl backdrop-blur-md',
+secondary: 'bg-white/40 text-maroon-500 border border-white/50 hover:bg-white/60 backdrop-blur-md',
     danger: 'bg-red-600 text-white hover:bg-red-700 backdrop-blur-md',
-    ghost: 'bg-white/20 text-[#800000] hover:bg-white/40 backdrop-blur-md',
+ghost: 'bg-white/20 text-maroon-500 hover:bg-white/40 backdrop-blur-md',
   };
   
   const sizes = {

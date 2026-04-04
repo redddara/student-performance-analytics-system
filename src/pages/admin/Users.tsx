@@ -489,7 +489,7 @@ function EditUserModal({ user, courses, onSave }: EditUserModalProps) {
   return (
     <>
       <button 
-        className="p-2 rounded-lg bg-white/30 hover:bg-white/50 text-[#800000] transition-all duration-300" 
+        className="p-2 rounded-lg glass-hover text-[#800000]" 
         onClick={() => setIsOpen(true)}
         title="Edit User"
       >

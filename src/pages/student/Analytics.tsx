@@ -4,6 +4,7 @@ import { GlassCard, Spinner } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase, isPassing, calculateGWA } from '../../lib/supabase';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { chartAxis, chartGrid, chartTooltip } from '../../lib/chartTheme';
 
 export default function StudentAnalyticsPage() {
   const { user } = useAuthStore();
@@ -156,10 +157,10 @@ export default function StudentAnalyticsPage() {
           <h3 className="text-lg font-semibold text-[#800000] mb-4">Performance by Subject</h3>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={subjectPerformance}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" fontSize={10} />
-              <YAxis domain={[0, 100]} />
-              <Tooltip />
+              <CartesianGrid {...chartGrid} />
+              <XAxis dataKey="name" fontSize={10} {...chartAxis} />
+              <YAxis domain={[0, 100]} {...chartAxis} />
+              <Tooltip {...chartTooltip} />
               <Bar dataKey="average" fill="#800000" name="Average" />
             </BarChart>
           </ResponsiveContainer>
@@ -169,10 +170,10 @@ export default function StudentAnalyticsPage() {
           <h3 className="text-lg font-semibold text-[#800000] mb-4">Quarterly Trend</h3>
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={quarterlyData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="quarter" />
-              <YAxis domain={[0, 100]} />
-              <Tooltip />
+              <CartesianGrid {...chartGrid} />
+              <XAxis dataKey="quarter" {...chartAxis} />
+              <YAxis domain={[0, 100]} {...chartAxis} />
+              <Tooltip {...chartTooltip} />
               <Line type="monotone" dataKey="average" stroke="#d4af37" strokeWidth={2} name="Average" />
             </LineChart>
           </ResponsiveContainer>

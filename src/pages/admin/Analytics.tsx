@@ -8,6 +8,7 @@ import {
   PieChart, Pie, Cell, Legend, AreaChart, Area, ComposedChart
 } from 'recharts';
 import { Users, BarChart3, TrendingUp, GraduationCap, BookOpen, CheckCircle2, ChartLine } from 'lucide-react';
+import { chartAxis, chartGrid, chartLegend, chartTooltip } from '../../lib/chartTheme';
 
 export default function AdminAnalyticsPage() {
   const { subjects, students, grades, courses } = useDataStore();
@@ -162,8 +163,8 @@ export default function AdminAnalyticsPage() {
               <Pie data={pieData} cx="50%" cy="50%" labelLine={false} label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`} outerRadius={100} fill="#8884d8" dataKey="value" animationDuration={1500} animationBegin={300}>
                 {pieData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.color} stroke="white" strokeWidth={2} />))}
               </Pie>
-              <Tooltip formatter={(value) => [value, 'Students']} />
-              <Legend />
+              <Tooltip formatter={(value) => [value, 'Students']} {...chartTooltip} />
+              <Legend {...chartLegend} />
             </PieChart>
           </ResponsiveContainer>
         </GlassCard>
@@ -178,8 +179,8 @@ export default function AdminAnalyticsPage() {
               <Pie data={passFailData} cx="50%" cy="50%" labelLine={false} label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`} innerRadius={60} outerRadius={100} fill="#8884d8" dataKey="value" animationDuration={1500} animationBegin={400}>
                 {passFailData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.color} stroke="white" strokeWidth={2} />))}
               </Pie>
-              <Tooltip formatter={(value) => [value, 'Students']} />
-              <Legend />
+              <Tooltip formatter={(value) => [value, 'Students']} {...chartTooltip} />
+              <Legend {...chartLegend} />
             </PieChart>
           </ResponsiveContainer>
         </GlassCard>
@@ -194,10 +195,10 @@ export default function AdminAnalyticsPage() {
           </h3>
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={subjectPerformance} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-              <XAxis type="number" domain={[0, 100]} />
-              <YAxis type="category" dataKey="name" width={100} />
-              <Tooltip formatter={(value) => [value, 'Average']} />
+              <CartesianGrid {...chartGrid} />
+              <XAxis type="number" domain={[0, 100]} {...chartAxis} />
+              <YAxis type="category" dataKey="name" width={100} {...chartAxis} />
+              <Tooltip formatter={(value) => [value, 'Average']} {...chartTooltip} />
               <Bar dataKey="average" fill="#800000" radius={[0, 4, 4, 0]} animationDuration={1500} animationBegin={500} />
             </BarChart>
           </ResponsiveContainer>
@@ -210,13 +211,13 @@ export default function AdminAnalyticsPage() {
           </h3>
           <ResponsiveContainer width="100%" height={280}>
             <AreaChart data={quarterlyData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-              <XAxis dataKey="quarter" />
-              <YAxis domain={[0, 100]} />
-              <Tooltip />
+              <CartesianGrid {...chartGrid} />
+              <XAxis dataKey="quarter" {...chartAxis} />
+              <YAxis domain={[0, 100]} {...chartAxis} />
+              <Tooltip {...chartTooltip} />
               <Area type="monotone" dataKey="average" stroke="#d4af37" fill="url(#gradient)" strokeWidth={2} animationDuration={1500} animationBegin={600} />
               <Area type="monotone" dataKey="passing" stroke="#4CAF50" fill="transparent" strokeWidth={2} />
-              <Legend />
+              <Legend {...chartLegend} />
               <defs>
                 <linearGradient id="gradient" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#d4af37" stopOpacity={0.3} />
@@ -237,10 +238,10 @@ export default function AdminAnalyticsPage() {
           </h3>
           <ResponsiveContainer width="100%" height={250}>
             <ComposedChart data={yearLevelData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-              <XAxis dataKey="year" />
-              <YAxis domain={[0, 100]} />
-              <Tooltip />
+              <CartesianGrid {...chartGrid} />
+              <XAxis dataKey="year" {...chartAxis} />
+              <YAxis domain={[0, 100]} {...chartAxis} />
+              <Tooltip {...chartTooltip} />
               <Bar dataKey="average" fill="#800000" radius={[4, 4, 0, 0]} animationDuration={1500} />
             </ComposedChart>
           </ResponsiveContainer>
@@ -253,10 +254,10 @@ export default function AdminAnalyticsPage() {
           </h3>
           <ResponsiveContainer width="100%" height={250}>
             <BarChart data={courseComparison}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-              <XAxis dataKey="name" />
-              <YAxis domain={[0, 100]} />
-              <Tooltip />
+              <CartesianGrid {...chartGrid} />
+              <XAxis dataKey="name" {...chartAxis} />
+              <YAxis domain={[0, 100]} {...chartAxis} />
+              <Tooltip {...chartTooltip} />
               <Bar dataKey="average" fill="#d4af37" radius={[4, 4, 0, 0]} animationDuration={1500} />
             </BarChart>
           </ResponsiveContainer>
@@ -269,11 +270,11 @@ export default function AdminAnalyticsPage() {
           </h3>
           <ResponsiveContainer width="100%" height={250}>
             <BarChart data={quarterSubjectData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-              <XAxis dataKey="quarter" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
+              <CartesianGrid {...chartGrid} />
+              <XAxis dataKey="quarter" {...chartAxis} />
+              <YAxis {...chartAxis} />
+              <Tooltip {...chartTooltip} />
+              <Legend {...chartLegend} />
               <Bar dataKey="high" stackId="a" fill="#4CAF50" name="High (85+)" />
               <Bar dataKey="mid" stackId="a" fill="#2196F3" name="Mid (75-84)" />
               <Bar dataKey="low" stackId="a" fill="#f44336" name="Low (<75)" />

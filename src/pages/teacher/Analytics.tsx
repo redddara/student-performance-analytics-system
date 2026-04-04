@@ -4,6 +4,7 @@ import { GlassCard, Spinner } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase, isPassing } from '../../lib/supabase';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
+import { chartAxis, chartGrid, chartTooltip } from '../../lib/chartTheme';
 
 const COLORS = ['#800000', '#d4af37', '#4CAF50', '#f44336', '#2196F3'];
 
@@ -100,7 +101,7 @@ export default function TeacherAnalyticsPage() {
               <Pie data={pieData} cx="50%" cy="50%" labelLine={false} label={({ name, percent }) => percent ? `${name} (${(percent * 100).toFixed(0)}%)` : name} outerRadius={60} fill="#8884d8" dataKey="value">
                 {pieData.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
               </Pie>
-              <Tooltip />
+              <Tooltip {...chartTooltip} />
             </PieChart>
           </ResponsiveContainer>
         </GlassCard>
@@ -112,7 +113,7 @@ export default function TeacherAnalyticsPage() {
               <Pie data={passFailData} cx="50%" cy="50%" labelLine={false} label={({ name, percent }) => percent ? `${name}: ${(percent * 100).toFixed(0)}%` : name} outerRadius={60} fill="#8884d8" dataKey="value">
                 {passFailData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.name === 'Passing' ? '#4CAF50' : '#f44336'} />)}
               </Pie>
-              <Tooltip />
+              <Tooltip {...chartTooltip} />
             </PieChart>
           </ResponsiveContainer>
         </GlassCard>
@@ -121,10 +122,10 @@ export default function TeacherAnalyticsPage() {
           <h3 className="text-lg font-semibold text-[#800000] mb-4">Subject Performance</h3>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={subjectPerformance}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" fontSize={10} />
-              <YAxis domain={[0, 100]} fontSize={10} />
-              <Tooltip />
+              <CartesianGrid {...chartGrid} />
+              <XAxis dataKey="name" fontSize={10} {...chartAxis} />
+              <YAxis domain={[0, 100]} fontSize={10} {...chartAxis} />
+              <Tooltip {...chartTooltip} />
               <Bar dataKey="average" fill="#800000" />
             </BarChart>
           </ResponsiveContainer>
@@ -134,10 +135,10 @@ export default function TeacherAnalyticsPage() {
           <h3 className="text-lg font-semibold text-[#800000] mb-4">Quarterly Trend</h3>
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={quarterlyData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="quarter" />
-              <YAxis domain={[0, 100]} />
-              <Tooltip />
+              <CartesianGrid {...chartGrid} />
+              <XAxis dataKey="quarter" {...chartAxis} />
+              <YAxis domain={[0, 100]} {...chartAxis} />
+              <Tooltip {...chartTooltip} />
               <Line type="monotone" dataKey="average" stroke="#d4af37" strokeWidth={2} />
             </LineChart>
           </ResponsiveContainer>
@@ -147,19 +148,19 @@ export default function TeacherAnalyticsPage() {
       <GlassCard className="p-6">
         <h3 className="text-lg font-semibold text-[#800000] mb-4">Summary</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="text-center p-4 glass-card">
+          <div className="text-center p-4 glass-inset">
             <p className="text-2xl font-bold text-[#800000]">{students.length}</p>
             <p className="text-sm text-gray-600">Students</p>
           </div>
-          <div className="text-center p-4 glass-card">
+          <div className="text-center p-4 glass-inset">
             <p className="text-2xl font-bold text-[#d4af37]">{mySubjects.length}</p>
             <p className="text-sm text-gray-600">Subjects</p>
           </div>
-          <div className="text-center p-4 glass-card">
+          <div className="text-center p-4 glass-inset">
             <p className="text-2xl font-bold text-green-600">{myGrades.length > 0 ? Math.round((passingCount / myGrades.length) * 100) : 0}%</p>
             <p className="text-sm text-gray-600">Pass Rate</p>
           </div>
-          <div className="text-center p-4 glass-card">
+          <div className="text-center p-4 glass-inset">
             <p className="text-2xl font-bold text-blue-600">{myGrades.length > 0 ? Math.round(myGrades.reduce((sum, g) => sum + g.grade, 0) / myGrades.length * 100) / 100 : 0}</p>
             <p className="text-sm text-gray-600">Average</p>
           </div>

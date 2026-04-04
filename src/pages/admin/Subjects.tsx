@@ -94,7 +94,7 @@ export default function AdminSubjectsPage() {
       </Button>
       
       <GlassCard className="p-6">
-        <Table headers={['Subject Name', 'Course', 'Year Level', 'Semester', 'Teacher', 'Actions']} className="maroon-glass-card">
+        <Table headers={['Subject Name', 'Course', 'Year Level', 'Semester', 'Teacher', 'Actions']}>
           {subjects.map(subject => (
             <tr key={subject.id} className="hover:bg-white/20">
               <td className="px-4 py-3 font-medium text-gray-800">{subject.name}</td>

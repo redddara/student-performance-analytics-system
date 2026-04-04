@@ -5,7 +5,7 @@
 
 @layer base {
   body {
-    @apply bg-gradient-to-br from-white/80 via-white/90 to-white/70 backdrop-blur-xl text-gray-800 antialiased min-h-screen;
+    @apply bg-white text-gray-900 antialiased min-h-screen;
   }
 }
 
@@ -18,8 +18,20 @@
     @apply hover:bg-white/80 hover:shadow-2xl hover:ring-maroon-500/30 transition-all duration-300;
   }
   
+  /* Light pill for toolbar / header chips on white background */
   .glass-card {
-    @apply backdrop-blur-xl bg-white/60 border border-maroon-400/20 rounded-3xl shadow-2xl ring-1 ring-gold-400/20;
+    @apply bg-white border border-maroon-200/50 rounded-2xl shadow-sm backdrop-blur-sm;
+  }
+
+  /* Nested panel inside maroon GlassCard (PhilTech-style inset glass) */
+  .glass-inset {
+    border-radius: 1rem;
+    border: 1px solid rgba(160, 40, 40, 0.9);
+    background: linear-gradient(145deg, #7a0000, #4d0000);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      0 0 0 1px rgba(212, 165, 0, 0.15),
+      0 4px 20px rgba(40, 0, 0, 0.4);
   }
   
   .maroon-glass-card {
@@ -78,9 +90,56 @@ input[type="file"]::file-selector-button {
   @apply mr-4 px-4 py-2 rounded-2xl border-0 text-sm font-semibold bg-gradient-to-r from-maroon-600 to-maroon-700 text-white hover:from-maroon-500 hover:shadow-xl backdrop-blur-md transition-all duration-300;
 }
 
+/* Typography inside maroon GlassCard — pages keep Tailwind classes; these lift contrast on dark glass */
+.glass-card-content {
+  color: rgb(255 255 255 / 0.92);
+}
+
+.glass-card-content h1,
+.glass-card-content h2,
+.glass-card-content h3 {
+  color: rgb(255 255 255 / 0.98);
+}
+
+.glass-card-content [class*='text-gray-500'],
+.glass-card-content [class*='text-gray-600'],
+.glass-card-content [class*='text-gray-700'] {
+  color: rgb(255 255 255 / 0.62) !important;
+}
+
+.glass-card-content [class*='text-gray-800'] {
+  color: rgb(255 255 255 / 0.95) !important;
+}
+
+.glass-card-content [class*='800000'],
+.glass-card-content [class*='d4af37'] {
+  color: rgb(253 224 71) !important;
+}
+
+.glass-card-content [class*='text-maroon-600'],
+.glass-card-content [class*='text-maroon-700'] {
+  color: rgb(253 224 71) !important;
+}
+
+.glass-card-content [class*='text-gold-600'] {
+  color: rgb(250 204 21) !important; /* gold-400 */
+}
+
+.glass-card-content [class*='text-green-600'] {
+  color: rgb(74 222 128) !important; /* green-400 */
+}
+
+.glass-card-content [class*='text-blue-600'] {
+  color: rgb(147 197 253) !important; /* blue-300 */
+}
+
+.glass-card-content [class*='text-red-600'] {
+  color: rgb(252 165 165) !important; /* red-300 */
+}
+
 /* Sidebar */
 .maroon-sidebar {
-  @apply bg-gradient-to-b from-maroon-950/95 to-maroon-900/95 border-r border-maroon-500/30 shadow-2xl backdrop-blur-3xl;
+  @apply bg-gradient-to-b from-[#0a0a0a] via-maroon-950 to-maroon-900 border-r border-gold-500/20 shadow-2xl backdrop-blur-3xl;
 }
 
 .maroon-glow {

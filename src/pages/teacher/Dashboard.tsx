@@ -118,7 +118,7 @@ export default function TeacherDashboard() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {mySubjects.map(subject => (
-              <div key={subject.id} className="p-4 glass-card">
+              <div key={subject.id} className="p-4 glass-inset">
                 <h3 className="font-semibold text-gray-800">{subject.name}</h3>
                 <p className="text-sm text-gray-500">{subject.course?.name} - {subject.year_level} - {subject.semester}</p>
                 <Button 

@@ -6,32 +6,46 @@ interface GlassCardProps {
   className?: string;
   style?: React.CSSProperties;
   onClick?: () => void;
+  /** `plain` = light neutral shell for auth alerts etc. (no maroon glass or inverted text). */
+  variant?: 'maroon' | 'plain';
 }
 
-export function GlassCard({ children, className, style, onClick }: GlassCardProps) {
+export function GlassCard({ children, className, style, onClick, variant = 'maroon' }: GlassCardProps) {
+  const isMaroon = variant === 'maroon';
+
   return (
     <div
       onClick={onClick}
       className={clsx(
-        'relative isolate overflow-hidden rounded-3xl p-8 lg:p-10 transition-all duration-300',
-        'border border-maroon-500/35 bg-gradient-to-b from-maroon-950/88 to-maroon-900/92',
-        'backdrop-blur-3xl backdrop-saturate-150 shadow-2xl',
-        '[box-shadow:inset_0_1px_0_0_rgba(255,255,255,0.22),0_12px_40px_rgba(26,0,0,0.35)]',
-        onClick &&
-          'cursor-pointer hover:border-maroon-400/45 hover:[box-shadow:inset_0_1px_0_0_rgba(255,255,255,0.28),0_16px_48px_rgba(26,0,0,0.45)] active:scale-[0.98]',
+        'relative isolate overflow-hidden rounded-3xl transition-all duration-300',
+        isMaroon && [
+          'p-8 lg:p-10',
+          // Opaque maroon — no transparency/blur so the white page doesn’t wash it to pink
+          'border border-maroon-600 bg-gradient-to-b from-maroon-600 to-maroon-900',
+          'shadow-2xl',
+          '[box-shadow:0_0_0_1px_rgba(212,165,0,0.22),0_16px_40px_rgba(51,0,0,0.55),inset_0_1px_0_rgba(255,255,255,0.06)]',
+          onClick &&
+            'cursor-pointer hover:border-maroon-400 hover:[box-shadow:0_0_0_1px_rgba(212,165,0,0.35),0_20px_48px_rgba(51,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.1)] active:scale-[0.98]',
+        ],
+        !isMaroon && 'border border-gray-200/80 bg-white/95 shadow-md',
+        !isMaroon && onClick && 'cursor-pointer hover:shadow-lg active:scale-[0.99]',
         className
       )}
       style={style}
     >
-      <div
-        className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-br from-white/20 via-white/[0.06] to-transparent"
-        aria-hidden
-      />
-      <div
-        className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-t from-maroon-950/50 via-transparent to-maroon-500/[0.07]"
-        aria-hidden
-      />
-      <div className="relative z-10">{children}</div>
+      {isMaroon && (
+        <>
+          <div
+            className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-br from-white/[0.05] via-transparent to-transparent"
+            aria-hidden
+          />
+          <div
+            className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-t from-maroon-950/60 via-transparent to-transparent"
+            aria-hidden
+          />
+        </>
+      )}
+      <div className={clsx('relative z-10', isMaroon && 'glass-card-content')}>{children}</div>
     </div>
   );
 }
@@ -52,10 +66,12 @@ export function Button({
   const baseStyles = 'font-medium rounded-xl transition-all duration-300 flex items-center justify-center gap-2';
   
   const variants = {
-primary: 'bg-gradient-to-r from-maroon-500 to-maroon-600 text-white hover:from-maroon-600 hover:to-maroon-700 shadow-lg hover:shadow-xl backdrop-blur-md',
-secondary: 'bg-white/40 text-maroon-500 border border-white/50 hover:bg-white/60 backdrop-blur-md',
+primary:
+      'bg-gradient-to-r from-maroon-600 to-maroon-700 text-white hover:from-maroon-500 hover:to-maroon-600 shadow-lg hover:shadow-xl backdrop-blur-md [box-shadow:0_0_24px_rgba(212,165,0,0.22)]',
+secondary: 'bg-white/90 text-maroon-700 border border-maroon-200/80 hover:bg-white shadow-md backdrop-blur-md',
     danger: 'bg-red-600 text-white hover:bg-red-700 backdrop-blur-md',
-ghost: 'bg-white/20 text-maroon-500 hover:bg-white/40 backdrop-blur-md',
+ghost:
+      'bg-white/10 text-gold-100 border border-gold-400/35 hover:bg-white/18 hover:border-gold-400/50 backdrop-blur-md',
   };
   
   const sizes = {
@@ -140,10 +156,10 @@ interface BadgeProps {
 
 export function Badge({ children, variant = 'info', className }: BadgeProps) {
   const variants = {
-    success: 'bg-maroon-500/20 text-maroon-700 border-maroon-400/50 backdrop-blur-sm',
-    warning: 'bg-gold-400/30 text-gold-800 border-gold-400/40 backdrop-blur-sm', 
-    danger: 'bg-maroon-600/30 text-maroon-800 border-maroon-500/40 backdrop-blur-sm',
-    info: 'bg-maroon-500/25 text-maroon-700 border-maroon-400/50 backdrop-blur-sm',
+    success: 'bg-green-500/15 text-green-300 border-green-400/40 backdrop-blur-sm',
+    warning: 'bg-gold-500/20 text-gold-200 border-gold-400/45 backdrop-blur-sm',
+    danger: 'bg-red-500/20 text-red-300 border-red-400/40 backdrop-blur-sm',
+    info: 'bg-white/10 text-gold-100 border-gold-400/40 backdrop-blur-sm',
   };
   
   return (
@@ -160,22 +176,23 @@ export function Badge({ children, variant = 'info', className }: BadgeProps) {
 interface TableProps {
   headers: string[];
   children: ReactNode;
+  className?: string;
 }
 
-export function Table({ headers, children }: TableProps) {
+export function Table({ headers, children, className }: TableProps) {
   return (
-    <div className="overflow-x-auto">
+    <div className={clsx('overflow-x-auto', className)}>
       <table className="w-full">
         <thead>
-          <tr className="border-b border-white/40 bg-white/20">
+          <tr className="border-b border-gold-400/35 bg-black/20">
             {headers.map((h, i) => (
-              <th key={i} className="px-4 py-3 text-left text-sm font-semibold text-[#800000] backdrop-blur-sm">
+              <th key={i} className="px-4 py-3 text-left text-sm font-semibold text-gold-200/95 backdrop-blur-sm">
                 {h}
               </th>
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-white/20">
+        <tbody className="divide-y divide-gold-400/15">
           {children}
         </tbody>
       </table>

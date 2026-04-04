@@ -49,9 +49,7 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
   };
 
   return (
-    <div className="min-h-screen flex relative">
-      {/* Glassmorphism background */}
-      <div className="fixed inset-0 bg-white/10 backdrop-blur-3xl border border-white/20" />
+    <div className="min-h-screen flex relative bg-white">
 
       {/* Mobile Overlay */}
       {sidebarOpen && (
@@ -101,8 +99,8 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
               to={`/${role}/${item.id}`}
               className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-300 group ${
                 currentPage === item.id
-                  ? 'bg-gold-400/30 backdrop-blur-sm border border-gold-400/50 text-black-800 shadow-lg hover:shadow-xl gold-glow'
-                  : 'text-maroon-200 hover:bg-white/20 hover:shadow-md hover:maroon-glow'
+                  ? 'bg-gold-500/20 backdrop-blur-sm border border-gold-400/55 text-gold-100 shadow-lg gold-glow'
+                  : 'text-maroon-200/90 hover:bg-white/10 hover:text-gold-200/90 hover:shadow-md'
               }`}
               onClick={() => setSidebarOpen(false)}
             >
@@ -125,12 +123,12 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
       </aside>
 
       {/* Main Content */}
-      <main className="relative z-10 flex-1 p-6 md:p-8 lg:p-12 min-h-screen bg-white/50 backdrop-blur-sm">
+      <main className="relative z-10 flex-1 p-6 md:p-8 lg:p-12 min-h-screen bg-white">
         {/* Mobile Header with Hamburger */}
         <header className="flex items-center justify-between mb-6 md:mb-10">
           <div className="flex items-center gap-4">
             <button 
-            className="md:hidden p-3 rounded-2xl bg-white/40 backdrop-blur-lg text-maroon-100 border border-white/40 shadow-lg hover:shadow-xl transition-all duration-300 glass-hover"
+            className="md:hidden p-3 rounded-2xl bg-white border border-maroon-200/60 text-maroon-800 shadow-md hover:border-maroon-400/50 hover:shadow-lg transition-all duration-300"
               onClick={() => setSidebarOpen(true)}
             >
               <i className="hgi-stroke hgi-menu-05 text-xl"></i>
@@ -141,8 +139,8 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <div className="px-4 py-2 md:px-5 rounded-2xl glass-card glass-hover">
-              <span className="text-sm text-gray-700 font-medium"><i className="hgi-stroke hgi-calendar-01 mr-2"></i>{new Date().toLocaleDateString()}</span>
+            <div className="px-4 py-2 md:px-5 rounded-2xl glass-card transition-all duration-300 hover:border-maroon-300/70 hover:shadow-md">
+              <span className="text-sm text-maroon-800 font-medium"><i className="hgi-stroke hgi-calendar-01 mr-2 text-maroon-600"></i>{new Date().toLocaleDateString()}</span>
             </div>
           </div>
         </header>

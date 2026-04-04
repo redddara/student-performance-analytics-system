@@ -149,10 +149,10 @@ export default function AdminUsersPage() {
         <Button onClick={() => { setCreateType('student'); setShowCreateModal(true); }}>
           <i className="hgi-stroke hgi-add-to-list"></i> Add Student
         </Button>
-        <Button variant="secondary" onClick={() => { setCreateType('teacher'); setShowCreateModal(true); }}>
+        <Button onClick={() => { setCreateType('teacher'); setShowCreateModal(true); }}>
           <i className="hgi-stroke hgi-add-to-list"></i> Add Teacher
         </Button>
-        <Button variant="ghost" onClick={() => { setCreateType('admin'); setShowCreateModal(true); }}>
+        <Button onClick={() => { setCreateType('admin'); setShowCreateModal(true); }}>
           <i className="hgi-stroke hgi-add-to-list"></i> Add Admin
         </Button>
       </div>

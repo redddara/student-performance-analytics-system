@@ -75,7 +75,7 @@ export default function ChangePasswordPage() {
   return (
     <AuthLayout title="Change Password" subtitle="You must change your temporary password">
       <form onSubmit={handleSubmit} className="space-y-6">
-        <GlassCard className="!bg-yellow-50/50 !border-yellow-200 p-4">
+        <GlassCard variant="plain" className="!bg-yellow-50/50 !border-yellow-200 p-4">
           <p className="text-sm text-yellow-800 text-center">
             <i className="hgi-stroke hgi-warning-02 text-xl"></i> This is your first login. Please create a new password.
           </p>
@@ -102,7 +102,7 @@ export default function ChangePasswordPage() {
         />
 
         {error && (
-          <GlassCard className="!bg-red-50/50 !border-red-200 p-3">
+          <GlassCard variant="plain" className="!bg-red-50/50 !border-red-200 p-3">
             <p className="text-sm text-red-600 text-center">{error}</p>
           </GlassCard>
         )}

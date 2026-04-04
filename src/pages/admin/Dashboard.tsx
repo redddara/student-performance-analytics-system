@@ -61,7 +61,7 @@ export default function AdminDashboard() {
     <DashboardLayout title="Admin Dashboard">
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <GlassCard className="p-6">
+        <GlassCard className="p-4 sm:p-6">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#800000] to-[#a52a2a] flex items-center justify-center text-2xl">
               <i className="hgi-stroke hgi-student text-xl"></i>
@@ -73,7 +73,7 @@ export default function AdminDashboard() {
           </div>
         </GlassCard>
 
-        <GlassCard className="p-6">
+        <GlassCard className="p-4 sm:p-6">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#d4af37] to-[#b8962e] flex items-center justify-center text-2xl">
               <i className="hgi-stroke hgi-school-tie text-xl"></i>
@@ -85,7 +85,7 @@ export default function AdminDashboard() {
           </div>
         </GlassCard>
 
-        <GlassCard className="p-6">
+        <GlassCard className="p-4 sm:p-6">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-maroon-500 to-maroon-600 flex items-center justify-center text-2xl">
               <i className="hgi-stroke hgi-book-02 text-white text-xl"></i>
@@ -97,7 +97,7 @@ export default function AdminDashboard() {
           </div>
         </GlassCard>
 
-        <GlassCard className="p-6">
+        <GlassCard className="p-4 sm:p-6">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-gold-500 to-gold-600 flex items-center justify-center text-2xl">
               <i className="hgi-stroke hgi-checkmark-circle-02 text-white text-xl"></i>
@@ -111,19 +111,19 @@ export default function AdminDashboard() {
       </div>
 
       {/* Quick Actions */}
-      <GlassCard className="p-6 mb-8">
+      <GlassCard className="p-4 sm:p-6 mb-8">
         <h2 className="text-xl font-semibold text-[#800000] mb-4">Quick Actions</h2>
-        <div className="flex gap-4 flex-wrap">
-          <Button onClick={() => { setCreateType('student'); setShowCreateModal(true); }}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+          <Button className="w-full sm:w-auto" onClick={() => { setCreateType('student'); setShowCreateModal(true); }}>
 <i className="hgi-stroke hgi-plus mr-1 text-lg"/>Create Student
           </Button>
-          <Button onClick={() => { setCreateType('teacher'); setShowCreateModal(true); }}>
+          <Button className="w-full sm:w-auto" onClick={() => { setCreateType('teacher'); setShowCreateModal(true); }}>
 <i className="hgi-stroke hgi-plus mr-1 text-lg"/>Create Teacher
           </Button>
-          <Button onClick={() => window.location.href = '/admin/courses'}>
+          <Button className="w-full sm:w-auto" onClick={() => window.location.href = '/admin/courses'}>
             Manage Courses
           </Button>
-          <Button onClick={() => window.location.href = '/admin/subjects'}>
+          <Button className="w-full sm:w-auto" onClick={() => window.location.href = '/admin/subjects'}>
             Manage Subjects
           </Button>
         </div>
@@ -131,25 +131,25 @@ export default function AdminDashboard() {
 
       {/* Recent Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <GlassCard className="p-6">
+        <GlassCard className="p-4 sm:p-6">
           <h2 className="text-xl font-semibold text-[#800000] mb-4">Recent Students</h2>
           {students.length === 0 ? (
             <p className="text-gray-500 text-center py-8">No students yet</p>
           ) : (
             <div className="space-y-3">
               {students.slice(0, 5).map(student => (
-                <div key={student.id} className="flex items-center justify-between p-3 glass-inset">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#800000] to-[#d4af37] flex items-center justify-center text-white font-bold">
+                <div key={student.id} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between p-3 glass-inset">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 shrink-0 rounded-full bg-gradient-to-br from-[#800000] to-[#d4af37] flex items-center justify-center text-white font-bold">
                       {student.first_name[0]}
                     </div>
-                    <div>
-                      <p className="font-medium text-gray-800">{student.first_name} {student.last_name}</p>
+                    <div className="min-w-0">
+                      <p className="font-medium text-gray-800 truncate">{student.first_name} {student.last_name}</p>
                       <p className="text-sm text-gray-500">{student.grade_level} - {student.section}</p>
                     </div>
                   </div>
                   {student.course && (
-                    <Badge variant="info">{student.course.name}</Badge>
+                    <Badge variant="info" className="self-start sm:self-auto shrink-0">{student.course.name}</Badge>
                   )}
                 </div>
               ))}
@@ -157,20 +157,20 @@ export default function AdminDashboard() {
           )}
         </GlassCard>
 
-        <GlassCard className="p-6">
+        <GlassCard className="p-4 sm:p-6">
           <h2 className="text-xl font-semibold text-[#800000] mb-4">Subjects Overview</h2>
           {subjects.length === 0 ? (
             <p className="text-gray-500 text-center py-8">No subjects yet</p>
           ) : (
             <div className="space-y-3">
               {subjects.slice(0, 5).map(subject => (
-                <div key={subject.id} className="flex items-center justify-between p-3 glass-inset">
-                  <div>
-                    <p className="font-medium text-gray-800">{subject.name}</p>
+                <div key={subject.id} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between p-3 glass-inset">
+                  <div className="min-w-0">
+                    <p className="font-medium text-gray-800 break-words">{subject.name}</p>
                     <p className="text-sm text-gray-500">{subject.year_level} - {subject.semester}</p>
                   </div>
                   {subject.teacher && (
-                    <Badge variant="success">{subject.teacher.name || `${subject.teacher.first_name} ${subject.teacher.last_name}`}</Badge>
+                    <Badge variant="success" className="self-start sm:self-auto shrink-0 max-w-full truncate">{subject.teacher.name || `${subject.teacher.first_name} ${subject.teacher.last_name}`}</Badge>
                   )}
                 </div>
               ))}
@@ -390,7 +390,7 @@ function CreateUserModal({ isOpen, onClose, type, courses }: CreateUserModalProp
               options={courses.map(c => ({ value: c.id, label: c.name }))}
               required
             />
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <Select
                 label="Year Level"
                 value={formData.grade_level}

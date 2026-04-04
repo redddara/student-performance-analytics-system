@@ -120,45 +120,45 @@ export default function AdminAnalyticsPage() {
 
   return (
     <DashboardLayout title="Analytics & Reports">
-      <div className="mb-6 flex flex-wrap gap-4 items-center justify-between">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <Select
           label="Filter by Course"
           value={selectedCourse}
           onChange={e => { setSelectedCourse(e.target.value); setAnimated(false); setTimeout(() => setAnimated(true), 100); }}
           options={[{ value: 'all', label: 'All Courses' }, ...courses.map(c => ({ value: c.id, label: c.name }))]}
-          className="max-w-xs"
+          className="w-full sm:max-w-xs"
         />
-        <div className="text-sm text-gray-500">
+        <div className="text-xs text-gray-500 sm:text-sm shrink-0">
           Total Records: {grades.length} grades • {filteredStudents.length} students
         </div>
       </div>
 
       {/* Animated Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8">
         {[
           { label: 'Total Students', value: filteredStudents.length, Icon: Users, color: '#800000' },
           { label: 'Total Subjects', value: subjects.length, Icon: BookOpen, color: '#d4af37' },
           { label: 'Overall Pass Rate', value: `${passRate}%`, Icon: CheckCircle2, color: '#4CAF50' },
           { label: 'Average Grade', value: overallAverage, Icon: ChartLine, color: '#2196F3' },
         ].map((stat, i) => (
-          <GlassCard key={i} className={`p-4 text-center animate-delay-${i * 100} animate-in fade-in slide-in-from-bottom duration-500 opacity-100`}>
+          <GlassCard key={i} className={`p-3 sm:p-4 text-center animate-delay-${i * 100} animate-in fade-in slide-in-from-bottom duration-500 opacity-100`}>
             <div className="text-3xl mb-2">
               <stat.Icon size={28} style={{ color: stat.color }} />
             </div>
-            <p className="text-2xl font-bold text-[#800000]">{stat.value}</p>
-            <p className="text-sm text-gray-600">{stat.label}</p>
+            <p className="text-xl sm:text-2xl font-bold text-[#800000]">{stat.value}</p>
+            <p className="text-xs sm:text-sm text-gray-600 leading-snug">{stat.label}</p>
           </GlassCard>
         ))}
       </div>
 
       {/* Row 1: Pie Charts */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        <GlassCard className="p-6 animate-delay-200 animate-in fade-in slide-in-from-left duration-500">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-8">
+        <GlassCard className="p-4 sm:p-6 animate-delay-200 animate-in fade-in slide-in-from-left duration-500">
           <h3 className="text-lg font-semibold text-[#800000] mb-4 flex items-center gap-2">
             <BarChart3 size={20} />
             Grade Distribution
           </h3>
-          <ResponsiveContainer width="100%" height={280}>
+          <ResponsiveContainer width="100%" height={240}>
             <PieChart>
               <Pie data={pieData} cx="50%" cy="50%" labelLine={false} label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`} outerRadius={100} fill="#8884d8" dataKey="value" animationDuration={1500} animationBegin={300}>
                 {pieData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.color} stroke="white" strokeWidth={2} />))}
@@ -169,12 +169,12 @@ export default function AdminAnalyticsPage() {
           </ResponsiveContainer>
         </GlassCard>
 
-        <GlassCard className="p-6 animate-delay-300 animate-in fade-in slide-in-from-right duration-500">
+        <GlassCard className="p-4 sm:p-6 animate-delay-300 animate-in fade-in slide-in-from-right duration-500">
           <h3 className="text-lg font-semibold text-[#800000] mb-4 flex items-center gap-2">
             <GraduationCap size={20} />
             Pass/Fail Rate
           </h3>
-          <ResponsiveContainer width="100%" height={280}>
+          <ResponsiveContainer width="100%" height={240}>
             <PieChart>
               <Pie data={passFailData} cx="50%" cy="50%" labelLine={false} label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`} innerRadius={60} outerRadius={100} fill="#8884d8" dataKey="value" animationDuration={1500} animationBegin={400}>
                 {passFailData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.color} stroke="white" strokeWidth={2} />))}
@@ -187,13 +187,13 @@ export default function AdminAnalyticsPage() {
       </div>
 
       {/* Row 2: Bar & Line Charts */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        <GlassCard className={`p-6 ${animated ? 'animate-in fade-in slide-in-from-left duration-500' : 'opacity-0'}`} style={{ animationDelay: '400ms' }}>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-8">
+        <GlassCard className={`p-4 sm:p-6 ${animated ? 'animate-in fade-in slide-in-from-left duration-500' : 'opacity-0'}`} style={{ animationDelay: '400ms' }}>
           <h3 className="text-lg font-semibold text-[#800000] mb-4 flex items-center gap-2">
             <BarChart3 size={20} />
             Subject Performance
           </h3>
-          <ResponsiveContainer width="100%" height={280}>
+          <ResponsiveContainer width="100%" height={240}>
             <BarChart data={subjectPerformance} layout="vertical">
               <CartesianGrid {...chartGrid} />
               <XAxis type="number" domain={[0, 100]} {...chartAxis} />
@@ -204,12 +204,12 @@ export default function AdminAnalyticsPage() {
           </ResponsiveContainer>
         </GlassCard>
 
-        <GlassCard className={`p-6 ${animated ? 'animate-in fade-in slide-in-from-right duration-500' : 'opacity-0'}`} style={{ animationDelay: '500ms' }}>
+        <GlassCard className={`p-4 sm:p-6 ${animated ? 'animate-in fade-in slide-in-from-right duration-500' : 'opacity-0'}`} style={{ animationDelay: '500ms' }}>
           <h3 className="text-lg font-semibold text-[#800000] mb-4 flex items-center gap-2">
             <TrendingUp size={20} />
             Quarterly Trend
           </h3>
-          <ResponsiveContainer width="100%" height={280}>
+          <ResponsiveContainer width="100%" height={240}>
             <AreaChart data={quarterlyData}>
               <CartesianGrid {...chartGrid} />
               <XAxis dataKey="quarter" {...chartAxis} />
@@ -230,13 +230,13 @@ export default function AdminAnalyticsPage() {
       </div>
 
       {/* Row 3: More Detailed Charts */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <GlassCard className={`p-6 ${animated ? 'animate-in fade-in slide-in-from-bottom duration-500' : 'opacity-0'}`} style={{ animationDelay: '600ms' }}>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-8">
+        <GlassCard className={`p-4 sm:p-6 ${animated ? 'animate-in fade-in slide-in-from-bottom duration-500' : 'opacity-0'}`} style={{ animationDelay: '600ms' }}>
           <h3 className="text-lg font-semibold text-[#800000] mb-4 flex items-center gap-2">
             <GraduationCap size={20} />
             Year Level Performance
           </h3>
-          <ResponsiveContainer width="100%" height={250}>
+          <ResponsiveContainer width="100%" height={220}>
             <ComposedChart data={yearLevelData}>
               <CartesianGrid {...chartGrid} />
               <XAxis dataKey="year" {...chartAxis} />
@@ -247,12 +247,12 @@ export default function AdminAnalyticsPage() {
           </ResponsiveContainer>
         </GlassCard>
 
-        <GlassCard className={`p-6 ${animated ? 'animate-in fade-in slide-in-from-bottom duration-500' : 'opacity-0'}`} style={{ animationDelay: '700ms' }}>
+        <GlassCard className={`p-4 sm:p-6 ${animated ? 'animate-in fade-in slide-in-from-bottom duration-500' : 'opacity-0'}`} style={{ animationDelay: '700ms' }}>
           <h3 className="text-lg font-semibold text-[#800000] mb-4 flex items-center gap-2">
             <BookOpen size={20} />
             Course Comparison
           </h3>
-          <ResponsiveContainer width="100%" height={250}>
+          <ResponsiveContainer width="100%" height={220}>
             <BarChart data={courseComparison}>
               <CartesianGrid {...chartGrid} />
               <XAxis dataKey="name" {...chartAxis} />
@@ -263,12 +263,12 @@ export default function AdminAnalyticsPage() {
           </ResponsiveContainer>
         </GlassCard>
 
-        <GlassCard className={`p-6 ${animated ? 'animate-in fade-in slide-in-from-bottom duration-500' : 'opacity-0'}`} style={{ animationDelay: '800ms' }}>
+        <GlassCard className={`p-4 sm:p-6 ${animated ? 'animate-in fade-in slide-in-from-bottom duration-500' : 'opacity-0'}`} style={{ animationDelay: '800ms' }}>
           <h3 className="text-lg font-semibold text-[#800000] mb-4 flex items-center gap-2">
             <ChartLine size={20} />
             Grade by Quarter
           </h3>
-          <ResponsiveContainer width="100%" height={250}>
+          <ResponsiveContainer width="100%" height={220}>
             <BarChart data={quarterSubjectData}>
               <CartesianGrid {...chartGrid} />
               <XAxis dataKey="quarter" {...chartAxis} />
@@ -285,7 +285,7 @@ export default function AdminAnalyticsPage() {
 
       {/* Top Performers */}
       {topPerformers.length > 0 && (
-        <GlassCard className={`p-6 ${animated ? 'animate-in fade-in duration-500' : 'opacity-0'}`} style={{ animationDelay: '900ms' }}>
+        <GlassCard className={`p-4 sm:p-6 ${animated ? 'animate-in fade-in duration-500' : 'opacity-0'}`} style={{ animationDelay: '900ms' }}>
           <h3 className="text-lg font-semibold text-[#800000] mb-4 flex items-center gap-2">
             <span>🏆</span> Top Performers
           </h3>

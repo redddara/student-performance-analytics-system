@@ -42,7 +42,7 @@ export default function StudentSubjectsPage() {
 
   return (
     <DashboardLayout title="My Subjects">
-      <GlassCard className="p-6">
+      <GlassCard className="p-4 sm:p-6">
         {mySubjects.length === 0 ? (
           <p className="text-gray-500 text-center py-8">No subjects enrolled</p>
         ) : (

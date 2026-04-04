@@ -93,8 +93,8 @@ export default function TeacherAnalyticsPage() {
 
   return (
     <DashboardLayout title="My Analytics">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        <GlassCard className="p-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-8">
+        <GlassCard className="p-4 sm:p-6">
           <h3 className="text-lg font-semibold text-[#800000] mb-4">Grade Distribution</h3>
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
@@ -106,7 +106,7 @@ export default function TeacherAnalyticsPage() {
           </ResponsiveContainer>
         </GlassCard>
 
-        <GlassCard className="p-6">
+        <GlassCard className="p-4 sm:p-6">
           <h3 className="text-lg font-semibold text-[#800000] mb-4">Pass/Fail Rate</h3>
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
@@ -118,7 +118,7 @@ export default function TeacherAnalyticsPage() {
           </ResponsiveContainer>
         </GlassCard>
 
-        <GlassCard className="p-6">
+        <GlassCard className="p-4 sm:p-6">
           <h3 className="text-lg font-semibold text-[#800000] mb-4">Subject Performance</h3>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={subjectPerformance}>
@@ -131,7 +131,7 @@ export default function TeacherAnalyticsPage() {
           </ResponsiveContainer>
         </GlassCard>
 
-        <GlassCard className="p-6">
+        <GlassCard className="p-4 sm:p-6">
           <h3 className="text-lg font-semibold text-[#800000] mb-4">Quarterly Trend</h3>
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={quarterlyData}>
@@ -145,7 +145,7 @@ export default function TeacherAnalyticsPage() {
         </GlassCard>
       </div>
 
-      <GlassCard className="p-6">
+      <GlassCard className="p-4 sm:p-6">
         <h3 className="text-lg font-semibold text-[#800000] mb-4">Summary</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="text-center p-4 glass-inset">

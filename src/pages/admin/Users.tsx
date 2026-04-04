@@ -145,19 +145,19 @@ export default function AdminUsersPage() {
 
   return (
     <DashboardLayout title="User Management">
-      <div className="flex gap-4 mb-6 flex-wrap">
-        <Button onClick={() => { setCreateType('student'); setShowCreateModal(true); }}>
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap mb-6">
+        <Button className="w-full sm:w-auto" onClick={() => { setCreateType('student'); setShowCreateModal(true); }}>
           <i className="hgi-stroke hgi-add-to-list"></i> Add Student
         </Button>
-        <Button onClick={() => { setCreateType('teacher'); setShowCreateModal(true); }}>
+        <Button className="w-full sm:w-auto" onClick={() => { setCreateType('teacher'); setShowCreateModal(true); }}>
           <i className="hgi-stroke hgi-add-to-list"></i> Add Teacher
         </Button>
-        <Button onClick={() => { setCreateType('admin'); setShowCreateModal(true); }}>
+        <Button className="w-full sm:w-auto" onClick={() => { setCreateType('admin'); setShowCreateModal(true); }}>
           <i className="hgi-stroke hgi-add-to-list"></i> Add Admin
         </Button>
       </div>
 
-      <GlassCard className="p-6">
+      <GlassCard className="p-4 sm:p-6">
         <h2 className="text-xl font-semibold text-[#800000] mb-4">All Users</h2>
         <Table headers={['Name', 'Username', 'Role', 'Email', 'Status', 'Actions']}>
           {users.map(user => (
@@ -187,19 +187,21 @@ export default function AdminUsersPage() {
               <td className="px-4 py-3">
                 <div className="flex gap-2">
                   <button 
-                    className="p-2 rounded-lg bg-white/30 hover:bg-white/50 text-[#800000] transition-all duration-300" 
+                    type="button"
+                    className="p-2 rounded-lg glass-hover text-[#800000]" 
                     onClick={() => openConfirmModal('reset', user.id, user.name || `${user.first_name} ${user.last_name}`)}
                     title="Reset Password"
                   >
-                    <i className="hgi-stroke hgi-refresh"></i>
+                    <i className="hgi-stroke hgi-refresh" aria-hidden />
                   </button>
                   <EditUserModal user={user} courses={courses} onSave={handleEditUser} />
                   <button 
-                    className="p-2 rounded-lg bg-white/30 hover:bg-red-50 text-red-600 transition-all duration-300" 
+                    type="button"
+                    className="p-2 rounded-lg glass-hover text-red-600" 
                     onClick={() => openConfirmModal('delete', user.id, user.name || `${user.first_name} ${user.last_name}`)}
                     title="Delete User"
                   >
-                    <i className="hgi-stroke hgi-delete-01"></i>
+                    <i className="hgi-stroke hgi-delete-01" aria-hidden />
                   </button>
                 </div>
               </td>
@@ -444,7 +446,7 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess }: CreateUs
         {type === 'student' && (
           <>
             <Select label="Course" value={formData.course_id} onChange={e => setFormData({ ...formData, course_id: e.target.value })} options={courses.map(c => ({ value: c.id, label: c.name }))} required />
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <Select label="Year Level" value={formData.grade_level} onChange={e => setFormData({ ...formData, grade_level: e.target.value })} options={[{ value: '1st', label: '1st Year' }, { value: '2nd', label: '2nd Year' }, { value: '3rd', label: '3rd Year' }, { value: '4th', label: '4th Year' }]} />
               <Input label="Section" value={formData.section} onChange={e => setFormData({ ...formData, section: e.target.value })} required />
               <Select label="Semester" value={formData.semester} onChange={e => setFormData({ ...formData, semester: e.target.value })} options={[{ value: '1st Sem', label: '1st Sem' }, { value: '2nd Sem', label: '2nd Sem' }]} />
@@ -505,15 +507,16 @@ function EditUserModal({ user, courses, onSave }: EditUserModalProps) {
   return (
     <>
       <button 
+        type="button"
         className="p-2 rounded-lg glass-hover text-[#800000]" 
         onClick={() => setIsOpen(true)}
         title="Edit User"
       >
-        <i className="hgi-stroke hgi-edit-02"></i>
+        <i className="hgi-stroke hgi-edit-02" aria-hidden />
       </button>
       <Modal isOpen={isOpen} onClose={() => setIsOpen(false)} title="Edit User">
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Input label="First Name" value={formData.first_name} onChange={e => setFormData({ ...formData, first_name: e.target.value })} required />
             <Input label="Last Name" value={formData.last_name} onChange={e => setFormData({ ...formData, last_name: e.target.value })} required />
           </div>
@@ -521,7 +524,7 @@ function EditUserModal({ user, courses, onSave }: EditUserModalProps) {
           {(user.role === 'student' || user.role === 'teacher') && (
             <>
               <Select label="Course" value={formData.course_id} onChange={e => setFormData({ ...formData, course_id: e.target.value })} options={courses.map(c => ({ value: c.id, label: c.name }))} />
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Select label="Year Level" value={formData.year_level} onChange={e => setFormData({ ...formData, year_level: e.target.value })} options={[{ value: '1st', label: '1st Year' }, { value: '2nd', label: '2nd Year' }, { value: '3rd', label: '3rd Year' }, { value: '4th', label: '4th Year' }]} />
                 <Input label="Section" value={formData.section} onChange={e => setFormData({ ...formData, section: e.target.value })} />
               </div>

@@ -136,24 +136,24 @@ export default function StudentAnalyticsPage() {
   return (
     <DashboardLayout title="My Analytics">
       {/* Summary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <GlassCard className="p-6 text-center">
-          <p className="text-4xl font-bold text-[#800000]">{overallGWA.toFixed(2)}</p>
-          <p className="text-gray-500">Overall GWA</p>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-8">
+        <GlassCard className="p-4 sm:p-6 text-center">
+          <p className="text-3xl sm:text-4xl font-bold text-[#800000]">{overallGWA.toFixed(2)}</p>
+          <p className="text-sm sm:text-base text-gray-500">Overall GWA</p>
         </GlassCard>
-        <GlassCard className="p-6 text-center">
-          <p className="text-4xl font-bold text-gold-600">{passRate}%</p>
-          <p className="text-gray-500">Pass Rate</p>
+        <GlassCard className="p-4 sm:p-6 text-center">
+          <p className="text-3xl sm:text-4xl font-bold text-gold-600">{passRate}%</p>
+          <p className="text-sm sm:text-base text-gray-500">Pass Rate</p>
         </GlassCard>
-        <GlassCard className="p-6 text-center">
-          <p className="text-4xl font-bold text-[#d4af37]">{mySubjects.length}</p>
-          <p className="text-gray-500">Enrolled Subjects</p>
+        <GlassCard className="p-4 sm:p-6 text-center">
+          <p className="text-3xl sm:text-4xl font-bold text-[#d4af37]">{mySubjects.length}</p>
+          <p className="text-sm sm:text-base text-gray-500">Enrolled Subjects</p>
         </GlassCard>
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        <GlassCard className="p-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-8">
+        <GlassCard className="p-4 sm:p-6">
           <h3 className="text-lg font-semibold text-[#800000] mb-4">Performance by Subject</h3>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={subjectPerformance}>
@@ -166,7 +166,7 @@ export default function StudentAnalyticsPage() {
           </ResponsiveContainer>
         </GlassCard>
 
-        <GlassCard className="p-6">
+        <GlassCard className="p-4 sm:p-6">
           <h3 className="text-lg font-semibold text-[#800000] mb-4">Quarterly Trend</h3>
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={quarterlyData}>
@@ -183,7 +183,7 @@ export default function StudentAnalyticsPage() {
       {/* Analysis */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Strengths */}
-        <GlassCard className="p-6">
+        <GlassCard className="p-4 sm:p-6">
           <h3 className="text-lg font-semibold text-gold-600 mb-4"><i className="hgi-stroke hgi-star text-xl mr-2"/>Strengths</h3>
           {strengths.length === 0 ? (
             <p className="text-gray-500">No strong subjects yet</p>
@@ -197,7 +197,7 @@ export default function StudentAnalyticsPage() {
         </GlassCard>
 
         {/* Weaknesses */}
-        <GlassCard className="p-6">
+        <GlassCard className="p-4 sm:p-6">
           <h3 className="text-lg font-semibold text-red-600 mb-4"><i className="hgi-stroke hgi-warning-02 text-xl"></i> Areas to Improve</h3>
           {weaknesses.length === 0 ? (
             <p className="text-gray-500">No weak subjects — great job!</p>
@@ -211,7 +211,7 @@ export default function StudentAnalyticsPage() {
         </GlassCard>
 
         {/* Suggestions */}
-        <GlassCard className="p-6">
+        <GlassCard className="p-4 sm:p-6">
           <h3 className="text-lg font-semibold text-[#800000] mb-4">💡 Suggestions</h3>
           {suggestions.length === 0 ? (
             <p className="text-gray-500">Keep studying!</p>

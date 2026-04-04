@@ -61,7 +61,7 @@ export default function TeacherDashboard() {
     <DashboardLayout title="Teacher Dashboard">
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <GlassCard className="p-6">
+        <GlassCard className="p-4 sm:p-6">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#800000] to-[#a52a2a] flex items-center justify-center">
               <i className="hgi-stroke hgi-school-tie text-white text-xl"></i>
@@ -73,7 +73,7 @@ export default function TeacherDashboard() {
           </div>
         </GlassCard>
 
-        <GlassCard className="p-6">
+        <GlassCard className="p-4 sm:p-6">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#d4af37] to-[#b8962e] flex items-center justify-center">
               <i className="hgi-stroke hgi-student text-white text-xl"></i>
@@ -85,7 +85,7 @@ export default function TeacherDashboard() {
           </div>
         </GlassCard>
 
-        <GlassCard className="p-6">
+        <GlassCard className="p-4 sm:p-6">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-maroon-500 to-maroon-600 flex items-center justify-center">
               <i className="hgi-stroke hgi-edit-user-02 text-white text-xl"></i>
@@ -97,7 +97,7 @@ export default function TeacherDashboard() {
           </div>
         </GlassCard>
 
-        <GlassCard className="p-6">
+        <GlassCard className="p-4 sm:p-6">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-gold-500 to-gold-600 flex items-center justify-center">
               <i className="hgi-stroke hgi-checkmark-circle text-white text-xl"></i>
@@ -111,7 +111,7 @@ export default function TeacherDashboard() {
       </div>
 
       {/* My Subjects */}
-      <GlassCard className="p-6">
+      <GlassCard className="p-4 sm:p-6">
         <h2 className="text-xl font-semibold text-[#800000] mb-4">My Assigned Subjects</h2>
         {mySubjects.length === 0 ? (
           <p className="text-gray-500 text-center py-8">No subjects assigned yet</p>
@@ -124,7 +124,7 @@ export default function TeacherDashboard() {
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className="mt-2"
+                  className="mt-2 w-full sm:w-auto"
                   onClick={() => window.location.href = `/teacher/subjects?id=${subject.id}`}
                 >
                   View Grades →

@@ -63,7 +63,7 @@ export function Button({
   className,
   ...props 
 }: ButtonProps) {
-  const baseStyles = 'font-medium rounded-xl transition-all duration-300 flex items-center justify-center gap-2';
+  const baseStyles = 'font-medium rounded-xl transition-all duration-300 flex items-center justify-center gap-2 touch-manipulation';
   
   const variants = {
 primary:
@@ -75,9 +75,9 @@ ghost:
   };
   
   const sizes = {
-    sm: 'px-3 py-1.5 text-sm',
-    md: 'px-4 py-2 text-base',
-    lg: 'px-6 py-3 text-lg',
+    sm: 'px-3 py-2 text-sm sm:py-1.5',
+    md: 'px-4 py-2.5 text-base min-h-[44px] sm:min-h-0',
+    lg: 'px-6 py-3 text-lg min-h-[44px] sm:min-h-0',
   };
   
   return (
@@ -104,10 +104,11 @@ export function Input({ label, error, className, ...props }: InputProps) {
         </label>
       )}
       <input
-className={clsx(
+        className={clsx(
           'w-full px-4 py-2.5 rounded-xl border border-gray-300/70 dark:border-gray-600/70 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md',
+          'text-base text-gray-800',
           'focus:outline-none focus:ring-2 focus:ring-maroon-500/50 focus:border-maroon-500 hover:border-gray-400/80 dark:hover:border-gray-500/80',
-          'placeholder:text-gray-400 text-gray-800',
+          'placeholder:text-gray-400',
           error && 'border-red-500 focus:ring-red-500/50 bg-red-50/50',
           className
         )}
@@ -132,10 +133,10 @@ export function Select({ label, options, className, ...props }: SelectProps) {
         </label>
       )}
       <select
-className={clsx(
+        className={clsx(
           'w-full px-4 py-2.5 rounded-xl border border-gray-300/70 dark:border-gray-600/70 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md',
+          'text-base text-gray-800',
           'focus:outline-none focus:ring-2 focus:ring-maroon-500/50 focus:border-maroon-500 hover:border-gray-400/80 dark:hover:border-gray-500/80',
-          'text-gray-800',
           className
         )}
         {...props}
@@ -181,20 +182,27 @@ interface TableProps {
 
 export function Table({ headers, children, className }: TableProps) {
   return (
-    <div className={clsx('overflow-x-auto', className)}>
-      <table className="w-full">
+    <div
+      className={clsx(
+        '-mx-1 overflow-x-auto overscroll-x-contain rounded-xl sm:mx-0 sm:rounded-none',
+        '[scrollbar-width:thin]',
+        className
+      )}
+    >
+      <table className="w-full min-w-max text-left text-xs sm:text-sm">
         <thead>
           <tr className="border-b border-gold-400/35 bg-black/20">
             {headers.map((h, i) => (
-              <th key={i} className="px-4 py-3 text-left text-sm font-semibold text-gold-200/95 backdrop-blur-sm">
+              <th
+                key={i}
+                className="whitespace-nowrap px-2 py-2.5 text-left text-xs font-semibold text-gold-200/95 backdrop-blur-sm sm:px-4 sm:py-3 sm:text-sm"
+              >
                 {h}
               </th>
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-gold-400/15">
-          {children}
-        </tbody>
+        <tbody className="divide-y divide-gold-400/15">{children}</tbody>
       </table>
     </div>
   );
@@ -218,25 +226,36 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
   };
   
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div 
-        className="absolute inset-0 bg-black/30 backdrop-blur-md"
+    <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
+      <div
+        className="absolute inset-0 bg-black/30 backdrop-blur-md touch-manipulation"
         onClick={onClose}
+        aria-hidden
       />
-      <div className={clsx(
-        'relative w-full bg-white/60 backdrop-blur-2xl rounded-2xl shadow-2xl border border-white/50',
-        sizes[size]
-      )}>
-        <div className="flex items-center justify-between p-5 border-b border-white/40 bg-white/20 backdrop-blur-sm">
-          <h2 className="text-xl font-semibold text-[#800000]">{title}</h2>
-          <button 
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title"
+        className={clsx(
+          'relative flex max-h-[min(92dvh,100vh-1rem)] w-full flex-col bg-white/60 backdrop-blur-2xl shadow-2xl border border-white/50',
+          'rounded-t-2xl sm:rounded-2xl',
+          sizes[size]
+        )}
+      >
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/40 bg-white/20 p-4 backdrop-blur-sm sm:p-5">
+          <h2 id="modal-title" className="text-lg font-semibold text-[#800000] sm:text-xl pr-2 break-words">
+            {title}
+          </h2>
+          <button
+            type="button"
             onClick={onClose}
-            className="p-2 rounded-lg hover:bg-white/50 text-[#800000] transition-colors"
+            className="shrink-0 rounded-lg p-2 min-h-[44px] min-w-[44px] hover:bg-white/50 text-[#800000] transition-colors touch-manipulation flex items-center justify-center"
+            aria-label="Close"
           >
-            <i className="hgi-stroke hgi-close-circle"></i>
+            <i className="hgi-stroke hgi-close-circle text-xl" aria-hidden />
           </button>
         </div>
-        <div className="p-4">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-4">{children}</div>
       </div>
     </div>
   );
@@ -250,13 +269,14 @@ interface TabsProps {
 
 export function Tabs({ tabs, activeTab, onChange }: TabsProps) {
   return (
-    <div className="flex gap-2 p-1 bg-white/20 rounded-xl">
+    <div className="flex flex-wrap gap-1.5 p-1 bg-white/20 rounded-xl sm:gap-2">
       {tabs.map(tab => (
         <button
           key={tab.id}
+          type="button"
           onClick={() => onChange(tab.id)}
           className={clsx(
-            'px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300',
+            'min-h-[44px] touch-manipulation rounded-lg px-3 py-2 text-xs font-medium transition-all duration-300 sm:min-h-0 sm:px-4 sm:text-sm',
             activeTab === tab.id
               ? 'bg-[#800000] text-white shadow-lg'
               : 'text-gray-600 hover:bg-white/30'
@@ -345,32 +365,35 @@ export function ConfirmModal({
   const v = variants[variant];
   
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div 
-        className="absolute inset-0 bg-black/50 backdrop-blur-md"
+    <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
+      <div
+        className="absolute inset-0 bg-black/50 backdrop-blur-md touch-manipulation"
         onClick={onClose}
+        aria-hidden
       />
-      <div className="relative w-full max-w-sm bg-white/80 backdrop-blur-2xl rounded-2xl shadow-2xl border border-white/50 overflow-hidden animate-in fade-in zoom-in duration-200">
-        <div className={`p-6 ${v.bg} border-b border-white/30`}>
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full flex items-center justify-center bg-maroon-500/20 border-2 border-maroon-400/50 backdrop-blur-sm">
-              <i className="hgi-stroke hgi-warning-02 text-maroon-600 text-xl"></i>
+      <div className="relative m-0 max-h-[min(90dvh,100vh)] w-full max-w-sm overflow-y-auto overscroll-y-contain rounded-t-2xl bg-white/80 backdrop-blur-2xl shadow-2xl border border-white/50 sm:m-4 sm:rounded-2xl animate-in fade-in zoom-in duration-200">
+        <div className={`p-4 sm:p-6 ${v.bg} border-b border-white/30`}>
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center bg-maroon-500/20 border-2 border-maroon-400/50 backdrop-blur-sm">
+              <i className="hgi-stroke hgi-warning-02 text-maroon-600 text-lg sm:text-xl" aria-hidden />
             </div>
-            <h2 className={`text-xl font-semibold ${v.text}`}>{title}</h2>
+            <h2 className={`text-lg sm:text-xl font-semibold ${v.text} break-words`}>{title}</h2>
           </div>
         </div>
-        <div className="p-6">
-          <p className="text-gray-600 mb-6">{message}</p>
-          <div className="flex gap-3 justify-end">
+        <div className="p-4 sm:p-6">
+          <p className="text-gray-600 mb-6 text-sm sm:text-base">{message}</p>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
             <button
+              type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-100 transition-all duration-300"
+              className="min-h-[44px] w-full touch-manipulation rounded-xl border border-gray-300 px-4 py-2.5 text-gray-700 hover:bg-gray-100 transition-all duration-300 sm:w-auto sm:min-h-0"
             >
               {cancelText}
             </button>
             <button
+              type="button"
               onClick={() => { onConfirm(); onClose(); }}
-              className={`px-4 py-2 rounded-xl text-white ${v.button} transition-all duration-300 shadow-lg hover:shadow-xl`}
+              className={`min-h-[44px] w-full touch-manipulation rounded-xl px-4 py-2.5 text-white ${v.button} transition-all duration-300 shadow-lg hover:shadow-xl sm:w-auto sm:min-h-0`}
             >
               {confirmText}
             </button>

@@ -72,8 +72,8 @@ export default function StudentGradesPage() {
 
   return (
     <DashboardLayout title="My Grades">
-      <div className="flex gap-4 flex-wrap mb-6">
-        <div className="min-w-[150px]">
+      <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap mb-6">
+        <div className="w-full sm:min-w-[150px] sm:w-auto">
           <Select
             label="Semester"
             value={`${selectedSemester}`}
@@ -81,7 +81,7 @@ export default function StudentGradesPage() {
             options={[{ value: "1", label: '1st Semester' }, { value: "2", label: '2nd Semester' }]}
           />
         </div>
-        <div className="min-w-[140px]">
+        <div className="w-full sm:min-w-[160px] sm:w-auto">
           <Select 
             label="Quarter" 
             value={selectedQuarter} 
@@ -97,7 +97,7 @@ export default function StudentGradesPage() {
         </div>
       </div>
 
-      <GlassCard className="p-6">
+      <GlassCard className="p-4 sm:p-6">
         <h2 className="text-xl font-semibold text-[#800000] mb-4">
           {selectedSemester === 1 ? '1st' : '2nd'} Semester Grades
         </h2>
@@ -121,7 +121,7 @@ export default function StudentGradesPage() {
 
         {semesterSubjects.length > 0 && (
           <div className="mt-6 p-4 rounded-xl bg-gradient-to-r from-[#800000] to-[#d4af37] text-white">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col gap-1 sm:flex-row sm:justify-between sm:items-center">
               <span className="font-semibold">Semester GWA:</span>
               <span className="text-2xl font-bold">{calculateSemesterGWA()}</span>
             </div>

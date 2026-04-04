@@ -1,8 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { GlassCard, Button, Input, Table, Modal, Spinner, Select, ConfirmModal } from '../../components/ui';
 import { useDataStore } from '../../store';
 import { supabase } from '../../lib/supabase';
+
+const TEACHER_UNASSIGNED = '__unassigned__';
+
+function teacherLabel(t: { name?: string; first_name?: string; last_name?: string; username?: string }) {
+  return t.name || `${t.first_name || ''} ${t.last_name || ''}`.trim() || t.username || 'Teacher';
+}
 
 export default function AdminSubjectsPage() {
   const { subjects, courses, setSubjects, setCourses } = useDataStore();
@@ -11,7 +17,14 @@ export default function AdminSubjectsPage() {
   const [editingSubject, setEditingSubject] = useState<any>(null);
   const [teachers, setTeachers] = useState<any[]>([]);
   const [deleteConfirm, setDeleteConfirm] = useState<{isOpen: boolean; id: string | null; name: string | null}>({ isOpen: false, id: null, name: null });
-  
+
+  const [filterSearch, setFilterSearch] = useState('');
+  const [filterCourseId, setFilterCourseId] = useState('');
+  const [filterYear, setFilterYear] = useState('');
+  const [filterSemester, setFilterSemester] = useState('');
+  const [filterTeacherId, setFilterTeacherId] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
   const [formData, setFormData] = useState({
     name: '',
     course_id: '',
@@ -83,19 +96,139 @@ export default function AdminSubjectsPage() {
     }
   };
 
+  const filteredSubjects = useMemo(() => {
+    const q = filterSearch.trim().toLowerCase();
+    return subjects.filter(s => {
+      if (q && !String(s.name || '').toLowerCase().includes(q)) return false;
+      if (filterCourseId && s.course_id !== filterCourseId) return false;
+      if (filterYear && (s.year_level || '') !== filterYear) return false;
+      if (filterSemester && (s.semester || '') !== filterSemester) return false;
+      if (filterTeacherId === TEACHER_UNASSIGNED) {
+        if (s.teacher_id) return false;
+      } else if (filterTeacherId && s.teacher_id !== filterTeacherId) return false;
+      return true;
+    });
+  }, [subjects, filterSearch, filterCourseId, filterYear, filterSemester, filterTeacherId]);
+
+  const hasActiveFilters =
+    Boolean(filterSearch.trim()) ||
+    Boolean(filterCourseId) ||
+    Boolean(filterYear) ||
+    Boolean(filterSemester) ||
+    Boolean(filterTeacherId);
+
+  const clearFilters = () => {
+    setFilterSearch('');
+    setFilterCourseId('');
+    setFilterYear('');
+    setFilterSemester('');
+    setFilterTeacherId('');
+  };
+
   if (loading) {
     return <DashboardLayout title="Subjects"><Spinner size="lg" /></DashboardLayout>;
   }
 
   return (
     <DashboardLayout title="Subject Management">
-      <Button onClick={() => setShowModal(true)} className="mb-6">
-        <i className="hgi-stroke hgi-plus mr-1 text-lg"/>Add Subject
-      </Button>
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <Button
+          type="button"
+          onClick={() => setShowModal(true)}
+          className="w-full sm:w-auto"
+        >
+          <i className="hgi-stroke hgi-plus text-lg" aria-hidden />
+          Add Subject
+        </Button>
+        <button
+          type="button"
+          onClick={() => setFiltersOpen(o => !o)}
+          className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-maroon-200 bg-white text-[#800000] shadow-sm transition-colors hover:bg-maroon-50 touch-manipulation"
+          aria-expanded={filtersOpen}
+          aria-label={filtersOpen ? 'Hide subject filters' : 'Show subject filters'}
+          title="Filters"
+        >
+          <i className="hgi-stroke hgi-filter text-xl" aria-hidden />
+          {hasActiveFilters && (
+            <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-[#d4af37] ring-2 ring-white" aria-hidden />
+          )}
+        </button>
+        {!filtersOpen && (
+          <span className="text-sm text-gray-600">
+            Showing <span className="font-semibold text-[#800000]">{filteredSubjects.length}</span>
+            {' / '}
+            {subjects.length} subject{subjects.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
+
+      {filtersOpen && (
+        <div className="mb-6 overflow-hidden rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6 animate-fade-in">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-lg font-semibold text-[#800000]">Filter subjects</h2>
+            {hasActiveFilters && (
+              <Button type="button" variant="secondary" className="w-full sm:w-auto shrink-0" onClick={clearFilters}>
+                Clear filters
+              </Button>
+            )}
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <Input
+              label="Search by name"
+              placeholder="Type to filter…"
+              value={filterSearch}
+              onChange={e => setFilterSearch(e.target.value)}
+            />
+            <Select
+              label="Course"
+              value={filterCourseId}
+              onChange={e => setFilterCourseId(e.target.value)}
+              options={[{ value: '', label: 'All courses' }, ...courses.map(c => ({ value: c.id, label: c.name }))]}
+            />
+            <Select
+              label="Year level"
+              value={filterYear}
+              onChange={e => setFilterYear(e.target.value)}
+              options={[
+                { value: '', label: 'All years' },
+                { value: '1st', label: '1st Year' },
+                { value: '2nd', label: '2nd Year' },
+                { value: '3rd', label: '3rd Year' },
+                { value: '4th', label: '4th Year' },
+              ]}
+            />
+            <Select
+              label="Semester"
+              value={filterSemester}
+              onChange={e => setFilterSemester(e.target.value)}
+              options={[
+                { value: '', label: 'All semesters' },
+                { value: '1st Sem', label: '1st Sem' },
+                { value: '2nd Sem', label: '2nd Sem' },
+              ]}
+            />
+            <Select
+              label="Teacher"
+              value={filterTeacherId}
+              onChange={e => setFilterTeacherId(e.target.value)}
+              options={[
+                { value: '', label: 'All teachers' },
+                { value: TEACHER_UNASSIGNED, label: 'No teacher assigned' },
+                ...teachers.map(t => ({ value: t.id, label: teacherLabel(t) })),
+              ]}
+            />
+          </div>
+          <p className="mt-4 text-sm text-gray-600">
+            Showing <span className="font-semibold text-[#800000]">{filteredSubjects.length}</span>
+            {' '}of {subjects.length} subject{subjects.length !== 1 ? 's' : ''}
+          </p>
+        </div>
+      )}
+
       
-      <GlassCard className="p-6">
+      <GlassCard className="p-4 sm:p-6">
         <Table headers={['Subject Name', 'Course', 'Year Level', 'Semester', 'Teacher', 'Actions']}>
-          {subjects.map(subject => (
+          {filteredSubjects.map(subject => (
             <tr key={subject.id} className="hover:bg-white/20">
               <td className="px-4 py-3 font-medium text-gray-800">{subject.name}</td>
               <td className="px-4 py-3 text-gray-600">{subject.course?.name || '-'}</td>
@@ -105,20 +238,41 @@ export default function AdminSubjectsPage() {
                 {subject.teacher ? `${subject.teacher.first_name || ''} ${subject.teacher.last_name || ''}`.trim() || subject.teacher.name || '-' : '-'}
               </td>
               <td className="px-4 py-3">
-                <Button variant="ghost" size="sm" onClick={() => handleEdit(subject)}>Edit</Button>
-                <Button variant="ghost" size="sm" className="text-red-600" onClick={() => handleDelete(subject.id, subject.name)}>Delete</Button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="p-2 rounded-lg glass-hover text-[#800000]"
+                    onClick={() => handleEdit(subject)}
+                    aria-label={`Edit ${subject.name}`}
+                    title={`Edit ${subject.name}`}
+                  >
+                    <i className="hgi-stroke hgi-edit-02" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    className="p-2 rounded-lg glass-hover text-red-600"
+                    onClick={() => handleDelete(subject.id, subject.name)}
+                    aria-label={`Delete ${subject.name}`}
+                    title={`Delete ${subject.name}`}
+                  >
+                    <i className="hgi-stroke hgi-delete-01" aria-hidden />
+                  </button>
+                </div>
               </td>
             </tr>
           ))}
         </Table>
         {subjects.length === 0 && <p className="text-center text-gray-500 py-8">No subjects yet</p>}
+        {subjects.length > 0 && filteredSubjects.length === 0 && (
+          <p className="text-center text-gray-500 py-8">No subjects match your filters. Try adjusting or clear filters.</p>
+        )}
       </GlassCard>
 
       <Modal isOpen={showModal} onClose={() => { setShowModal(false); setFormData({ name: '', course_id: '', year_level: '1st', semester: '1st Sem', teacher_id: '' }); setEditingSubject(null); }} title={editingSubject ? 'Edit Subject' : 'Add Subject'}>
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input label="Subject Name" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} required />
           <Select label="Course" value={formData.course_id} onChange={e => setFormData({ ...formData, course_id: e.target.value })} options={courses.map(c => ({ value: c.id, label: c.name }))} required />
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Select label="Year Level" value={formData.year_level} onChange={e => setFormData({ ...formData, year_level: e.target.value })} options={[{ value: '1st', label: '1st Year' }, { value: '2nd', label: '2nd Year' }, { value: '3rd', label: '3rd Year' }, { value: '4th', label: '4th Year' }]} />
             <Select label="Semester" value={formData.semester} onChange={e => setFormData({ ...formData, semester: e.target.value })} options={[{ value: '1st Sem', label: '1st Sem' }, { value: '2nd Sem', label: '2nd Sem' }]} />
           </div>

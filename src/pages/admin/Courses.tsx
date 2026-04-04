@@ -61,18 +61,41 @@ export default function AdminCoursesPage() {
 
   return (
     <DashboardLayout title="Course Management">
-      <Button onClick={() => setShowModal(true)} className="mb-6">
-        <i className="hgi-stroke hgi-plus mr-1 text-lg"/>Add Course
+      <Button
+        type="button"
+        onClick={() => setShowModal(true)}
+        className="mb-6 w-full sm:w-auto"
+      >
+        <i className="hgi-stroke hgi-plus text-lg" aria-hidden />
+        Add Course
       </Button>
       
-      <GlassCard className="p-6">
+      <GlassCard className="p-4 sm:p-6">
         <Table headers={['Course Name', 'Actions']}>
           {courses.map(course => (
             <tr key={course.id} className="hover:bg-white/20">
               <td className="px-4 py-3 font-medium text-gray-800">{course.name}</td>
               <td className="px-4 py-3">
-                <Button variant="ghost" size="sm" onClick={() => handleEdit(course)}>Edit</Button>
-                <Button variant="ghost" size="sm" className="text-red-600" onClick={() => handleDelete(course.id, course.name)}>Delete</Button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="p-2 rounded-lg glass-hover text-[#800000]"
+                    onClick={() => handleEdit(course)}
+                    aria-label={`Edit ${course.name}`}
+                    title={`Edit ${course.name}`}
+                  >
+                    <i className="hgi-stroke hgi-edit-02" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    className="p-2 rounded-lg glass-hover text-red-600"
+                    onClick={() => handleDelete(course.id, course.name)}
+                    aria-label={`Delete ${course.name}`}
+                    title={`Delete ${course.name}`}
+                  >
+                    <i className="hgi-stroke hgi-delete-01" aria-hidden />
+                  </button>
+                </div>
               </td>
             </tr>
           ))}

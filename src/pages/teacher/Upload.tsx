@@ -150,7 +150,7 @@ export default function TeacherUploadPage() {
 
   return (
     <DashboardLayout title="Upload Grades">
-      <GlassCard className="p-6 mb-6">
+      <GlassCard className="p-4 sm:p-6 mb-6">
         <h2 className="text-lg font-semibold text-[#800000] mb-4">Upload Excel File</h2>
         
         <div className="space-y-4">
@@ -183,15 +183,15 @@ export default function TeacherUploadPage() {
             />
           </div>
 
-          <div className="flex gap-4 items-center">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
             <input
               ref={fileInputRef}
               type="file"
               accept=".xlsx, .xls, .csv"
               onChange={processFile}
-              className="file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-[#800000] file:text-white hover:file:bg-[#600000]"
+              className="w-full min-w-0 text-sm file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-[#800000] file:text-white hover:file:bg-[#600000]"
             />
-            <Button variant="secondary" onClick={downloadTemplate}>
+            <Button variant="secondary" className="w-full shrink-0 sm:w-auto" onClick={downloadTemplate}>
               📥 Download Template
             </Button>
           </div>
@@ -209,7 +209,7 @@ export default function TeacherUploadPage() {
       )}
 
       {results && (
-        <GlassCard className="p-6">
+        <GlassCard className="p-4 sm:p-6">
           <h3 className="text-lg font-semibold text-[#800000] mb-4">Upload Results</h3>
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div className="text-center p-4 rounded-xl bg-green-50 border border-green-200">

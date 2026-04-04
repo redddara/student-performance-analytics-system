@@ -67,7 +67,7 @@ export default function TeacherStudentsPage() {
     <DashboardLayout title="My Students">
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <GlassCard className="p-6">
+        <GlassCard className="p-4 sm:p-6">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#800000] to-[#a52a2a] flex items-center justify-center">
               <i className="hgi-stroke hgi-student text-white text-xl"></i>
@@ -79,7 +79,7 @@ export default function TeacherStudentsPage() {
           </div>
         </GlassCard>
 
-        <GlassCard className="p-6">
+        <GlassCard className="p-4 sm:p-6">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#d4af37] to-[#b8962e] flex items-center justify-center">
               <i className="hgi-stroke hgi-school-tie text-white text-xl"></i>
@@ -91,7 +91,7 @@ export default function TeacherStudentsPage() {
           </div>
         </GlassCard>
 
-        <GlassCard className="p-6">
+        <GlassCard className="p-4 sm:p-6">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
               <i className="hgi-stroke hgi-book-user text-white text-xl"></i>
@@ -107,7 +107,7 @@ export default function TeacherStudentsPage() {
       </div>
 
       {/* Students Table */}
-      <GlassCard className="p-6">
+      <GlassCard className="p-4 sm:p-6">
         <h2 className="text-xl font-semibold text-[#800000] mb-4">Enrolled Students</h2>
         {students.length === 0 ? (
           <p className="text-gray-500 text-center py-8">No students enrolled in your subjects yet</p>

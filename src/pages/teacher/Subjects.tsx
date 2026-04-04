@@ -120,13 +120,13 @@ export default function TeacherSubjectsPage() {
 
       {selectedSubject && (
         <>
-          <GlassCard className="p-6 mb-6">
+          <GlassCard className="p-4 sm:p-6 mb-6">
             <h2 className="text-xl font-semibold text-[#800000] mb-2">{selectedSubject.name}</h2>
             <p className="text-gray-600">{selectedSubject.course?.name} • {selectedSubject.year_level} • {selectedSubject.semester}</p>
             <p className="text-sm text-gray-500 mt-2">Enrolled Students: {enrolledStudents.length}</p>
           </GlassCard>
 
-          <GlassCard className="p-6">
+          <GlassCard className="p-4 sm:p-6">
             <h3 className="text-lg font-semibold text-[#800000] mb-4">Student Grades</h3>
             <Table headers={['Student', 'Section', '1st Sem Prelim', '1st Sem Midterm', '1st Sem Prefinals', '1st Sem Finals', '2nd Sem Prelim', '2nd Sem Midterm', '2nd Sem Prefinals', '2nd Sem Finals', 'Actions']}>
               {enrolledStudents.map(es => (

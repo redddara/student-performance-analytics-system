@@ -141,7 +141,7 @@ export default function StudentAnalyticsPage() {
           <p className="text-gray-500">Overall GWA</p>
         </GlassCard>
         <GlassCard className="p-6 text-center">
-          <p className="text-4xl font-bold text-green-600">{passRate}%</p>
+          <p className="text-4xl font-bold text-gold-600">{passRate}%</p>
           <p className="text-gray-500">Pass Rate</p>
         </GlassCard>
         <GlassCard className="p-6 text-center">
@@ -183,7 +183,7 @@ export default function StudentAnalyticsPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Strengths */}
         <GlassCard className="p-6">
-          <h3 className="text-lg font-semibold text-green-600 mb-4">🌟 Strengths</h3>
+          <h3 className="text-lg font-semibold text-gold-600 mb-4"><i className="hgi-stroke hgi-star text-xl mr-2"/>Strengths</h3>
           {strengths.length === 0 ? (
             <p className="text-gray-500">No strong subjects yet</p>
           ) : (

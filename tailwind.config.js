@@ -66,10 +66,18 @@ export default {
         mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', '"Liberation Mono"', '"Courier New"', 'monospace'],
       },
       boxShadow: {
-        'card': '0 10px 30px rgba(0,0,0,0.3), 0 4px 12px rgba(0,0,0,0.2)',
-        'card-hover': '0 20px 40px rgba(0,0,0,0.4), 0 8px 20px rgba(212,165,0,0.15)',
-        'gold-glow': '0 0 25px rgba(212,165,0,0.4)',
+        'card': '0 10px 30px rgba(128,0,0,0.1), 0 4px 12px rgba(212,165,0,0.05)',
+        'card-hover': '0 20px 40px rgba(128,0,0,0.15), 0 8px 20px rgba(212,165,0,0.2)',
+        'maroon-glow': '0 0 25px rgba(128,0,0,0.4), 0 0 50px rgba(212,165,0,0.15)',
+        'gold-glow': '0 0 25px rgba(212,165,0,0.5)',
         'gold-glow-strong': '0 0 40px rgba(212,165,0,0.6)',
+      },
+      backdropBlur: {
+        xs: '2px',
+      },
+      colors: {
+        // Add low opacity for glassmorphism
+        'maroon-glass': 'rgba(223, 68, 68, 0.05)',
       },
     },
   },

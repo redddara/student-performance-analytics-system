@@ -87,11 +87,11 @@ export default function TeacherDashboard() {
 
         <GlassCard className="p-6">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-maroon-500 to-maroon-600 flex items-center justify-center">
               <i className="hgi-stroke hgi-edit-user-02 text-white text-xl"></i>
             </div>
             <div>
-              <p className="text-2xl font-bold text-blue-600">{totalGrades}</p>
+              <p className="text-2xl font-bold text-maroon-600">{totalGrades}</p>
               <p className="text-sm text-gray-500">Total Grades</p>
             </div>
           </div>
@@ -99,11 +99,11 @@ export default function TeacherDashboard() {
 
         <GlassCard className="p-6">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-gold-500 to-gold-600 flex items-center justify-center">
               <i className="hgi-stroke hgi-checkmark-circle text-white text-xl"></i>
             </div>
             <div>
-              <p className="text-2xl font-bold text-green-600">{passRate}%</p>
+              <p className="text-2xl font-bold text-gold-600">{passRate}%</p>
               <p className="text-sm text-gray-500">Pass Rate</p>
             </div>
           </div>

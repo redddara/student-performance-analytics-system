@@ -128,10 +128,10 @@ interface BadgeProps {
 
 export function Badge({ children, variant = 'info', className }: BadgeProps) {
   const variants = {
-    success: 'bg-green-500/30 text-green-800 border-green-500/40 backdrop-blur-sm',
-    warning: 'bg-yellow-500/30 text-yellow-800 border-yellow-500/40 backdrop-blur-sm',
-    danger: 'bg-red-500/30 text-red-800 border-red-500/40 backdrop-blur-sm',
-    info: 'bg-blue-500/30 text-blue-800 border-blue-500/40 backdrop-blur-sm',
+    success: 'bg-maroon-500/20 text-maroon-700 border-maroon-400/50 backdrop-blur-sm',
+    warning: 'bg-gold-400/30 text-gold-800 border-gold-400/40 backdrop-blur-sm', 
+    danger: 'bg-maroon-600/30 text-maroon-800 border-maroon-500/40 backdrop-blur-sm',
+    info: 'bg-maroon-500/25 text-maroon-700 border-maroon-400/50 backdrop-blur-sm',
   };
   
   return (
@@ -324,8 +324,8 @@ export function ConfirmModal({
       <div className="relative w-full max-w-sm bg-white/80 backdrop-blur-2xl rounded-2xl shadow-2xl border border-white/50 overflow-hidden animate-in fade-in zoom-in duration-200">
         <div className={`p-6 ${v.bg} border-b border-white/30`}>
           <div className="flex items-center gap-4">
-            <div className={`w-12 h-12 rounded-full flex items-center justify-center ${v.bg}`}>
-              <i className={`hgi-stroke hgi-warning-02 ${v.text}`}></i>
+            <div className="w-12 h-12 rounded-full flex items-center justify-center bg-maroon-500/20 border-2 border-maroon-400/50 backdrop-blur-sm">
+              <i className="hgi-stroke hgi-warning-02 text-maroon-600 text-xl"></i>
             </div>
             <h2 className={`text-xl font-semibold ${v.text}`}>{title}</h2>
           </div>

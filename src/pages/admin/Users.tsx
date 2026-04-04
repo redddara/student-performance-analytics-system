@@ -149,9 +149,6 @@ export default function AdminUsersPage() {
         <Button variant="secondary" onClick={() => { setCreateType('teacher'); setShowCreateModal(true); }}>
           <i className="hgi-stroke hgi-add-to-list"></i> Add Teacher
         </Button>
-        <Button variant="secondary" onClick={() => { setCreateType('teacher'); setShowCreateModal(true); }}>
-          <i className="hgi-stroke hgi-add-to-list"></i> Add Teacher
-        </Button>
       </div>
 
       <GlassCard className="p-6">
@@ -171,7 +168,7 @@ export default function AdminUsersPage() {
               </td>
               <td className="px-4 py-3 text-gray-600">{user.username || '-'}</td>
               <td className="px-4 py-3">
-                <Badge variant={user.role === 'admin' ? 'danger' : user.role === 'teacher' ? 'info' : 'info'}>
+                <Badge variant={user.role === 'admin' ? 'danger' : user.role === 'teacher' ? 'warning' : 'success'}>
                   {user.role}
                 </Badge>
               </td>

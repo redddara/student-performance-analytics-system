@@ -11,15 +11,19 @@
 
 @layer components {
   .glass {
-    @apply backdrop-blur-xl bg-white/80 border border-gray-200 rounded-2xl shadow-lg;
+    @apply backdrop-blur-2xl bg-white/70 border border-maroon-500/30 shadow-xl ring-1 ring-maroon-500/20;
   }
   
   .glass-hover {
-    @apply hover:bg-gray-50 transition-all duration-300;
+    @apply hover:bg-white/80 hover:shadow-2xl hover:ring-maroon-500/40 transition-all duration-300;
   }
   
   .glass-card {
-    @apply backdrop-blur-lg bg-white border border-gray-200 rounded-2xl shadow-md;
+    @apply backdrop-blur-xl bg-white/60 border border-maroon-400/40 rounded-3xl shadow-2xl ring-1 ring-gold-400/20;
+  }
+  
+  .maroon-glass-card {
+    @apply backdrop-blur-2xl bg-gradient-to-br from-maroon-500/5 to-white/60 border border-maroon-500/30 rounded-3xl shadow-2xl ring-1 ring-gold-500/20 hover:shadow-gold-glow;
   }
   
   .glass-input {
@@ -55,16 +59,19 @@
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-gray-100 rounded-full;
+  @apply bg-white/50 backdrop-blur-sm rounded-full border border-maroon-500/20;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-gray-300 rounded-full hover:bg-gray-400;
+  @apply bg-maroon-500/60 rounded-full hover:bg-maroon-400 backdrop-blur-sm;
+  &:hover {
+    @apply maroon-glow;
+  }
 }
 
 /* File input styling */
 input[type="file"]::file-selector-button {
-  @apply mr-4 px-4 py-2 rounded-xl border-0 text-sm font-semibold bg-red-500 text-white hover:bg-red-600 transition-colors;
+  @apply mr-4 px-4 py-2 rounded-2xl border-0 text-sm font-semibold bg-gradient-to-r from-maroon-600 to-maroon-700 text-white hover:from-maroon-500 hover:shadow-md backdrop-blur-sm transition-all duration-300;
 }
 
 /* White sidebar - Clean styling like reference images */
@@ -73,7 +80,11 @@ input[type="file"]::file-selector-button {
 }
 
 .maroon-glow {
-  box-shadow: 0 0 20px rgba(128, 0, 0, 0.3);
+  box-shadow: 0 0 25px rgba(128, 0, 0, 0.4), 0 0 50px rgba(212, 165, 0, 0.2);
+}
+
+.gold-glow {
+  box-shadow: 0 0 20px rgba(212, 165, 0, 0.5), 0 4px 25px rgba(212, 165, 0, 0.3);
 }
 
 .maroon-nav-active {

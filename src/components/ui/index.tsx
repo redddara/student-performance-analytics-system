@@ -13,15 +13,25 @@ export function GlassCard({ children, className, style, onClick }: GlassCardProp
     <div
       onClick={onClick}
       className={clsx(
-        'rounded-3xl p-8 lg:p-10 transition-all duration-300',
-        'bg-white/5 bg-gradient-to-br from-maroon-500/10 to-maroon-500/20',
-        'backdrop-blur-xl border border-white/20 shadow-xl',
-        onClick && 'cursor-pointer hover:shadow-2xl active:scale-[0.98]',
+        'relative isolate overflow-hidden rounded-3xl p-8 lg:p-10 transition-all duration-300',
+        'border border-maroon-500/35 bg-gradient-to-b from-maroon-950/88 to-maroon-900/92',
+        'backdrop-blur-3xl backdrop-saturate-150 shadow-2xl',
+        '[box-shadow:inset_0_1px_0_0_rgba(255,255,255,0.22),0_12px_40px_rgba(26,0,0,0.35)]',
+        onClick &&
+          'cursor-pointer hover:border-maroon-400/45 hover:[box-shadow:inset_0_1px_0_0_rgba(255,255,255,0.28),0_16px_48px_rgba(26,0,0,0.45)] active:scale-[0.98]',
         className
       )}
       style={style}
     >
-      {children}
+      <div
+        className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-br from-white/20 via-white/[0.06] to-transparent"
+        aria-hidden
+      />
+      <div
+        className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-t from-maroon-950/50 via-transparent to-maroon-500/[0.07]"
+        aria-hidden
+      />
+      <div className="relative z-10">{children}</div>
     </div>
   );
 }

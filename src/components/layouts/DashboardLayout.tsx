@@ -66,12 +66,14 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
         {/* Logo */}
         <div className="mb-6 px-4 pt-6">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-maroon-600 via-maroon-500 to-maroon-700 flex items-center justify-center shadow-lg">
-              <i className="hgi-stroke hgi-mortarboard-01 text-white text-lg"></i>
-            </div>
+            <img 
+              src="/src/assets/logo.png" 
+              className="w-10 h-10 object-contain drop-shadow-lg" 
+              alt="SAPAS Logo" 
+            />
             <div>
-              <h1 className="text-lg font-bold text-maroon-100">SAPAS</h1>
-              <p className="text-xs text-maroon-200">Academic System</p>
+              <h1 className="text-lg font-bold text-maroon-100">Edulytics PHILTECH</h1>
+              <p className="text-xs text-maroon-200">Academic Performance System</p>
             </div>
           </div>
         </div>
@@ -99,7 +101,7 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
               to={`/${role}/${item.id}`}
               className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-300 group ${
                 currentPage === item.id
-                  ? 'bg-gradient-to-r from-maroon-700 via-gold-400 to-maroon-600 text-white shadow-xl ring-2 ring-gold-400/50 maroon-glow'
+                  ? 'bg-gold-400/30 backdrop-blur-sm border border-gold-400/50 text-black-800 shadow-lg hover:shadow-xl gold-glow'
                   : 'text-maroon-200 hover:bg-white/20 hover:shadow-md hover:maroon-glow'
               }`}
               onClick={() => setSidebarOpen(false)}

@@ -66,7 +66,7 @@ export default function LoginPage() {
   };
 
   return (
-    <AuthLayout title="SAPAS Login" subtitle="Sign in to access the academic system">
+    <AuthLayout title="Edulytics PHILTECH " subtitle="Sign in to access the Academic Performance System">
       <form onSubmit={handleSubmit} className="space-y-6">
         {error && (
           <div className="p-3 rounded-xl bg-red-500/20 border border-red-500/40 text-red-700 text-sm backdrop-blur-sm">

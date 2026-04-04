@@ -10,6 +10,7 @@ export default function StudentGradesPage() {
   const [myGrades, setMyGrades] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedSemester, setSelectedSemester] = useState(1);
+  const [selectedQuarter, setSelectedQuarter] = useState('');
 
   useEffect(() => {
     loadData();
@@ -39,24 +40,26 @@ export default function StudentGradesPage() {
     }
   };
 
+  const getFilteredGrades = () => {
+    return myGrades.filter(g => g.semester === selectedSemester && (!selectedQuarter || g.quarter.toString() === selectedQuarter));
+  };
+
   const getSubjectGrade = (subjectId: string, quarter: number) => {
-    const grade = myGrades.find(g => 
-      g.subject_id === subjectId.toString() && g.quarter === quarter && g.semester === selectedSemester
+    const grade = getFilteredGrades().find(g => 
+      g.subject_id === subjectId.toString() && g.quarter === quarter
     );
     return grade?.grade?.toString() || '-';
   };
 
   const getSubjectAverage = (subjectId: string) => {
-    const subjectGrades = myGrades.filter(g => 
-      g.subject_id === subjectId && g.semester === selectedSemester
-    );
+    const subjectGrades = getFilteredGrades().filter(g => g.subject_id === subjectId);
     if (subjectGrades.length === 0) return '-';
     const avg = calculateGWA(subjectGrades);
     return avg.toFixed(2).toString();
   };
 
   const calculateSemesterGWA = () => {
-    const semesterGrades = myGrades.filter(g => g.semester === selectedSemester);
+    const semesterGrades = getFilteredGrades();
     if (semesterGrades.length === 0) return '-';
     return calculateGWA(semesterGrades).toFixed(2);
   };
@@ -69,13 +72,29 @@ export default function StudentGradesPage() {
 
   return (
     <DashboardLayout title="My Grades">
-      <div className="mb-6">
-        <Select
-          label="Semester"
-          value={`${selectedSemester}`}
-          onChange={e => setSelectedSemester(parseInt(e.target.value))}
-          options={[{ value: "1", label: '1st Semester' }, { value: "2", label: '2nd Semester' }]}
-        />
+      <div className="flex gap-4 flex-wrap mb-6">
+        <div className="min-w-[150px]">
+          <Select
+            label="Semester"
+            value={`${selectedSemester}`}
+            onChange={e => setSelectedSemester(parseInt(e.target.value))}
+            options={[{ value: "1", label: '1st Semester' }, { value: "2", label: '2nd Semester' }]}
+          />
+        </div>
+        <div className="min-w-[140px]">
+          <Select 
+            label="Quarter" 
+            value={selectedQuarter} 
+            onChange={e => setSelectedQuarter(e.target.value)} 
+            options={[
+              { value: "", label: 'All Quarters' },
+              { value: "1", label: 'Prelim' },
+              { value: "2", label: 'Midterm' },
+              { value: "3", label: 'Pre-Finals' },
+              { value: "4", label: 'Finals' }
+            ]} 
+          />
+        </div>
       </div>
 
       <GlassCard className="p-6">

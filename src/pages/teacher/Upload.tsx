@@ -19,6 +19,8 @@ export default function TeacherUploadPage() {
   const { user } = useAuthStore();
   const [mySubjects, setMySubjects] = useState<any[]>([]);
   const [selectedSubject, setSelectedSubject] = useState('');
+  const [selectedSemester, setSelectedSemester] = useState(1);
+  const [selectedQuarter, setSelectedQuarter] = useState(1);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -152,12 +154,34 @@ export default function TeacherUploadPage() {
         <h2 className="text-lg font-semibold text-[#800000] mb-4">Upload Excel File</h2>
         
         <div className="space-y-4">
-          <Select
-            label="Select Subject"
-            value={selectedSubject}
-            onChange={e => setSelectedSubject(e.target.value)}
-            options={mySubjects.map(s => ({ value: s.id, label: `${s.name} - ${s.course?.name}` }))}
-          />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <Select
+              label="Select Subject"
+              value={selectedSubject}
+              onChange={e => setSelectedSubject(e.target.value)}
+              options={mySubjects.map(s => ({ value: s.id, label: `${s.name} - ${s.course?.name}` }))}
+            />
+            <Select
+              label="Semester"
+              value={`${selectedSemester}`}
+              onChange={e => setSelectedSemester(parseInt(e.target.value))}
+              options={[
+                { value: "1", label: '1st Semester' },
+                { value: "2", label: '2nd Semester' }
+              ]}
+            />
+            <Select
+              label="Quarter"
+              value={`${selectedQuarter}`}
+              onChange={e => setSelectedQuarter(parseInt(e.target.value))}
+              options={[
+                { value: "1", label: 'Prelim' },
+                { value: "2", label: 'Midterm' },
+                { value: "3", label: 'Pre-Finals' },
+                { value: "4", label: 'Finals' }
+              ]}
+            />
+          </div>
 
           <div className="flex gap-4 items-center">
             <input

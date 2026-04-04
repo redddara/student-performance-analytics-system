@@ -12,6 +12,7 @@ export default function TeacherGradesPage() {
   const [loading, setLoading] = useState(true);
   const [selectedSubject, setSelectedSubject] = useState('');
   const [selectedSemester, setSelectedSemester] = useState(1);
+  const [selectedQuarter, setSelectedQuarter] = useState('');
 
   useEffect(() => {
     loadData();
@@ -32,7 +33,7 @@ export default function TeacherGradesPage() {
 
   const getSubjectGrades = () => {
     if (!selectedSubject) return [];
-    return grades.filter(g => g.subject_id === selectedSubject && g.semester === selectedSemester);
+    return grades.filter(g => g.subject_id === selectedSubject && g.semester === selectedSemester && (!selectedQuarter || g.quarter.toString() === selectedQuarter));
   };
 
   const getStudentName = (id: string) => {
@@ -56,8 +57,22 @@ export default function TeacherGradesPage() {
           <div className="min-w-[200px]">
             <Select label="Subject" value={`${selectedSubject}`} onChange={e => setSelectedSubject(e.target.value)} options={mySubjects.map(s => ({ value: `${s.id}`, label: s.name }))} />
           </div>
-          <div className="min-w-[150px]">
+          <div className="min-w-[120px]">
             <Select label="Semester" value={`${selectedSemester}`} onChange={e => setSelectedSemester(parseInt(e.target.value))} options={[{ value: "1", label: '1st Semester' }, { value: "2", label: '2nd Semester' }]} />
+          </div>
+          <div className="min-w-[120px]">
+            <Select 
+              label="Quarter" 
+              value={selectedQuarter} 
+              onChange={e => setSelectedQuarter(e.target.value)} 
+              options={[
+                { value: "", label: 'All Quarters' },
+                { value: "1", label: 'Prelim' },
+                { value: "2", label: 'Midterm' },
+                { value: "3", label: 'Pre-Finals' },
+                { value: "4", label: 'Finals' }
+              ]} 
+            />
           </div>
         </div>
       </GlassCard>

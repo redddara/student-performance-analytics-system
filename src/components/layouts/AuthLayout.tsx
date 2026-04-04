@@ -21,34 +21,33 @@ export function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
         </div>
       </div>
 
-      {/* Glass Container */}
+      {/* Clean Container */}
       <div className="relative z-10 w-full max-w-md p-4 md:p-6">
-        {/* Maroon Glass Card */}
-        <div className="backdrop-blur-2xl bg-[#800000]/20 border border-[#800000]/40 rounded-3xl shadow-2xl overflow-hidden">
-          {/* Decorative header */}
-          <div className="bg-gradient-to-r from-[#800000]/40 to-[#600000]/30 p-8 text-center relative">
-            {/* Logo Section - Big Logo */}
-            <div className="relative inline-block mb-4">
-              <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-[#800000] to-[#a52a2a] flex items-center justify-center shadow-2xl border-2 border-white/20">
-                <i className="hgi-stroke hgi-mortarboard-01 text-white text-5xl"></i>
-              </div>
-              <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-[#d4af37] rounded-full flex items-center justify-center shadow-lg border-2 border-white/20">
-                <i className="hgi-stroke hgi-spark-01 text-white text-sm"></i>
-              </div>
+        {/* Clean white card - no glass box */}
+        <div className="bg-white/95 backdrop-blur-xl border border-gray-200/50 rounded-3xl shadow-xl overflow-hidden">
+          {/* Simple header */}
+          <div className="bg-gradient-to-r from-maroon-600 to-maroon-700 p-8 text-center relative">
+            {/* Logo */}
+            <div className="flex justify-center mb-6">
+              <img 
+                src="/src/assets/logo.png" 
+                className="w-24 h-24 object-contain drop-shadow-2xl" 
+                alt="SAPAS Logo" 
+              />
             </div>
             
             <h1 className="text-3xl font-bold text-white drop-shadow-lg">{title}</h1>
-            {subtitle && <p className="mt-2 text-white/80 text-sm">{subtitle}</p>}
+            {subtitle && <p className="mt-2 text-white/90 text-sm">{subtitle}</p>}
           </div>
 
           {/* Content Section */}
-          <div className="p-6 md:p-8">
+          <div className="p-8">
             {children}
           </div>
         </div>
 
         {/* Footer */}
-        <p className="text-center text-white/50 text-xs mt-6">
+        <p className="text-center text-gray-500 text-xs mt-8">
           Student Academic Performance Analytics System
         </p>
       </div>

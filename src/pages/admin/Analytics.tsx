@@ -7,6 +7,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, Legend, AreaChart, Area, ComposedChart
 } from 'recharts';
+import { Users, BarChart3, TrendingUp, GraduationCap, BookOpen, CheckCircle2, ChartLine } from 'lucide-react';
 
 export default function AdminAnalyticsPage() {
   const { subjects, students, grades, courses } = useDataStore();
@@ -134,13 +135,15 @@ export default function AdminAnalyticsPage() {
       {/* Animated Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         {[
-          { label: 'Total Students', value: filteredStudents.length, iconClass: 'hgi-people', color: '#800000' },
-          { label: 'Total Subjects', value: subjects.length, iconClass: 'hgi-book-02', color: '#d4af37' },
-          { label: 'Overall Pass Rate', value: `${passRate}%`, iconClass: 'hgi-checkmark-circle-02', color: '#4CAF50' },
-          { label: 'Average Grade', value: overallAverage, iconClass: 'hgi-chart', color: '#2196F3' },
+          { label: 'Total Students', value: filteredStudents.length, Icon: Users, color: '#800000' },
+          { label: 'Total Subjects', value: subjects.length, Icon: BookOpen, color: '#d4af37' },
+          { label: 'Overall Pass Rate', value: `${passRate}%`, Icon: CheckCircle2, color: '#4CAF50' },
+          { label: 'Average Grade', value: overallAverage, Icon: ChartLine, color: '#2196F3' },
         ].map((stat, i) => (
           <GlassCard key={i} className={`p-4 text-center animate-delay-${i * 100} animate-in fade-in slide-in-from-bottom duration-500 opacity-100`}>
-            <div className="text-3xl mb-2"><i className={`hgi-stroke ${stat.iconClass} text-xl`} style={{ color: stat.color }}></i></div>
+            <div className="text-3xl mb-2">
+              <stat.Icon size={28} style={{ color: stat.color }} />
+            </div>
             <p className="text-2xl font-bold text-[#800000]">{stat.value}</p>
             <p className="text-sm text-gray-600">{stat.label}</p>
           </GlassCard>
@@ -151,7 +154,8 @@ export default function AdminAnalyticsPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         <GlassCard className="p-6 animate-delay-200 animate-in fade-in slide-in-from-left duration-500">
           <h3 className="text-lg font-semibold text-[#800000] mb-4 flex items-center gap-2">
-            <span><i className="hgi-stroke hgi-trending-up text-xl"></i></span> Grade Distribution
+            <BarChart3 size={20} />
+            Grade Distribution
           </h3>
           <ResponsiveContainer width="100%" height={280}>
             <PieChart>
@@ -166,7 +170,8 @@ export default function AdminAnalyticsPage() {
 
         <GlassCard className="p-6 animate-delay-300 animate-in fade-in slide-in-from-right duration-500">
           <h3 className="text-lg font-semibold text-[#800000] mb-4 flex items-center gap-2">
-            <span><i className="hgi-stroke hgi-target-02 text-xl"></i></span> Pass/Fail Rate
+            <GraduationCap size={20} />
+            Pass/Fail Rate
           </h3>
           <ResponsiveContainer width="100%" height={280}>
             <PieChart>
@@ -184,7 +189,8 @@ export default function AdminAnalyticsPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         <GlassCard className={`p-6 ${animated ? 'animate-in fade-in slide-in-from-left duration-500' : 'opacity-0'}`} style={{ animationDelay: '400ms' }}>
           <h3 className="text-lg font-semibold text-[#800000] mb-4 flex items-center gap-2">
-            <span><i className="hgi-stroke hgi-chart text-xl"></i></span> Subject Performance
+            <BarChart3 size={20} />
+            Subject Performance
           </h3>
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={subjectPerformance} layout="vertical">
@@ -199,7 +205,8 @@ export default function AdminAnalyticsPage() {
 
         <GlassCard className={`p-6 ${animated ? 'animate-in fade-in slide-in-from-right duration-500' : 'opacity-0'}`} style={{ animationDelay: '500ms' }}>
           <h3 className="text-lg font-semibold text-[#800000] mb-4 flex items-center gap-2">
-            <span><i className="hgi-stroke hgi-statistic-02 text-xl"></i></span> Quarterly Trend
+            <TrendingUp size={20} />
+            Quarterly Trend
           </h3>
           <ResponsiveContainer width="100%" height={280}>
             <AreaChart data={quarterlyData}>
@@ -225,7 +232,8 @@ export default function AdminAnalyticsPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <GlassCard className={`p-6 ${animated ? 'animate-in fade-in slide-in-from-bottom duration-500' : 'opacity-0'}`} style={{ animationDelay: '600ms' }}>
           <h3 className="text-lg font-semibold text-[#800000] mb-4 flex items-center gap-2">
-            <span><i className="hgi-stroke hgi-graduation-cap text-xl"></i></span> Year Level Performance
+            <GraduationCap size={20} />
+            Year Level Performance
           </h3>
           <ResponsiveContainer width="100%" height={250}>
             <ComposedChart data={yearLevelData}>
@@ -240,7 +248,8 @@ export default function AdminAnalyticsPage() {
 
         <GlassCard className={`p-6 ${animated ? 'animate-in fade-in slide-in-from-bottom duration-500' : 'opacity-0'}`} style={{ animationDelay: '700ms' }}>
           <h3 className="text-lg font-semibold text-[#800000] mb-4 flex items-center gap-2">
-            <span><i className="hgi-stroke hgi-school text-xl"></i></span> Course Comparison
+            <BookOpen size={20} />
+            Course Comparison
           </h3>
           <ResponsiveContainer width="100%" height={250}>
             <BarChart data={courseComparison}>
@@ -255,7 +264,8 @@ export default function AdminAnalyticsPage() {
 
         <GlassCard className={`p-6 ${animated ? 'animate-in fade-in slide-in-from-bottom duration-500' : 'opacity-0'}`} style={{ animationDelay: '800ms' }}>
           <h3 className="text-lg font-semibold text-[#800000] mb-4 flex items-center gap-2">
-            <span><i className="hgi-stroke hgi-clipboard text-xl"></i></span> Grade by Quarter
+            <ChartLine size={20} />
+            Grade by Quarter
           </h3>
           <ResponsiveContainer width="100%" height={250}>
             <BarChart data={quarterSubjectData}>
@@ -281,7 +291,7 @@ export default function AdminAnalyticsPage() {
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             {topPerformers.map((student, i) => (
               <div key={i} className="text-center p-4 rounded-xl bg-gradient-to-br from-[#800000]/10 to-[#d4af37]/10 border border-[#800000]/20">
-{i === 0 ? <i className="hgi-stroke hgi-trophy text-2xl text-gold-500"/> : i === 1 ? <i className="hgi-stroke hgi-award-01 text-xl text-gold-400"/> : i === 2 ? <i className="hgi-stroke hgi-award-02 text-lg text-gold-300"/> : <i className="hgi-stroke hgi-star text-lg text-gold-400"/>}
+                {i === 0 ? <GraduationCap className="h-8 w-8 mx-auto text-yellow-500" /> : i === 1 ? <TrendingUp className="h-7 w-7 mx-auto text-yellow-400" /> : i === 2 ? <BarChart3 className="h-6 w-6 mx-auto text-yellow-300" /> : <Users className="h-6 w-6 mx-auto text-yellow-400" />}
                 <p className="font-semibold text-gray-800 text-sm">{student.name}</p>
                 <p className="text-xl font-bold text-[#800000]">{student.gwa.toFixed(2)}</p>
                 <p className="text-xs text-gray-500">{student.grades} subjects</p>
@@ -293,3 +303,4 @@ export default function AdminAnalyticsPage() {
     </DashboardLayout>
   );
 }
+

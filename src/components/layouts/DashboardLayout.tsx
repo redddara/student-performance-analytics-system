@@ -114,8 +114,8 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
 
         {/* Logout */}
         <div className="mx-4 mb-6 pt-4 border-t border-white/30">
-          <button 
-            className="flex items-center gap-3 px-4 py-3 w-full rounded-2xl text-maroon-200 hover:bg-white/20 backdrop-blur-sm transition-all duration-300 hover:shadow-md hover:maroon-glow"
+<button 
+            className="flex items-center gap-3 px-4 py-3 w-full rounded-2xl bg-white/10 backdrop-blur-xl border border-white/20 shadow-lg hover:bg-white/20 hover:shadow-2xl hover:border-white/40 transition-all duration-300 hover:maroon-glow text-maroon-200"
             onClick={handleLogout}
           >
             <i className="hgi-stroke hgi-logout-01 text-lg"></i>

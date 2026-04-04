@@ -61,7 +61,9 @@ export default function AdminCoursesPage() {
 
   return (
     <DashboardLayout title="Course Management">
-      <Button onClick={() => setShowModal(true)} className="mb-6">➕ Add Course</Button>
+      <Button onClick={() => setShowModal(true)} className="mb-6">
+        <i className="hgi-stroke hgi-plus mr-1 text-lg"/>Add Course
+      </Button>
       
       <GlassCard className="p-6">
         <Table headers={['Course Name', 'Actions']}>
@@ -100,3 +102,4 @@ export default function AdminCoursesPage() {
     </DashboardLayout>
   );
 }
+

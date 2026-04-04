@@ -1,7 +1,7 @@
-import { ReactNode, useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store';
-import { GlassCard, Button } from '../ui';
+// import { GlassCard, Button } from '../ui';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -36,99 +36,111 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
-  const [activeMenu, setActiveMenu] = useState('dashboard');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const role = user?.role || 'admin';
   const items = menuItems[role as keyof typeof menuItems] || menuItems.admin;
+
+  const currentPage = location.pathname.split('/')[2] || 'dashboard';
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
-  const currentPage = location.pathname.split('/')[2] || 'dashboard';
-
   return (
-    <div className="min-h-screen flex">
-      {/* Animated Background */}
-      <div className="fixed inset-0 bg-gradient-to-br from-[#f5f5f5] via-[#e8e8e8] to-[#d4d4d4]">
-        <div className="absolute inset-0 opacity-20">
-          <div className="absolute top-10 left-10 w-64 h-64 bg-[#800000]/10 rounded-full blur-3xl" />
-          <div className="absolute bottom-10 right-10 w-96 h-96 bg-[#d4af37]/10 rounded-full blur-3xl" />
-        </div>
-      </div>
+    <div className="min-h-screen flex relative">
+      {/* Plain white background */}
+      <div className="fixed inset-0 bg-white" />
+
+      {/* Mobile Overlay */}
+      {sidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-30 md:hidden backdrop-blur-sm"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
 
       {/* Sidebar */}
-      <aside className="relative z-10 w-64 min-h-screen bg-white/20 backdrop-blur-xl border-r border-white/30 p-4 flex flex-col">
+      <aside className={`z-40 w-64 maroon-sidebar flex flex-col fixed md:sticky top-0 left-0 h-screen transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         {/* Logo */}
-        <div className="mb-8 p-4">
+        <div className="mb-6 px-4 pt-6">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#800000] to-[#d4af37] flex items-center justify-center shadow-lg">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-maroon-600 via-maroon-500 to-maroon-700 flex items-center justify-center shadow-lg">
               <i className="hgi-stroke hgi-mortarboard-01 text-white text-lg"></i>
             </div>
             <div>
-              <h1 className="text-lg font-bold text-[#800000]">SAPAS</h1>
-              <p className="text-xs text-gray-500">Academic System</p>
+              <h1 className="text-lg font-bold text-maroon-100">SAPAS</h1>
+              <p className="text-xs text-maroon-200">Academic System</p>
             </div>
           </div>
         </div>
 
         {/* User Info */}
-        <GlassCard className="p-4 mb-4">
+        <div className="mx-4 mb-4 p-4 bg-white/20 backdrop-blur-sm rounded-2xl border border-white/30 shadow-lg">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#800000] to-[#d4af37] flex items-center justify-center text-white font-bold">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-maroon-600 via-maroon-500 to-maroon-700 flex items-center justify-center text-white font-bold shadow-md">
               {user?.name?.[0] || user?.first_name?.[0] || 'U'}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-gray-800 truncate">
+              <p className="text-sm font-semibold text-maroon-100 truncate">
                 {user?.name || `${user?.first_name} ${user?.last_name}` || 'User'}
               </p>
-              <p className="text-xs text-gray-500 capitalize">{role}</p>
+              <p className="text-xs text-maroon-200 capitalize">{role}</p>
             </div>
           </div>
-        </GlassCard>
+        </div>
 
         {/* Navigation */}
-        <nav className="flex-1 space-y-2">
+        <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
           {items.map(item => (
             <Link
               key={item.id}
               to={`/${role}/${item.id}`}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 ${
-                currentPage === item.id || activeMenu === item.id
-                  ? 'bg-gradient-to-r from-[#800000] to-[#a52a2a] text-white shadow-lg'
-                  : 'text-gray-700 hover:bg-white/40'
+              className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-300 group ${
+                currentPage === item.id
+                  ? 'bg-gradient-to-r from-maroon-700 via-gold-400 to-maroon-600 text-white shadow-xl ring-2 ring-gold-400/50 maroon-glow'
+                  : 'text-maroon-200 hover:bg-white/20 hover:shadow-md hover:maroon-glow'
               }`}
+              onClick={() => setSidebarOpen(false)}
             >
-              <i className={`hgi-stroke hgi-${item.icon} text-lg`}></i>
+              <i className={`hgi-stroke hgi-${item.icon} text-lg flex-shrink-0`}></i>
               <span className="font-medium">{item.label}</span>
             </Link>
           ))}
         </nav>
 
         {/* Logout */}
-        <div className="mt-4 pt-4 border-t border-white/30">
-          <Button 
-            variant="ghost" 
-            className="w-full justify-start text-gray-700"
+        <div className="mx-4 mb-6 pt-4 border-t border-white/30">
+          <button 
+            className="flex items-center gap-3 px-4 py-3 w-full rounded-2xl text-maroon-200 hover:bg-white/20 backdrop-blur-sm transition-all duration-300 hover:shadow-md hover:maroon-glow"
             onClick={handleLogout}
           >
-            <i className="hgi-stroke hgi-logout-01 mr-2"></i> Logout
-          </Button>
+            <i className="hgi-stroke hgi-logout-01 text-lg"></i>
+            <span className="font-medium">Logout</span>
+          </button>
         </div>
       </aside>
 
       {/* Main Content */}
-      <main className="relative z-10 flex-1 p-8">
-        {/* Header */}
-        <header className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-[#800000]">{title}</h1>
-            <p className="text-gray-500 mt-1">Welcome back, {user?.name || user?.first_name || 'User'}</p>
+      <main className="relative z-10 flex-1 p-6 md:p-8 lg:p-12 min-h-screen bg-white/50 backdrop-blur-sm">
+        {/* Mobile Header with Hamburger */}
+        <header className="flex items-center justify-between mb-6 md:mb-10">
+          <div className="flex items-center gap-4">
+            <button 
+              className="md:hidden p-3 rounded-2xl bg-white/30 backdrop-blur-md text-maroon-100 border border-white/30 shadow-md hover:shadow-lg transition-all duration-300"
+              onClick={() => setSidebarOpen(true)}
+            >
+              <i className="hgi-stroke hgi-menu-05 text-xl"></i>
+            </button>
+            <div>
+              <h1 className="text-2xl md:text-4xl font-bold text-gray-800 bg-gradient-to-r from-maroon-800 to-maroon-600 bg-clip-text text-transparent drop-shadow-lg">{title}</h1>
+              <p className="text-gray-500 mt-1 hidden md:block font-medium">Welcome back, {user?.name || user?.first_name || 'User'}</p>
+            </div>
           </div>
           <div className="flex items-center gap-4">
-            <div className="px-4 py-2 rounded-xl bg-white/30 backdrop-blur-sm border border-white/30">
-              <span className="text-sm text-gray-600"><i className="hgi-stroke hgi-calendar-01 mr-2"></i>{new Date().toLocaleDateString()}</span>
+            <div className="px-4 py-2 md:px-5 rounded-2xl bg-white/40 backdrop-blur-md border border-white/50 shadow-md">
+              <span className="text-sm text-gray-700 font-medium"><i className="hgi-stroke hgi-calendar-01 mr-2"></i>{new Date().toLocaleDateString()}</span>
             </div>
           </div>
         </header>
@@ -141,3 +153,4 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
     </div>
   );
 }
+

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
-import { GlassCard, Select, Spinner, Badge } from '../../components/ui';
-import { useAuthStore, useDataStore } from '../../store';
+import { GlassCard, Spinner } from '../../components/ui';
+import { useAuthStore } from '../../store';
 import { supabase, isPassing, calculateGWA } from '../../lib/supabase';
 
 export default function StudentDashboard() {
@@ -66,7 +66,7 @@ export default function StudentDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <GlassCard className="p-6">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#800000] to-[#a52a2a] flex items-center justify-center text-2xl">📚</div>
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#800000] to-[#a52a2a] flex items-center justify-center text-2xl"><i className="hgi-stroke hgi-book-02 text-xl"></i></div>
             <div>
               <p className="text-2xl font-bold text-[#800000]">{mySubjects.length}</p>
               <p className="text-sm text-gray-500">Enrolled Subjects</p>
@@ -76,7 +76,7 @@ export default function StudentDashboard() {
 
         <GlassCard className="p-6">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#d4af37] to-[#b8962e] flex items-center justify-center text-2xl">📝</div>
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#d4af37] to-[#b8962e] flex items-center justify-center text-2xl"><i className="hgi-stroke hgi-edit-01 text-xl"></i></div>
             <div>
               <p className="text-2xl font-bold text-[#d4af37]">{myGrades.length}</p>
               <p className="text-sm text-gray-500">Total Grades</p>
@@ -86,7 +86,7 @@ export default function StudentDashboard() {
 
         <GlassCard className="p-6">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center text-2xl">✅</div>
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center text-2xl"><i className="hgi-stroke hgi-checkmark-circle-02 text-xl"></i></div>
             <div>
               <p className="text-2xl font-bold text-green-600">{passingGrades.length}</p>
               <p className="text-sm text-gray-500">Passing</p>
@@ -96,7 +96,7 @@ export default function StudentDashboard() {
 
         <GlassCard className="p-6">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-2xl">🎯</div>
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-2xl"><i className="hgi-stroke hgi-target-02 text-xl"></i></div>
             <div>
               <p className="text-2xl font-bold text-blue-600">{gwa.toFixed(2)}</p>
               <p className="text-sm text-gray-500">GWA</p>

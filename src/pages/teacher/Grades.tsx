@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { GlassCard, Select, Table, Spinner, Badge } from '../../components/ui';
 import { useAuthStore } from '../../store';
-import { supabase, isPassing, getGradeRemarks } from '../../lib/supabase';
+import { supabase, isPassing } from '../../lib/supabase';
 
 export default function TeacherGradesPage() {
   const { user } = useAuthStore();
@@ -54,10 +54,10 @@ export default function TeacherGradesPage() {
       <GlassCard className="p-6 mb-6">
         <div className="flex gap-4 flex-wrap">
           <div className="min-w-[200px]">
-            <Select label="Subject" value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)} options={mySubjects.map(s => ({ value: s.id, label: s.name }))} />
+            <Select label="Subject" value={`${selectedSubject}`} onChange={e => setSelectedSubject(e.target.value)} options={mySubjects.map(s => ({ value: `${s.id}`, label: s.name }))} />
           </div>
           <div className="min-w-[150px]">
-            <Select label="Semester" value={selectedSemester} onChange={e => setSelectedSemester(parseInt(e.target.value))} options={[{ value: 1, label: '1st Semester' }, { value: 2, label: '2nd Semester' }]} />
+            <Select label="Semester" value={`${selectedSemester}`} onChange={e => setSelectedSemester(parseInt(e.target.value))} options={[{ value: "1", label: '1st Semester' }, { value: "2", label: '2nd Semester' }]} />
           </div>
         </div>
       </GlassCard>

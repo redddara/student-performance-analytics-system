@@ -89,7 +89,9 @@ export default function AdminSubjectsPage() {
 
   return (
     <DashboardLayout title="Subject Management">
-      <Button onClick={() => setShowModal(true)} className="mb-6">➕ Add Subject</Button>
+      <Button onClick={() => setShowModal(true)} className="mb-6">
+        <i className="hgi-stroke hgi-plus mr-1 text-lg"/>Add Subject
+      </Button>
       
       <GlassCard className="p-6">
         <Table headers={['Subject Name', 'Course', 'Year Level', 'Semester', 'Teacher', 'Actions']}>
@@ -140,3 +142,4 @@ export default function AdminSubjectsPage() {
     </DashboardLayout>
   );
 }
+

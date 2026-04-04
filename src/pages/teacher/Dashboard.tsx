@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
-import { GlassCard, Button, Select, Table, Spinner, Badge } from '../../components/ui';
-import { useAuthStore, useDataStore } from '../../store';
+import { GlassCard, Button, Spinner } from '../../components/ui';
+import { useAuthStore } from '../../store';
 import { supabase, isPassing } from '../../lib/supabase';
 
 export default function TeacherDashboard() {
   const { user } = useAuthStore();
-  const { subjects, grades } = useDataStore();
+  const grades: any[] = []; // local state or fetch directly
   const [loading, setLoading] = useState(true);
   const [mySubjects, setMySubjects] = useState<any[]>([]);
   const [myStudents, setMyStudents] = useState<any[]>([]);
@@ -26,8 +26,7 @@ export default function TeacherDashboard() {
       setMySubjects(teacherSubjects || []);
 
       // Get grades
-      const { data: gradesData } = await supabase.from('grades').select('*');
-      useDataStore.getState().setGrades(gradesData || []);
+      // const { data: gradesData } = await supabase.from('grades').select('*');
 
       // Get unique students in teacher's subjects
       if (teacherSubjects && teacherSubjects.length > 0) {
@@ -138,3 +137,4 @@ export default function TeacherDashboard() {
     </DashboardLayout>
   );
 }
+

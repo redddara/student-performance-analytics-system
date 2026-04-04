@@ -9,7 +9,7 @@ interface AuthLayoutProps {
 export function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
-      {/* Animated Maroon Background */}
+      {/* Maroon Gradient Background */}
       <div className="absolute inset-0 bg-gradient-to-br from-[#1a0505] via-[#4a0e0e] to-[#2d0808]">
         {/* Animated orbs */}
         <div className="absolute inset-0 overflow-hidden">
@@ -22,7 +22,7 @@ export function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
       </div>
 
       {/* Glass Container */}
-      <div className="relative z-10 w-full max-w-md p-6">
+      <div className="relative z-10 w-full max-w-md p-4 md:p-6">
         {/* Maroon Glass Card */}
         <div className="backdrop-blur-2xl bg-[#800000]/20 border border-[#800000]/40 rounded-3xl shadow-2xl overflow-hidden">
           {/* Decorative header */}
@@ -30,10 +30,10 @@ export function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
             {/* Logo Section - Big Logo */}
             <div className="relative inline-block mb-4">
               <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-[#800000] to-[#a52a2a] flex items-center justify-center shadow-2xl border-2 border-white/20">
-                <span className="text-5xl">🎓</span>
+                <i className="hgi-stroke hgi-mortarboard-01 text-white text-5xl"></i>
               </div>
               <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-[#d4af37] rounded-full flex items-center justify-center shadow-lg border-2 border-white/20">
-                <span className="text-sm">✨</span>
+                <i className="hgi-stroke hgi-spark-01 text-white text-sm"></i>
               </div>
             </div>
             
@@ -42,7 +42,7 @@ export function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
           </div>
 
           {/* Content Section */}
-          <div className="p-8">
+          <div className="p-6 md:p-8">
             {children}
           </div>
         </div>

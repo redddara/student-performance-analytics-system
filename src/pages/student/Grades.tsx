@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
-import { GlassCard, Select, Table, Spinner, Badge } from '../../components/ui';
+import { GlassCard, Select, Table, Spinner } from '../../components/ui';
 import { useAuthStore } from '../../store';
-import { supabase, isPassing, calculateGWA } from '../../lib/supabase';
+import { supabase, calculateGWA } from '../../lib/supabase';
 
 export default function StudentGradesPage() {
   const { user } = useAuthStore();
@@ -41,9 +41,9 @@ export default function StudentGradesPage() {
 
   const getSubjectGrade = (subjectId: string, quarter: number) => {
     const grade = myGrades.find(g => 
-      g.subject_id === subjectId && g.quarter === quarter && g.semester === selectedSemester
+      g.subject_id === subjectId.toString() && g.quarter === quarter && g.semester === selectedSemester
     );
-    return grade?.grade || '-';
+    return grade?.grade?.toString() || '-';
   };
 
   const getSubjectAverage = (subjectId: string) => {
@@ -52,7 +52,7 @@ export default function StudentGradesPage() {
     );
     if (subjectGrades.length === 0) return '-';
     const avg = calculateGWA(subjectGrades);
-    return avg.toFixed(2);
+    return avg.toFixed(2).toString();
   };
 
   const calculateSemesterGWA = () => {
@@ -65,7 +65,6 @@ export default function StudentGradesPage() {
     return <DashboardLayout title="My Grades"><Spinner size="lg" /></DashboardLayout>;
   }
 
-  const subjectIds = [...new Set(mySubjects.map(ss => ss.subject_id))];
   const semesterSubjects = mySubjects.filter(ss => ss.subject?.semester === (selectedSemester === 1 ? '1st Sem' : '2nd Sem'));
 
   return (
@@ -73,9 +72,9 @@ export default function StudentGradesPage() {
       <div className="mb-6">
         <Select
           label="Semester"
-          value={selectedSemester.toString()}
+          value={`${selectedSemester}`}
           onChange={e => setSelectedSemester(parseInt(e.target.value))}
-          options={[{ value: '1', label: '1st Semester' }, { value: '2', label: '2nd Semester' }]}
+          options={[{ value: "1", label: '1st Semester' }, { value: "2", label: '2nd Semester' }]}
         />
       </div>
 

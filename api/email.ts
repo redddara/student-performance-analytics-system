@@ -46,7 +46,7 @@ export function generateStudentCredentialEmail(
   <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
     <!-- Header -->
     <div style="background: linear-gradient(135deg, #800000 0%, #a52a2a 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
-      <h1 style="color: white; margin: 0; font-size: 28px;">🎓 SPAS</h1>
+      <h1 style="color: white; margin: 0; font-size: 28px;"><i className="hgi-stroke hgi-mortarboard-01"></i> SAPAS</h1>
       <p style="color: rgba(255,255,255,0.8); margin: 10px 0 0 0;">Student Academic Performance Analytics System</p>
     </div>
     
@@ -69,7 +69,7 @@ export function generateStudentCredentialEmail(
         </table>
       </div>
       
-      <p style="color: #d4af37; font-weight: bold; font-size: 14px;">⚠️ Important: Please change your password upon first login.</p>
+      <p style="color: #d4af37; font-weight: bold; font-size: 14px;"><i className="hgi-stroke hgi-warning-02"></i> Important: Please change your password upon first login.</p>
       
       <p style="color: #666; font-size: 14px;">You can now log in to the system using your credentials.</p>
       
@@ -105,7 +105,7 @@ export function generatePasswordResetEmail(firstName: string, tempPassword: stri
   <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
     <!-- Header -->
     <div style="background: linear-gradient(135deg, #800000 0%, #a52a2a 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
-      <h1 style="color: white; margin: 0; font-size: 28px;">🎓 SAPAS</h1>
+      <h1 style="color: white; margin: 0; font-size: 28px;"><i className="hgi-stroke hgi-mortarboard-01"></i> SAPAS</h1>
       <p style="color: rgba(255,255,255,0.8); margin: 10px 0 0 0;">Password Reset</p>
     </div>
     
@@ -120,7 +120,7 @@ export function generatePasswordResetEmail(firstName: string, tempPassword: stri
         <p style="color: #800000; font-weight: bold; font-size: 20px; font-family: monospace; margin: 10px 0 0 0;">${tempPassword}</p>
       </div>
       
-      <p style="color: #d4af37; font-weight: bold; font-size: 14px;">⚠️ Important: Please change your password upon login.</p>
+      <p style="color: #d4af37; font-weight: bold; font-size: 14px;"><i className="hgi-stroke hgi-warning-02"></i> Important: Please change your password upon login.</p>
     </div>
     
     <!-- Footer -->

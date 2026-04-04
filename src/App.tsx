@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store';
-// import { supabase } from './lib/supabase';
 
 // Auth Pages
 import LoginPage from './pages/auth/Login';
@@ -63,7 +62,7 @@ function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode;
 
 // App Initializer
 function AppInitializer({ children }: { children: React.ReactNode }) {
-  const { setUser, setLoading, user } = useAuthStore();
+  const { setUser, setLoading } = useAuthStore();
   
   useEffect(() => {
     // Check current session

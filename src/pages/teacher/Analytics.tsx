@@ -97,17 +97,8 @@ export default function TeacherAnalyticsPage() {
           <h3 className="text-lg font-semibold text-[#800000] mb-4">Grade Distribution</h3>
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
-              <Pie 
-                data={pieData} 
-                cx="50%" 
-                cy="50%" 
-                labelLine={false} 
-                label={({ name, percent }) => percent != null ? `${name} (${(percent * 100).toFixed(0)}%)` : name} 
-                outerRadius={60} 
-                fill="#8884d8" 
-                dataKey="value"
-              >
-                {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+              <Pie data={pieData} cx="50%" cy="50%" labelLine={false} label={({ name, percent }) => percent ? `${name} (${(percent * 100).toFixed(0)}%)` : name} outerRadius={60} fill="#8884d8" dataKey="value">
+                {pieData.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
               </Pie>
               <Tooltip />
             </PieChart>
@@ -118,16 +109,7 @@ export default function TeacherAnalyticsPage() {
           <h3 className="text-lg font-semibold text-[#800000] mb-4">Pass/Fail Rate</h3>
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
-              <Pie 
-                data={passFailData} 
-                cx="50%" 
-                cy="50%" 
-                labelLine={false} 
-                label={({ name, percent }) => percent != null ? `${name}: ${(percent * 100).toFixed(0)}%` : name} 
-                outerRadius={60} 
-                fill="#8884d8" 
-                dataKey="value"
-              >
+              <Pie data={passFailData} cx="50%" cy="50%" labelLine={false} label={({ name, percent }) => percent ? `${name}: ${(percent * 100).toFixed(0)}%` : name} outerRadius={60} fill="#8884d8" dataKey="value">
                 {passFailData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.name === 'Passing' ? '#4CAF50' : '#f44336'} />)}
               </Pie>
               <Tooltip />

@@ -21,19 +21,22 @@ export default function LoginPage() {
     try {
       const passwordHash = await hashPassword(password);
       
-      const { data: users, error: fetchError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('username', username)
-        .eq('password_hash', passwordHash)
-        .limit(1);
+      // Detect if input is email (contains @) or student ID
+      const isEmail = username.includes('@');
+      
+      // For teachers/admins: query by email. For students: query by username (student ID)
+      const query = isEmail 
+        ? supabase.from('users').select('*').eq('email', username).eq('password_hash', passwordHash)
+        : supabase.from('users').select('*').eq('username', username).eq('password_hash', passwordHash);
+
+      const { data: users, error: fetchError } = await query.limit(1);
 
       if (fetchError) {
         throw fetchError;
       }
 
       if (!users || users.length === 0) {
-        setError('Invalid username or password');
+        setError(isEmail ? 'Invalid email or password' : 'Invalid student ID or password');
         setLoading(false);
         return;
       }
@@ -72,8 +75,8 @@ export default function LoginPage() {
         )}
         
         <Input
-          label="Username"
-          placeholder="Enter your username"
+          label="Email / Student ID"
+          placeholder={username.includes('@') ? "Enter your email" : "Enter your student ID (e.g., STUD-CS-0001)"}
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           required

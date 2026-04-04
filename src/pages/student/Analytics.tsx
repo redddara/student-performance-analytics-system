@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
-import { GlassCard, Spinner, Badge } from '../../components/ui';
+import { GlassCard, Spinner } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase, isPassing, calculateGWA } from '../../lib/supabase';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
@@ -77,7 +77,6 @@ export default function StudentAnalyticsPage() {
     });
 
     // Check for missing grades
-    const allQuarters = [1, 2, 3, 4];
     subjects.forEach(ss => {
       const subjectGrades = grades.filter(g => g.subject_id === ss.subject_id);
       const hasFinals = subjectGrades.some(g => g.quarter === 4);
@@ -198,7 +197,7 @@ export default function StudentAnalyticsPage() {
 
         {/* Weaknesses */}
         <GlassCard className="p-6">
-          <h3 className="text-lg font-semibold text-red-600 mb-4">⚠️ Areas to Improve</h3>
+          <h3 className="text-lg font-semibold text-red-600 mb-4"><i className="hgi-stroke hgi-warning-02 text-xl"></i> Areas to Improve</h3>
           {weaknesses.length === 0 ? (
             <p className="text-gray-500">No weak subjects — great job!</p>
           ) : (

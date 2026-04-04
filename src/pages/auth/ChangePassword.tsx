@@ -77,7 +77,7 @@ export default function ChangePasswordPage() {
       <form onSubmit={handleSubmit} className="space-y-6">
         <GlassCard className="!bg-yellow-50/50 !border-yellow-200 p-4">
           <p className="text-sm text-yellow-800 text-center">
-            ⚠️ This is your first login. Please create a new password.
+            <i className="hgi-stroke hgi-warning-02 text-xl"></i> This is your first login. Please create a new password.
           </p>
         </GlassCard>
 

@@ -1,13 +1,12 @@
 import { useState, useEffect } from 'react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
-import { GlassCard, Button, Input, Select, Table, Modal, Spinner, Badge } from '../../components/ui';
-import { useAuthStore, useDataStore } from '../../store';
+import { GlassCard, Button, Input, Select, Modal, Spinner, Badge } from '../../components/ui';
+import { useDataStore } from '../../store';
 import { supabase, generateStudentUsername, generateTempPassword, hashPassword } from '../../lib/supabase';
-import { sendEmail, generateStudentCredentialEmail } from '../../../api/email';
-import type { User, Course } from '../../types';
+import { sendEmail, generateStudentCredentialEmail } from '../../api/email';
+import type { Course } from '../../types';
 
 export default function AdminDashboard() {
-  const { user } = useAuthStore();
   const { students, teachers, courses, subjects, grades, setCourses, setSubjects, setStudents, setGrades, setTeachers } = useDataStore();
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -42,7 +41,6 @@ export default function AdminDashboard() {
   const totalStudents = students.length;
   const totalTeachers = teachers.length;
   const totalSubjects = subjects.length;
-  const totalCourses = courses.length; // unused warning fixed
 
   // Calculate pass rate
   const passRate = grades.length > 0
@@ -66,7 +64,7 @@ export default function AdminDashboard() {
         <GlassCard className="p-6">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#800000] to-[#a52a2a] flex items-center justify-center text-2xl">
-              👨‍🎓
+              <i className="hgi-stroke hgi-student text-xl"></i>
             </div>
             <div>
               <p className="text-2xl font-bold text-[#800000]">{totalStudents}</p>
@@ -78,7 +76,7 @@ export default function AdminDashboard() {
         <GlassCard className="p-6">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#d4af37] to-[#b8962e] flex items-center justify-center text-2xl">
-              👩‍🏫
+              <i className="hgi-stroke hgi-school-tie text-xl"></i>
             </div>
             <div>
               <p className="text-2xl font-bold text-[#d4af37]">{totalTeachers}</p>
@@ -90,7 +88,7 @@ export default function AdminDashboard() {
         <GlassCard className="p-6">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-2xl">
-              📚
+              <i className="hgi-stroke hgi-book-02 text-xl"></i>
             </div>
             <div>
               <p className="text-2xl font-bold text-blue-600">{totalSubjects}</p>
@@ -102,7 +100,7 @@ export default function AdminDashboard() {
         <GlassCard className="p-6">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center text-2xl">
-              ✅
+              <i className="hgi-stroke hgi-checkmark-circle-02 text-xl"></i>
             </div>
             <div>
               <p className="text-2xl font-bold text-green-600">{passRate}%</p>
@@ -117,10 +115,10 @@ export default function AdminDashboard() {
         <h2 className="text-xl font-semibold text-[#800000] mb-4">Quick Actions</h2>
         <div className="flex gap-4 flex-wrap">
           <Button onClick={() => { setCreateType('student'); setShowCreateModal(true); }}>
-            ➕ Create Student
+<i className="hgi-stroke hgi-plus mr-1 text-lg"/>Create Student
           </Button>
           <Button variant="secondary" onClick={() => { setCreateType('teacher'); setShowCreateModal(true); }}>
-            ➕ Create Teacher
+<i className="hgi-stroke hgi-plus mr-1 text-lg"/>Create Teacher
           </Button>
           <Button variant="ghost" onClick={() => window.location.href = '/admin/courses'}>
             Manage Courses
@@ -293,6 +291,8 @@ function CreateUserModal({ isOpen, onClose, type, courses }: CreateUserModalProp
         }
 
         // Update local store
+        const updatedStudents: any[] = [...(students as any[]), studentData];
+        setStudents(updatedStudents);
 
         // Send email notification
         if (formData.email) {

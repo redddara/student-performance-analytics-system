@@ -4,10 +4,11 @@ import { ReactNode, ButtonHTMLAttributes } from 'react';
 interface GlassCardProps {
   children: ReactNode;
   className?: string;
+  style?: React.CSSProperties;
   onClick?: () => void;
 }
 
-export function GlassCard({ children, className, onClick }: GlassCardProps) {
+export function GlassCard({ children, className, style, onClick }: GlassCardProps) {
   return (
     <div 
       className={clsx(
@@ -15,6 +16,7 @@ export function GlassCard({ children, className, onClick }: GlassCardProps) {
         onClick && 'cursor-pointer hover:bg-[#800000]/30 hover:shadow-2xl transition-all duration-300',
         className
       )}
+      style={style}
       onClick={onClick}
     >
       {children}
@@ -261,7 +263,7 @@ export function EmptyState({ title, description, action }: EmptyStateProps) {
   return (
     <div className="flex flex-col items-center justify-center py-12 text-center">
       <div className="w-16 h-16 mb-4 rounded-full bg-white/30 flex items-center justify-center">
-        <span className="text-3xl">📭</span>
+  <i className="hgi-stroke hgi-mail text-3xl text-gray-400"/>
       </div>
       <h3 className="text-lg font-semibold text-gray-700">{title}</h3>
       {description && <p className="text-sm text-gray-500 mt-1">{description}</p>}

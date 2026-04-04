@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { GlassCard, Button, Input, Select, Table, Modal, Spinner } from '../../components/ui';
 import { useAuthStore } from '../../store';
-import { supabase, isPassing, getGradeRemarks } from '../../lib/supabase';
+import { supabase, getGradeRemarks } from '../../lib/supabase';
 
 export default function TeacherSubjectsPage() {
   const { user } = useAuthStore();
@@ -112,9 +112,9 @@ export default function TeacherSubjectsPage() {
       <div className="mb-6">
         <Select
           label="Select Subject"
-          value={subjectId || ''}
+          value={`${subjectId || ''}`}
           onChange={e => window.location.href = `/teacher/subjects?id=${e.target.value}`}
-          options={mySubjects.map(s => ({ value: s.id, label: `${s.name} - ${s.course?.name}` }))}
+          options={mySubjects.map(s => ({ value: `${s.id}`, label: `${s.name} - ${s.course?.name}` }))}
         />
       </div>
 
@@ -156,10 +156,10 @@ export default function TeacherSubjectsPage() {
       <Modal isOpen={showGradeModal} onClose={() => setShowGradeModal(false)} title={`Grade: ${selectedStudent?.first_name} ${selectedStudent?.last_name}`}>
         <form onSubmit={handleSaveGrade} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <Select label="Semester" value={gradeForm.semester.toString()} onChange={e => setGradeForm({ ...gradeForm, semester: parseInt(e.target.value) })} options={[{ value: '1', label: '1st Semester' }, { value: '2', label: '2nd Semester' }]} />
-            <Select label="Quarter" value={gradeForm.quarter.toString()} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setGradeForm({ ...gradeForm, quarter: parseInt(e.target.value) })} options={[{ value: '1', label: 'Prelim' }, { value: '2', label: 'Midterm' }, { value: '3', label: 'Pre-Finals' }, { value: '4', label: 'Finals' }]} />
+            <Select label="Semester" value={`${gradeForm.semester}`} onChange={e => setGradeForm({ ...gradeForm, semester: parseInt(e.target.value) })} options={[{ value: "1", label: '1st Semester' }, { value: "2", label: '2nd Semester' }]} />
+            <Select label="Quarter" value={`${gradeForm.quarter}`} onChange={e => setGradeForm({ ...gradeForm, quarter: parseInt(e.target.value) })} options={[{ value: "1", label: 'Prelim' }, { value: "2", label: 'Midterm' }, { value: "3", label: 'Pre-Finals' }, { value: "4", label: 'Finals' }]} />
           </div>
-          <Input label="Grade (0-100)" type="number" min="0" max="100" value={gradeForm.grade} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setGradeForm({ ...gradeForm, grade: e.target.value })} required placeholder="Enter grade" />
+          <Input label="Grade (0-100)" type="number" min="0" max="100" value={gradeForm.grade} onChange={e => setGradeForm({ ...gradeForm, grade: e.target.value })} required placeholder="Enter grade" />
           <div className="flex gap-4">
             <Button type="button" variant="secondary" className="flex-1" onClick={() => setShowGradeModal(false)}>Cancel</Button>
             <Button type="submit" className="flex-1">Save Grade</Button>
@@ -169,3 +169,4 @@ export default function TeacherSubjectsPage() {
     </DashboardLayout>
   );
 }
+

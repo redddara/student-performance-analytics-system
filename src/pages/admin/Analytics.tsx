@@ -5,11 +5,8 @@ import { useDataStore } from '../../store';
 import { supabase, isPassing, calculateGWA } from '../../lib/supabase';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  PieChart, Pie, Cell, Legend, AreaChart, Area, 
-  ComposedChart
+  PieChart, Pie, Cell, Legend, AreaChart, Area, ComposedChart
 } from 'recharts';
-
-
 
 export default function AdminAnalyticsPage() {
   const { subjects, students, grades, courses } = useDataStore();
@@ -90,8 +87,6 @@ export default function AdminAnalyticsPage() {
     return { quarter: `Q${q}`, average: qGrades.length > 0 ? Math.round(qGrades.reduce((sum, g) => sum + g.grade, 0) / qGrades.length * 100) / 100 : 0, passing: qGrades.filter(g => isPassing(g.grade)).length, total: qGrades.length };
   });
 
-
-
   // Year Level Performance
   const yearLevelData = ['1st', '2nd', '3rd', '4th'].map(year => {
     const yearSubjects = subjects.filter(s => s.year_level === year);
@@ -139,14 +134,14 @@ export default function AdminAnalyticsPage() {
       {/* Animated Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         {[
-          { label: 'Total Students', value: filteredStudents.length, icon: '👥', color: '#800000' },
-          { label: 'Total Subjects', value: subjects.length, icon: '📚', color: '#d4af37' },
-          { label: 'Overall Pass Rate', value: `${passRate}%`, icon: '✅', color: '#4CAF50' },
-          { label: 'Average Grade', value: overallAverage, icon: '📊', color: '#2196F3' },
+          { label: 'Total Students', value: filteredStudents.length, iconClass: 'hgi-people', color: '#800000' },
+          { label: 'Total Subjects', value: subjects.length, iconClass: 'hgi-book-02', color: '#d4af37' },
+          { label: 'Overall Pass Rate', value: `${passRate}%`, iconClass: 'hgi-checkmark-circle-02', color: '#4CAF50' },
+          { label: 'Average Grade', value: overallAverage, iconClass: 'hgi-chart', color: '#2196F3' },
         ].map((stat, i) => (
-        <GlassCard key={i} className={`p-4 text-center ${animated ? 'animate-in fade-in slide-in-from-bottom duration-500 delay-${i*100}' : 'opacity-0'}`}>
-            <div className="text-3xl mb-2">{stat.icon}</div>
-            <p className="text-2xl font-bold" style={{ color: stat.color }}>{stat.value}</p>
+          <GlassCard key={i} className={`p-4 text-center animate-delay-${i * 100} animate-in fade-in slide-in-from-bottom duration-500 opacity-100`}>
+            <div className="text-3xl mb-2"><i className={`hgi-stroke ${stat.iconClass} text-xl`} style={{ color: stat.color }}></i></div>
+            <p className="text-2xl font-bold text-[#800000]">{stat.value}</p>
             <p className="text-sm text-gray-600">{stat.label}</p>
           </GlassCard>
         ))}
@@ -154,13 +149,13 @@ export default function AdminAnalyticsPage() {
 
       {/* Row 1: Pie Charts */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        <GlassCard className={`p-6 ${animated ? 'animate-in fade-in slide-in-from-left duration-500 delay-200' : 'opacity-0'}`}>
+        <GlassCard className="p-6 animate-delay-200 animate-in fade-in slide-in-from-left duration-500">
           <h3 className="text-lg font-semibold text-[#800000] mb-4 flex items-center gap-2">
-            <span>📈</span> Grade Distribution
+            <span><i className="hgi-stroke hgi-trending-up text-xl"></i></span> Grade Distribution
           </h3>
           <ResponsiveContainer width="100%" height={280}>
             <PieChart>
-              <Pie data={pieData} cx="50%" cy="50%" labelLine={false} label={({ percent }) => percent ? `${(percent * 100).toFixed(0)}%` : ''} outerRadius={100} fill="#8884d8" dataKey="value" animationDuration={1500} animationBegin={300}>
+              <Pie data={pieData} cx="50%" cy="50%" labelLine={false} label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`} outerRadius={100} fill="#8884d8" dataKey="value" animationDuration={1500} animationBegin={300}>
                 {pieData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.color} stroke="white" strokeWidth={2} />))}
               </Pie>
               <Tooltip formatter={(value) => [value, 'Students']} />
@@ -169,13 +164,13 @@ export default function AdminAnalyticsPage() {
           </ResponsiveContainer>
         </GlassCard>
 
-        <GlassCard className={`p-6 ${animated ? 'animate-in fade-in slide-in-from-right duration-500 delay-300' : 'opacity-0'}`}>
+        <GlassCard className="p-6 animate-delay-300 animate-in fade-in slide-in-from-right duration-500">
           <h3 className="text-lg font-semibold text-[#800000] mb-4 flex items-center gap-2">
-            <span>🎯</span> Pass/Fail Rate
+            <span><i className="hgi-stroke hgi-target-02 text-xl"></i></span> Pass/Fail Rate
           </h3>
           <ResponsiveContainer width="100%" height={280}>
             <PieChart>
-              <Pie data={passFailData} cx="50%" cy="50%" labelLine={false} label={({ percent }) => percent ? `${(percent * 100).toFixed(0)}%` : ''} innerRadius={60} outerRadius={100} fill="#8884d8" dataKey="value" animationDuration={1500} animationBegin={400}>
+              <Pie data={passFailData} cx="50%" cy="50%" labelLine={false} label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`} innerRadius={60} outerRadius={100} fill="#8884d8" dataKey="value" animationDuration={1500} animationBegin={400}>
                 {passFailData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.color} stroke="white" strokeWidth={2} />))}
               </Pie>
               <Tooltip formatter={(value) => [value, 'Students']} />
@@ -187,9 +182,9 @@ export default function AdminAnalyticsPage() {
 
       {/* Row 2: Bar & Line Charts */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        <GlassCard className={`p-6 ${animated ? 'animate-in fade-in slide-in-from-left duration-500 delay-400' : 'opacity-0'}`}>
+        <GlassCard className={`p-6 ${animated ? 'animate-in fade-in slide-in-from-left duration-500' : 'opacity-0'}`} style={{ animationDelay: '400ms' }}>
           <h3 className="text-lg font-semibold text-[#800000] mb-4 flex items-center gap-2">
-            <span>📊</span> Subject Performance
+            <span><i className="hgi-stroke hgi-chart text-xl"></i></span> Subject Performance
           </h3>
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={subjectPerformance} layout="vertical">
@@ -202,9 +197,9 @@ export default function AdminAnalyticsPage() {
           </ResponsiveContainer>
         </GlassCard>
 
-        <GlassCard className={`p-6 ${animated ? 'animate-in fade-in slide-in-from-right duration-500 delay-500' : 'opacity-0'}`}>
+        <GlassCard className={`p-6 ${animated ? 'animate-in fade-in slide-in-from-right duration-500' : 'opacity-0'}`} style={{ animationDelay: '500ms' }}>
           <h3 className="text-lg font-semibold text-[#800000] mb-4 flex items-center gap-2">
-            <span>📉</span> Quarterly Trend
+            <span><i className="hgi-stroke hgi-statistic-02 text-xl"></i></span> Quarterly Trend
           </h3>
           <ResponsiveContainer width="100%" height={280}>
             <AreaChart data={quarterlyData}>
@@ -228,9 +223,9 @@ export default function AdminAnalyticsPage() {
 
       {/* Row 3: More Detailed Charts */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <GlassCard className={`p-6 ${animated ? 'animate-in fade-in slide-in-from-bottom duration-500 delay-600' : 'opacity-0'}`}>
+        <GlassCard className={`p-6 ${animated ? 'animate-in fade-in slide-in-from-bottom duration-500' : 'opacity-0'}`} style={{ animationDelay: '600ms' }}>
           <h3 className="text-lg font-semibold text-[#800000] mb-4 flex items-center gap-2">
-            <span>🎓</span> Year Level Performance
+            <span><i className="hgi-stroke hgi-graduation-cap text-xl"></i></span> Year Level Performance
           </h3>
           <ResponsiveContainer width="100%" height={250}>
             <ComposedChart data={yearLevelData}>
@@ -243,9 +238,9 @@ export default function AdminAnalyticsPage() {
           </ResponsiveContainer>
         </GlassCard>
 
-        <GlassCard className={`p-6 ${animated ? 'animate-in fade-in slide-in-from-bottom duration-500 delay-700' : 'opacity-0'}`}>
+        <GlassCard className={`p-6 ${animated ? 'animate-in fade-in slide-in-from-bottom duration-500' : 'opacity-0'}`} style={{ animationDelay: '700ms' }}>
           <h3 className="text-lg font-semibold text-[#800000] mb-4 flex items-center gap-2">
-            <span>🏫</span> Course Comparison
+            <span><i className="hgi-stroke hgi-school text-xl"></i></span> Course Comparison
           </h3>
           <ResponsiveContainer width="100%" height={250}>
             <BarChart data={courseComparison}>
@@ -258,9 +253,9 @@ export default function AdminAnalyticsPage() {
           </ResponsiveContainer>
         </GlassCard>
 
-        <GlassCard className={`p-6 ${animated ? 'animate-in fade-in slide-in-from-bottom duration-500 delay-800' : 'opacity-0'}`}>
+        <GlassCard className={`p-6 ${animated ? 'animate-in fade-in slide-in-from-bottom duration-500' : 'opacity-0'}`} style={{ animationDelay: '800ms' }}>
           <h3 className="text-lg font-semibold text-[#800000] mb-4 flex items-center gap-2">
-            <span>📋</span> Grade by Quarter
+            <span><i className="hgi-stroke hgi-clipboard text-xl"></i></span> Grade by Quarter
           </h3>
           <ResponsiveContainer width="100%" height={250}>
             <BarChart data={quarterSubjectData}>
@@ -279,14 +274,14 @@ export default function AdminAnalyticsPage() {
 
       {/* Top Performers */}
       {topPerformers.length > 0 && (
-        <GlassCard className={`p-6 ${animated ? 'animate-in fade-in duration-500 delay-900' : 'opacity-0'}`}>
+        <GlassCard className={`p-6 ${animated ? 'animate-in fade-in duration-500' : 'opacity-0'}`} style={{ animationDelay: '900ms' }}>
           <h3 className="text-lg font-semibold text-[#800000] mb-4 flex items-center gap-2">
             <span>🏆</span> Top Performers
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             {topPerformers.map((student, i) => (
               <div key={i} className="text-center p-4 rounded-xl bg-gradient-to-br from-[#800000]/10 to-[#d4af37]/10 border border-[#800000]/20">
-                <div className="text-2xl mb-2">{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '⭐'}</div>
+{i === 0 ? <i className="hgi-stroke hgi-trophy text-2xl text-gold-500"/> : i === 1 ? <i className="hgi-stroke hgi-award-01 text-xl text-gold-400"/> : i === 2 ? <i className="hgi-stroke hgi-award-02 text-lg text-gold-300"/> : <i className="hgi-stroke hgi-star text-lg text-gold-400"/>}
                 <p className="font-semibold text-gray-800 text-sm">{student.name}</p>
                 <p className="text-xl font-bold text-[#800000]">{student.gwa.toFixed(2)}</p>
                 <p className="text-xs text-gray-500">{student.grades} subjects</p>

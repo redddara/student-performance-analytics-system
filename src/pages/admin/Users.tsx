@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { GlassCard, Button, Input, Table, Modal, Spinner, Badge, Select, ConfirmModal } from '../../components/ui';
-import { useAuthStore, useDataStore } from '../../store';
 import { supabase, hashPassword, generateTempPassword, generateStudentUsername } from '../../lib/supabase';
 import { sendEmail, generateStudentCredentialEmail, generatePasswordResetEmail } from '../../api/email';
 
 export default function AdminUsersPage() {
-  const { setStudents } = useDataStore();
+  // const { setStudents } = useDataStore();
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -76,9 +75,27 @@ export default function AdminUsersPage() {
       const { data: user } = await supabase.from('users').select('*').eq('id', confirmModal.userId).single();
       
       if (user?.role === 'student') {
-        await supabase.from('students').delete().eq('user_id', confirmModal.userId);
+        // First get the student record
+        const { data: studentData } = await supabase
+          .from('students')
+          .select('id')
+          .eq('user_id', confirmModal.userId)
+          .single();
+        
+        if (studentData?.id) {
+          // Delete grades associated with the student
+          await supabase.from('grades').delete().eq('student_id', studentData.id);
+          // Delete student subject enrollments
+          await supabase.from('student_subjects').delete().eq('student_id', studentData.id);
+          // Delete the student record
+          await supabase.from('students').delete().eq('user_id', confirmModal.userId);
+        }
       }
       
+      // Also clean up any subjects where this user was assigned as teacher
+      await supabase.from('subjects').update({ teacher_id: null }).eq('teacher_id', confirmModal.userId);
+      
+      // Delete the user
       await supabase.from('users').delete().eq('id', confirmModal.userId);
       
       alert('User deleted successfully!');
@@ -125,9 +142,12 @@ export default function AdminUsersPage() {
 
   return (
     <DashboardLayout title="User Management">
-      <div className="flex gap-4 mb-6">
+      <div className="flex gap-4 mb-6 flex-wrap">
         <Button onClick={() => { setCreateType('student'); setShowCreateModal(true); }}>
           <i className="hgi-stroke hgi-add-to-list"></i> Add Student
+        </Button>
+        <Button variant="secondary" onClick={() => { setCreateType('teacher'); setShowCreateModal(true); }}>
+          <i className="hgi-stroke hgi-add-to-list"></i> Add Teacher
         </Button>
         <Button variant="secondary" onClick={() => { setCreateType('teacher'); setShowCreateModal(true); }}>
           <i className="hgi-stroke hgi-add-to-list"></i> Add Teacher
@@ -151,7 +171,7 @@ export default function AdminUsersPage() {
               </td>
               <td className="px-4 py-3 text-gray-600">{user.username || '-'}</td>
               <td className="px-4 py-3">
-                <Badge variant={user.role === 'admin' ? 'danger' : user.role === 'teacher' ? 'warning' : 'info'}>
+                <Badge variant={user.role === 'admin' ? 'danger' : user.role === 'teacher' ? 'info' : 'info'}>
                   {user.role}
                 </Badge>
               </td>
@@ -244,21 +264,55 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess }: CreateUs
       const tempPassword = generateTempPassword();
       const passwordHash = await hashPassword(tempPassword);
 
-      const { data: existingUsers } = await supabase
+      // For students: generate student ID. For teachers: use email as identifier (no username needed)
+      let username: string | null = null;
+      
+      if (type === 'student') {
+        // Generate student ID for students
+        const { data: existingUsers } = await supabase
+          .from('users')
+          .select('username')
+          .like('username', 'STUD-%')
+          .order('username', { ascending: false })
+          .limit(1);
+
+        let nextNumber = 1001;
+        if (existingUsers && existingUsers.length > 0) {
+          const lastNum = parseInt(existingUsers[0].username?.split('-')[2] || '1000');
+          nextNumber = lastNum + 1;
+        }
+
+        username = generateStudentUsername(course?.name || 'BSCS', nextNumber);
+      }
+      // For teachers: username is not needed (they login with email)
+
+      // Check if email already exists (including soft-deleted users)
+      const { data: existingEmail } = await supabase
         .from('users')
-        .select('username')
-        .like('username', 'STUD-%')
-        .order('username', { ascending: false })
+        .select('id, email')
+        .eq('email', formData.email)
         .limit(1);
 
-      let nextNumber = 1001;
-      if (existingUsers && existingUsers.length > 0) {
-        const lastNum = parseInt(existingUsers[0].username?.split('-')[2] || '1000');
-        nextNumber = lastNum + 1;
+      if (existingEmail && existingEmail.length > 0) {
+        // User with this email exists, delete the existing record to avoid UUID conflict
+        await supabase.from('users').delete().eq('id', existingEmail[0].id);
       }
 
-      const username = generateStudentUsername(course?.name || 'BSCS', nextNumber);
+      // Check if username already exists (for students)
+      if (username) {
+        const { data: existingUsername } = await supabase
+          .from('users')
+          .select('id, username')
+          .eq('username', username)
+          .limit(1);
 
+        if (existingUsername && existingUsername.length > 0) {
+          // Delete existing user with same username
+          await supabase.from('users').delete().eq('id', existingUsername[0].id);
+        }
+      }
+
+      // Create the user
       const { data: userData, error: userError } = await supabase
         .from('users')
         .insert({
@@ -277,47 +331,75 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess }: CreateUs
         .select()
         .single();
 
-      if (userError) throw userError;
+      if (userError) {
+        // If error is about duplicate, try to handle it
+        if (userError.message?.includes('duplicate') || userError.code === '23505') {
+          alert('A user with this email already exists. Please use a different email.');
+          setLoading(false);
+          return;
+        }
+        throw userError;
+      }
 
-      if (type === 'student') {
-        const { data: studentData, error: studentError } = await supabase
+      // If creating a student, also create student record
+      if (type === 'student' && userData?.id) {
+        // Check if student record already exists
+        const { data: existingStudent } = await supabase
           .from('students')
-          .insert({
-            first_name: formData.first_name,
-            last_name: formData.last_name,
-            grade_level: formData.grade_level,
-            section: formData.section,
-            course_id: formData.course_id,
-            user_id: userData.id,
-          })
-          .select('*, course:courses(*), user:users(*)')
-          .single();
+          .select('id')
+          .eq('user_id', userData.id)
+          .limit(1);
 
-        if (studentError) throw studentError;
+        if (!existingStudent || existingStudent.length === 0) {
+          const { data: studentData, error: studentError } = await supabase
+            .from('students')
+            .insert({
+              first_name: formData.first_name,
+              last_name: formData.last_name,
+              grade_level: formData.grade_level,
+              section: formData.section,
+              course_id: formData.course_id,
+              user_id: userData.id,
+            })
+            .select()
+            .single();
 
-        const { data: matchingSubjects } = await supabase
-          .from('subjects')
-          .select('*')
-          .eq('course_id', formData.course_id)
-          .eq('year_level', formData.grade_level)
-          .eq('semester', formData.semester);
+          if (studentError && !studentError.message?.includes('duplicate')) {
+            console.error('Student creation error:', studentError);
+          }
 
-        if (matchingSubjects && matchingSubjects.length > 0) {
-          const enrollments = matchingSubjects.map(sub => ({
-            student_id: studentData.id,
-            subject_id: sub.id,
-          }));
-          await supabase.from('student_subjects').insert(enrollments);
+          // Auto-enroll student in subjects for their year level and course
+          if (studentData?.id) {
+            const { data: matchingSubjects } = await supabase
+              .from('subjects')
+              .select('*')
+              .eq('course_id', formData.course_id)
+              .eq('year_level', formData.grade_level)
+              .eq('semester', formData.semester);
+
+            if (matchingSubjects && matchingSubjects.length > 0) {
+              const enrollments = matchingSubjects.map(sub => ({
+                student_id: studentData.id,
+                subject_id: sub.id,
+              }));
+              await supabase.from('student_subjects').insert(enrollments);
+            }
+          }
         }
       }
 
       // Send email with credentials
       if (formData.email) {
-        const emailData = generateStudentCredentialEmail(formData.first_name, username, tempPassword, type);
+        const emailData = generateStudentCredentialEmail(
+          formData.first_name, 
+          username || formData.email, 
+          tempPassword, 
+          type
+        );
         await sendEmail(formData.email, emailData.subject, emailData.html);
       }
 
-      alert(`User created successfully!\n\nUsername: ${username}\nTemporary Password: ${tempPassword}\n\nCredentials have been sent to ${formData.email || 'email not provided'}`);
+      alert(`User created successfully!\n\n${type === 'student' ? `Student ID: ${username}` : 'Email: ' + formData.email}\nTemporary Password: ${tempPassword}\n\nCredentials have been sent to ${formData.email || 'email not provided'}`);
       onSuccess();
       onClose();
       setFormData({
@@ -330,6 +412,7 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess }: CreateUs
         semester: '1st Sem',
       });
     } catch (err: any) {
+      console.error('Create user error:', err);
       alert(err.message || 'Failed to create user');
     } finally {
       setLoading(false);
@@ -337,7 +420,7 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess }: CreateUs
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={`Create ${type === 'student' ? 'Student' : 'Teacher'}`} size="md">
+    <Modal isOpen={isOpen} onClose={onClose} title={`Create ${type === 'student' ? 'Student' : type === 'teacher' ? 'Teacher' : 'Admin'}`} size="md">
       <form onSubmit={handleSubmit} className="space-y-4">
         <Input label="First Name" value={formData.first_name} onChange={e => setFormData({ ...formData, first_name: e.target.value })} required />
         <Input label="Last Name" value={formData.last_name} onChange={e => setFormData({ ...formData, last_name: e.target.value })} required />
@@ -351,6 +434,12 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess }: CreateUs
               <Input label="Section" value={formData.section} onChange={e => setFormData({ ...formData, section: e.target.value })} required />
               <Select label="Semester" value={formData.semester} onChange={e => setFormData({ ...formData, semester: e.target.value })} options={[{ value: '1st Sem', label: '1st Sem' }, { value: '2nd Sem', label: '2nd Sem' }]} />
             </div>
+          </>
+        )}
+        
+        {type === 'teacher' && (
+          <>
+            <Select label="Course" value={formData.course_id} onChange={e => setFormData({ ...formData, course_id: e.target.value })} options={courses.map(c => ({ value: c.id, label: c.name }))} />
           </>
         )}
 
@@ -434,4 +523,3 @@ function EditUserModal({ user, courses, onSave }: EditUserModalProps) {
     </>
   );
 }
-

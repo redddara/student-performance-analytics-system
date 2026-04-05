@@ -1,6 +1,233 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
-
+/* stylelint-disable at-rule-no-unknown */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+
+  body {
+    @apply bg-white text-gray-900 antialiased min-h-screen;
+    padding-left: env(safe-area-inset-left, 0);
+    padding-right: env(safe-area-inset-right, 0);
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Softer, consistent motion for interactive controls (respects reduced-motion below) */
+  @media (prefers-reduced-motion: no-preference) {
+    button,
+    a,
+    input,
+    select,
+    textarea,
+    [role='button'],
+    [role='tab'] {
+      transition-property: color, background-color, border-color, box-shadow, opacity, transform;
+      transition-duration: 200ms;
+      transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  .glass {
+    @apply backdrop-blur-2xl bg-white/70 border border-maroon-500/20 shadow-xl ring-1 ring-maroon-500/20;
+  }
+  
+  .glass-hover {
+    @apply hover:bg-white/80 hover:shadow-2xl hover:ring-maroon-500/30 transition-all duration-300;
+  }
+  
+  /* Light pill for toolbar / header chips on white background */
+  .glass-card {
+    @apply bg-white border border-maroon-200/50 rounded-2xl shadow-sm backdrop-blur-sm;
+  }
+
+  /* Nested panel inside maroon GlassCard (PhilTech-style inset glass) */
+  .glass-inset {
+    border-radius: 1rem;
+    border: 1px solid rgba(160, 40, 40, 0.9);
+    background: linear-gradient(145deg, #7a0000, #4d0000);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      0 0 0 1px rgba(212, 165, 0, 0.15),
+      0 4px 20px rgba(40, 0, 0, 0.4);
+  }
+  
+  .maroon-glass-card {
+    @apply backdrop-blur-2xl bg-gradient-to-br from-maroon-glass to-white/60 border border-maroon-500/20 rounded-3xl shadow-2xl ring-1 ring-gold-400/20 hover:shadow-gold-glow;
+  }
+
+  .glass-panel {
+    @apply backdrop-blur-3xl bg-white/20 border border-white/10 rounded-3xl shadow-glass-lg ring-1 ring-maroon-500/10 p-8;
+  }
+  
+  .glass-input {
+    @apply bg-white/50 backdrop-blur-md border border-white/40 rounded-xl focus:ring-2 focus:ring-maroon-500/50 focus:border-maroon-500/50 transition-all duration-300;
+  }
+  
+  .glass-button {
+    @apply bg-gradient-to-r from-maroon-500 to-maroon-600 text-white shadow-lg hover:shadow-xl backdrop-blur-md hover:from-maroon-600 hover:to-maroon-700 transition-all duration-300;
+  }
+}
+
+@layer utilities {
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+  }
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-white/30 backdrop-blur-sm rounded-full border border-maroon-500/20;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-maroon-500/70 rounded-full hover:bg-maroon-400 backdrop-blur-sm shadow-glass;
+  &:hover {
+    @apply maroon-glow;
+  }
+}
+
+/* File input styling */
+input[type="file"]::file-selector-button {
+  @apply mr-4 px-4 py-2 rounded-2xl border-0 text-sm font-semibold bg-gradient-to-r from-maroon-600 to-maroon-700 text-white hover:from-maroon-500 hover:shadow-xl backdrop-blur-md transition-all duration-300;
+}
+
+/* Typography inside maroon GlassCard — pages keep Tailwind classes; these lift contrast on dark glass */
+.glass-card-content {
+  color: rgb(255 255 255 / 0.92);
+}
+
+.glass-card-content h1,
+.glass-card-content h2,
+.glass-card-content h3 {
+  color: rgb(255 255 255 / 0.98);
+}
+
+.glass-card-content [class*='text-gray-500'],
+.glass-card-content [class*='text-gray-600'],
+.glass-card-content [class*='text-gray-700'] {
+  color: rgb(255 255 255 / 0.62) !important;
+}
+
+.glass-card-content [class*='text-gray-800'] {
+  color: rgb(255 255 255 / 0.95) !important;
+}
+
+.glass-card-content [class*='800000'],
+.glass-card-content [class*='d4af37'] {
+  color: rgb(253 224 71) !important;
+}
+
+.glass-card-content [class*='text-maroon-600'],
+.glass-card-content [class*='text-maroon-700'] {
+  color: rgb(253 224 71) !important;
+}
+
+.glass-card-content [class*='text-gold-600'] {
+  color: rgb(250 204 21) !important; /* gold-400 */
+}
+
+.glass-card-content [class*='text-green-600'] {
+  color: rgb(74 222 128) !important; /* green-400 */
+}
+
+.glass-card-content [class*='text-blue-600'] {
+  color: rgb(147 197 253) !important; /* blue-300 */
+}
+
+.glass-card-content [class*='text-red-600'] {
+  color: rgb(252 165 165) !important; /* red-300 */
+}
+
+/* Native <select> inside maroon cards: glass-card-content forces light text; keep dark text on white field + options */
+.glass-card-content select {
+  color: #111827 !important;
+  background-color: #ffffff !important;
+  border-color: rgb(156 163 175 / 0.85) !important;
+}
+
+.glass-card-content select option {
+  color: #111827 !important;
+  background-color: #ffffff !important;
+}
+
+/* Sidebar */
+.maroon-sidebar {
+  @apply bg-gradient-to-b from-[#0a0a0a] via-maroon-950 to-maroon-900 border-r border-gold-500/20 shadow-2xl backdrop-blur-3xl;
+}
+
+.maroon-glow {
+  box-shadow: 0 0 25px rgba(128, 0, 0, 0.4), 0 0 50px rgba(212, 165, 0, 0.2);
+}
+
+.gold-glow {
+  box-shadow: 0 0 20px rgba(212, 165, 0, 0.5), 0 4px 25px rgba(212, 165, 0, 0.3);
+}
+
+.maroon-nav-active {
+  position: relative;
+}
+
+.maroon-nav-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 60%;
+  background: linear-gradient(to bottom, #ffd000, #df4444);
+  border-radius: 0 2px 2px 0;
+}
+
+/* Legacy compatibility */
+.maroon-glass {
+  @apply backdrop-blur-xl bg-white/90 border border-gray-200/50 rounded-2xl shadow-xl glass-hover;
+}
+
+.maroon-glass-light {
+  @apply backdrop-blur-lg bg-white/80 border border-gray-200/40 rounded-xl shadow-lg glass-hover;
+}
+
+/* Responsive utilities */
+@media (max-width: 768px) {
+  .hide-mobile {
+    display: none;
+  }
+}

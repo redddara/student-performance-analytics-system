@@ -1,0 +1,125 @@
+/* stylelint-disable at-rule-no-unknown */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gradient-to-br from-white/80 via-white/90 to-white/70 backdrop-blur-xl text-gray-800 antialiased min-h-screen;
+  }
+}
+
+@layer components {
+  .glass {
+    @apply backdrop-blur-2xl bg-white/70 border border-maroon-500/20 shadow-xl ring-1 ring-maroon-500/20;
+  }
+  
+  .glass-hover {
+    @apply hover:bg-white/80 hover:shadow-2xl hover:ring-maroon-500/30 transition-all duration-300;
+  }
+  
+  .glass-card {
+    @apply backdrop-blur-xl bg-white/60 border border-maroon-400/20 rounded-3xl shadow-2xl ring-1 ring-gold-400/20;
+  }
+  
+  .maroon-glass-card {
+    @apply backdrop-blur-2xl bg-gradient-to-br from-maroon-glass to-white/60 border border-maroon-500/20 rounded-3xl shadow-2xl ring-1 ring-gold-400/20 hover:shadow-gold-glow;
+  }
+
+  .glass-panel {
+    @apply backdrop-blur-3xl bg-white/20 border border-white/10 rounded-3xl shadow-glass-lg ring-1 ring-maroon-500/10 p-8;
+  }
+  
+  .glass-input {
+    @apply bg-white/50 backdrop-blur-md border border-white/40 rounded-xl focus:ring-2 focus:ring-maroon-500/50 focus:border-maroon-500/50 transition-all duration-300;
+  }
+  
+  .glass-button {
+    @apply bg-gradient-to-r from-maroon-500 to-maroon-600 text-white shadow-lg hover:shadow-xl backdrop-blur-md hover:from-maroon-600 hover:to-maroon-700 transition-all duration-300;
+  }
+}
+
+@layer utilities {
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+  }
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-white/30 backdrop-blur-sm rounded-full border border-maroon-500/20;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-maroon-500/70 rounded-full hover:bg-maroon-400 backdrop-blur-sm shadow-glass;
+  &:hover {
+    @apply maroon-glow;
+  }
+}
+
+/* File input styling */
+input[type="file"]::file-selector-button {
+  @apply mr-4 px-4 py-2 rounded-2xl border-0 text-sm font-semibold bg-gradient-to-r from-maroon-600 to-maroon-700 text-white hover:from-maroon-500 hover:shadow-xl backdrop-blur-md transition-all duration-300;
+}
+
+/* Sidebar */
+.maroon-sidebar {
+  @apply bg-gradient-to-b from-maroon-950/95 to-maroon-900/95 border-r border-maroon-500/30 shadow-2xl backdrop-blur-3xl;
+}
+
+.maroon-glow {
+  box-shadow: 0 0 25px rgba(128, 0, 0, 0.4), 0 0 50px rgba(212, 165, 0, 0.2);
+}
+
+.gold-glow {
+  box-shadow: 0 0 20px rgba(212, 165, 0, 0.5), 0 4px 25px rgba(212, 165, 0, 0.3);
+}
+
+.maroon-nav-active {
+  position: relative;
+}
+
+.maroon-nav-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 60%;
+  background: linear-gradient(to bottom, #ffd000, #df4444);
+  border-radius: 0 2px 2px 0;
+}
+
+/* Legacy compatibility */
+.maroon-glass {
+  @apply backdrop-blur-xl bg-white/90 border border-gray-200/50 rounded-2xl shadow-xl glass-hover;
+}
+
+.maroon-glass-light {
+  @apply backdrop-blur-lg bg-white/80 border border-gray-200/40 rounded-xl shadow-lg glass-hover;
+}
+
+/* Responsive utilities */
+@media (max-width: 768px) {
+  .hide-mobile {
+    display: none;
+  }
+}
+

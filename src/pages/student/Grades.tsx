@@ -1,172 +1,184 @@
-import React, { useEffect, useState } from 'react';
-import { useStore } from '../../store';
-import { DashboardLayout } from '../../components/layouts';
-import { Card, Table, Badge, Select } from '../../components/ui';
-import { 
-  GraduationCap, 
-  Filter,
-  TrendingUp,
-  Calendar
-} from 'lucide-react';
-import { supabase } from '../../lib/supabase';
+import { useState, useEffect, useMemo } from 'react';
+import { Search } from 'lucide-react';
+import { DashboardLayout } from '../../components/layouts/DashboardLayout';
+import { PageIntro } from '../../components/layouts/PageIntro';
+import { GlassCard, Select, Table, Spinner } from '../../components/ui';
+import { useAuthStore } from '../../store';
+import { supabase, calculateGWA } from '../../lib/supabase';
 
-const StudentGrades: React.FC = () => {
-  const { user, subjects } = useStore();
+export default function StudentGradesPage() {
+  const { user } = useAuthStore();
+  const [mySubjects, setMySubjects] = useState<any[]>([]);
   const [myGrades, setMyGrades] = useState<any[]>([]);
-  const [semesterFilter, setSemesterFilter] = useState('all');
   const [loading, setLoading] = useState(true);
+  const [selectedSemester, setSelectedSemester] = useState(1);
+  const [selectedQuarter, setSelectedQuarter] = useState('');
+  const [filterSearch, setFilterSearch] = useState('');
 
   useEffect(() => {
-    fetchMyGrades();
-  }, [user, subjects]);
+    loadData();
+  }, []);
 
-  const fetchMyGrades = async () => {
-    if (!user) return;
-    setLoading(true);
+  const loadData = async () => {
+    try {
+      const { data: studentData } = await supabase
+        .from('students')
+        .select('*')
+        .eq('user_id', user?.id)
+        .single();
 
-    const { data: studentData } = await supabase
-      .from('students')
-      .select('*')
-      .eq('user_id', user.id)
-      .single();
+      if (!studentData) return;
 
-    if (studentData) {
-      const { data: grades } = await supabase
-        .from('grades')
-        .select('*, subject:subjects(*)')
-        .eq('student_id', studentData.id)
-        .order('created_at', { ascending: false });
+      const [subjectsRes, gradesRes] = await Promise.all([
+        supabase.from('student_subjects').select('*, subject:subjects(*, course:courses(*))').eq('student_id', studentData.id),
+        supabase.from('grades').select('*').eq('student_id', studentData.id),
+      ]);
 
-      if (grades) setMyGrades(grades);
+      setMySubjects(subjectsRes.data || []);
+      setMyGrades(gradesRes.data || []);
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
-  // Filter grades
-  let filteredGrades = myGrades;
-  if (semesterFilter !== 'all') {
-    filteredGrades = myGrades.filter(g => g.semester === parseInt(semesterFilter));
-  }
-
-  // Calculate GWA
-  const gwa = filteredGrades.length > 0
-    ? filteredGrades.reduce((sum, g) => sum + Number(g.grade), 0) / filteredGrades.length
-    : 0;
-
-  const getGradeStatus = (grade: number) => {
-    if (grade >= 90) return { label: 'Excellent', variant: 'success' as const };
-    if (grade >= 85) return { label: 'Very Good', variant: 'success' as const };
-    if (grade >= 80) return { label: 'Good', variant: 'info' as const };
-    if (grade >= 75) return { label: 'Passing', variant: 'warning' as const };
-    return { label: 'Failed', variant: 'danger' as const };
+  const getFilteredGrades = () => {
+    return myGrades.filter(g => g.semester === selectedSemester && (!selectedQuarter || g.quarter.toString() === selectedQuarter));
   };
+
+  const getSubjectGrade = (subjectId: string, quarter: number) => {
+    const grade = getFilteredGrades().find(g => 
+      g.subject_id === subjectId.toString() && g.quarter === quarter
+    );
+    return grade?.grade?.toString() || '-';
+  };
+
+  const getSubjectAverage = (subjectId: string) => {
+    const subjectGrades = getFilteredGrades().filter(g => g.subject_id === subjectId);
+    if (subjectGrades.length === 0) return '-';
+    const avg = calculateGWA(subjectGrades);
+    return avg.toFixed(2).toString();
+  };
+
+  const calculateSemesterGWA = () => {
+    const semesterGrades = getFilteredGrades();
+    if (semesterGrades.length === 0) return '-';
+    return calculateGWA(semesterGrades).toFixed(2);
+  };
+
+  const semesterSubjects = useMemo(
+    () => mySubjects.filter((ss) => ss.subject?.semester === (selectedSemester === 1 ? '1st Sem' : '2nd Sem')),
+    [mySubjects, selectedSemester]
+  );
+
+  const filteredSemesterSubjects = useMemo(() => {
+    const q = filterSearch.trim().toLowerCase();
+    if (!q) return semesterSubjects;
+    return semesterSubjects.filter((ss) => {
+      const name = String(ss.subject?.name || '').toLowerCase();
+      const course = String(ss.subject?.course?.name || '').toLowerCase();
+      return name.includes(q) || course.includes(q);
+    });
+  }, [semesterSubjects, filterSearch]);
 
   if (loading) {
-    return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-white">Loading...</div>
-        </div>
-      </DashboardLayout>
-    );
+    return <DashboardLayout title="My Grades"><Spinner size="lg" /></DashboardLayout>;
   }
 
   return (
-    <DashboardLayout>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-white">My Grades</h1>
-          <p className="text-gray-400 mt-2">View your academic performance</p>
+    <DashboardLayout title="My Grades">
+      <PageIntro
+        title="Grade report"
+        subtitle="Pick semester and quarter, then search subjects below. Averages use recorded grades only."
+      />
+
+      <div className="mb-5 w-full max-w-2xl">
+        <label htmlFor="student-grade-subject-search" className="sr-only">
+          Search subjects
+        </label>
+        <div className="relative">
+          <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-maroon-700/75" aria-hidden>
+            <Search className="h-5 w-5 shrink-0" strokeWidth={2} />
+          </span>
+          <input
+            id="student-grade-subject-search"
+            type="search"
+            autoComplete="off"
+            placeholder="Search subject or course…"
+            value={filterSearch}
+            onChange={(e) => setFilterSearch(e.target.value)}
+            className="w-full rounded-2xl border border-white/70 bg-white/55 py-3.5 pl-12 pr-4 text-base text-gray-900 shadow-[0_8px_32px_rgba(128,0,0,0.1),inset_0_1px_0_rgba(255,255,255,0.9)] backdrop-blur-xl placeholder:text-gray-500 focus:border-maroon-500 focus:outline-none focus:ring-2 focus:ring-maroon-500/35"
+          />
         </div>
-
-        {/* GWA Summary */}
-        <Card className="bg-gradient-to-r from-indigo-600/20 to-purple-600/20 border-indigo-500/30">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-300">Overall GWA</p>
-              <p className="text-5xl font-bold text-white mt-2">{gwa.toFixed(2)}</p>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <p className="text-gray-400 text-sm">Total Subjects</p>
-                <p className="text-2xl font-bold text-white">{filteredGrades.length}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-gray-400 text-sm">Passing</p>
-                <p className="text-2xl font-bold text-green-400">
-                  {filteredGrades.filter(g => Number(g.grade) >= 75).length}
-                </p>
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        {/* Filter */}
-        <Card>
-          <div className="flex items-center gap-4">
-            <Filter size={20} className="text-gray-400" />
-            <Select
-              value={semesterFilter}
-              onChange={(e) => setSemesterFilter(e.target.value)}
-              options={[
-                { value: 'all', label: 'All Semesters' },
-                { value: '1', label: 'First Semester' },
-                { value: '2', label: 'Second Semester' }
-              ]}
-            />
-          </div>
-        </Card>
-
-        {/* Grades Table */}
-        <Card>
-          <Table headers={['Subject', 'Grade', 'Quarter', 'Semester', 'Remarks', 'Status']}>
-            {filteredGrades.map(grade => {
-              const status = getGradeStatus(Number(grade.grade));
-              return (
-                <tr key={grade.id} className="hover:bg-white/5">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-300">
-                        <GraduationCap size={18} />
-                      </div>
-                      <span className="text-white font-medium">
-                        {grade.subject?.name || 'Unknown'}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="text-2xl font-bold text-white">{grade.grade}</span>
-                  </td>
-                  <td className="px-4 py-3 text-gray-300">
-                    <div className="flex items-center gap-2">
-                      <Calendar size={14} className="text-gray-400" />
-                      Quarter {grade.quarter}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-gray-300">
-                    Semester {grade.semester}
-                  </td>
-                  <td className="px-4 py-3 text-gray-300">
-                    {grade.remarks || '-'}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge variant={status.variant}>{status.label}</Badge>
-                  </td>
-                </tr>
-              );
-            })}
-          </Table>
-
-          {filteredGrades.length === 0 && (
-            <div className="text-center py-12 text-gray-400">
-              <GraduationCap size={48} className="mx-auto mb-4 opacity-50" />
-              <p>No grades recorded yet</p>
-            </div>
-          )}
-        </Card>
       </div>
+
+      <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:flex-wrap sm:p-5">
+        <div className="w-full sm:min-w-[150px] sm:w-auto">
+          <Select
+            label="Semester"
+            value={`${selectedSemester}`}
+            onChange={e => setSelectedSemester(parseInt(e.target.value))}
+            options={[{ value: "1", label: '1st Semester' }, { value: "2", label: '2nd Semester' }]}
+          />
+        </div>
+        <div className="w-full sm:min-w-[160px] sm:w-auto">
+          <Select 
+            label="Quarter" 
+            value={selectedQuarter} 
+            onChange={e => setSelectedQuarter(e.target.value)} 
+            options={[
+              { value: "", label: 'All Quarters' },
+              { value: "1", label: 'Prelim' },
+              { value: "2", label: 'Midterm' },
+              { value: "3", label: 'Pre-Finals' },
+              { value: "4", label: 'Finals' }
+            ]} 
+          />
+        </div>
+        <p className="w-full text-sm text-gray-600 sm:pl-1">
+          Showing <span className="font-semibold text-[#800000]">{filteredSemesterSubjects.length}</span> /{' '}
+          {semesterSubjects.length} subject{semesterSubjects.length !== 1 ? 's' : ''} this semester
+        </p>
+      </div>
+
+      <GlassCard className="p-4 sm:p-6">
+        <h2 className="text-xl font-semibold text-[#800000] mb-4">
+          {selectedSemester === 1 ? '1st' : '2nd'} Semester Grades
+        </h2>
+        
+        {filteredSemesterSubjects.length > 0 && (
+          <Table headers={['Subject', 'Prelim', 'Midterm', 'Pre-Finals', 'Finals', 'Average']}>
+            {filteredSemesterSubjects.map((ss) => (
+              <tr key={ss.id} className="hover:bg-white/20">
+                <td className="px-4 py-3 font-medium text-gray-800">{ss.subject?.name}</td>
+                <td className="px-4 py-3 text-gray-600">{getSubjectGrade(ss.subject_id, 1)}</td>
+                <td className="px-4 py-3 text-gray-600">{getSubjectGrade(ss.subject_id, 2)}</td>
+                <td className="px-4 py-3 text-gray-600">{getSubjectGrade(ss.subject_id, 3)}</td>
+                <td className="px-4 py-3 text-gray-600">{getSubjectGrade(ss.subject_id, 4)}</td>
+                <td className="px-4 py-3 font-semibold text-[#800000]">{getSubjectAverage(ss.subject_id)}</td>
+              </tr>
+            ))}
+          </Table>
+        )}
+
+        {semesterSubjects.length === 0 && (
+          <p className="text-center text-gray-500 py-8">No subjects for this semester</p>
+        )}
+
+        {semesterSubjects.length > 0 && filteredSemesterSubjects.length === 0 && (
+          <p className="text-center text-gray-500 py-8">No subjects match your search.</p>
+        )}
+
+        {semesterSubjects.length > 0 && (
+          <div className="mt-6 p-4 rounded-xl bg-gradient-to-r from-[#800000] to-[#d4af37] text-white">
+            <div className="flex flex-col gap-1 sm:flex-row sm:justify-between sm:items-center">
+              <span className="font-semibold">Semester GWA:</span>
+              <span className="text-2xl font-bold">{calculateSemesterGWA()}</span>
+            </div>
+          </div>
+        )}
+      </GlassCard>
     </DashboardLayout>
   );
-};
-
-export default StudentGrades;
+}

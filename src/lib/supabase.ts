@@ -1,44 +1,144 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupportedStorage } from '@supabase/supabase-js';
+import { SAPAS_AUTH_STORAGE_PREF_KEY } from './sessionConstants';
 
-const supabaseUrl = 'https://xlmlrplyfizfhklhaicc.supabase.co';
-const supabaseAnonKey = 'sb_publishable_4cdLLPqeL0NxFsSeqxShtQ_7rFBahBD';
+export const supabaseUrl =
+  import.meta.env.VITE_SUPABASE_URL || 'https://xlmlrplyfizfhklhaicc.supabase.co';
+export const supabaseAnonKey =
+  import.meta.env.VITE_SUPABASE_ANON_KEY ||
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhsbWxycGx5Zml6ZmhrbGhhaWNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE4NTkxODQsImV4cCI6MjA4NzQzNTE4NH0.YOe0zHWSm5L2ltucf97doTg-mrZGwD8bMTpHe4S047Y';
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+/** Align JWT storage with remember-me (local vs session). */
+export function setAuthStoragePreference(rememberMe: boolean): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(SAPAS_AUTH_STORAGE_PREF_KEY, rememberMe ? 'local' : 'session');
+}
 
-export const signUp = async (email: string, password: string, name: string, role: string) => {
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      data: { name, role }
-    }
-  });
-  return { data, error };
+function authTargetStorage(): Storage {
+  if (typeof window === 'undefined') return localStorage;
+  return localStorage.getItem(SAPAS_AUTH_STORAGE_PREF_KEY) === 'session' ? sessionStorage : localStorage;
+}
+
+const sapasAuthStorage: SupportedStorage = {
+  getItem(key: string) {
+    return authTargetStorage().getItem(key);
+  },
+  setItem(key: string, value: string) {
+    const t = authTargetStorage();
+    const other = t === localStorage ? sessionStorage : localStorage;
+    other.removeItem(key);
+    t.setItem(key, value);
+  },
+  removeItem(key: string) {
+    localStorage.removeItem(key);
+    sessionStorage.removeItem(key);
+  },
 };
 
-export const signIn = async (email: string, password: string) => {
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password
-  });
-  return { data, error };
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    storage: sapasAuthStorage,
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
+});
+
+export const getSupabaseClient = () => supabase;
+
+export async function hashPassword(password: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+export async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  const passwordHash = await hashPassword(password);
+  return passwordHash === hash;
+}
+
+const STUDENT_ID_COURSE_MAP: Record<string, string> = {
+  BSCS: 'CS',
+  BSOA: 'OA',
+  OA: 'OA',
+  BTVTED: 'VTED',
+  BTTE: 'VTED',
+  'Bachelor of Science in Computer Science': 'CS',
+  'Bachelor of Science in Office Administration': 'OA',
+  'Office Administration': 'OA',
+  'Bachelor of Technical-Vocational Teacher Education': 'VTED',
 };
 
-export const signOut = async () => {
-  const { error } = await supabase.auth.signOut();
-  return { error };
-};
+function resolveStudentCourseCode(courseName: string): string {
+  const raw = courseName.trim();
+  if (!raw) return 'XX';
 
-export const getCurrentUser = async () => {
-  const { data: { user }, error } = await supabase.auth.getUser();
-  return { user, error };
-};
+  const lower = raw.toLowerCase();
+  for (const [key, code] of Object.entries(STUDENT_ID_COURSE_MAP)) {
+    if (key.toLowerCase() === lower) return code;
+  }
 
-export const updateUserRole = async (userId: string, role: string) => {
-  const { data, error } = await supabase
-    .from('users')
-    .update({ role })
-    .eq('id', userId)
-    .select();
-  return { data, error };
-};
+  const u = raw.toUpperCase().replace(/\s+/g, ' ');
+
+  // Bachelor of Technical-Vocational Teacher Education (and common variants)
+  if (
+    u.includes('BTVTED') ||
+    u.includes('BTTE') ||
+    (u.includes('TECHNICAL') && u.includes('VOCATIONAL') && (u.includes('TEACHER') || u.includes('VTED'))) ||
+    (u.includes('TECH-VOC') && u.includes('TEACHER')) ||
+    (u.includes('TECH VOC') && u.includes('TEACHER'))
+  ) {
+    return 'VTED';
+  }
+
+  // Office Administration (program or shorthand)
+  if (
+    u.includes('BSOA') ||
+    (u.includes('OFFICE') && (u.includes('ADMIN') || u.includes('ADMINISTRATION')))
+  ) {
+    return 'OA';
+  }
+
+  if (u.includes('COMPUTER SCIENCE') || u === 'BSCS' || (u.includes('COMPUTER') && u.includes('SCIENCE'))) {
+    return 'CS';
+  }
+
+  // Unknown program — avoid defaulting to CS (was confusing vs OA/VTED)
+  return 'XX';
+}
+
+export function generateStudentUsername(courseName: string, number: number): string {
+  const courseCode = resolveStudentCourseCode(courseName);
+  return `STUD-${courseCode}-${number.toString().padStart(4, '0')}`;
+}
+
+export function generateTempPassword(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  let password = '';
+  for (let i = 0; i < 8; i++) {
+    password += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return password;
+}
+
+export function isPassing(grade: number): boolean {
+  return grade >= 75;
+}
+
+export function calculateGWA(grades: { grade: number }[]): number {
+  if (grades.length === 0) return 0;
+  const total = grades.reduce((sum, g) => sum + g.grade, 0);
+  return Math.round((total / grades.length) * 100) / 100;
+}
+
+export function getGradeRemarks(grade: number): string {
+  if (grade >= 98) return 'Excellent';
+  if (grade >= 95) return 'Very Good';
+  if (grade >= 90) return 'Superior';
+  if (grade >= 85) return 'Very Satisfactory';
+  if (grade >= 80) return 'Satisfactory';
+  if (grade >= 75) return 'Passing';
+  if (grade >= 70) return 'Conditional';
+  return 'Failed';
+}

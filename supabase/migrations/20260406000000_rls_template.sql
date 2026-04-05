@@ -1,0 +1,9 @@
+-- Template: enable Row Level Security after linking public.users.id to auth.users.id.
+-- Apply in the Supabase SQL editor or via `supabase db push` once your schema matches.
+--
+-- Example policy: users read only their own profile row
+-- CREATE POLICY "users_select_own" ON public.users
+--   FOR SELECT TO authenticated
+--   USING (auth.uid() = id);
+--
+-- Use Supabase client .from().select() etc. (parameterized) from the app; avoid raw concatenated SQL.

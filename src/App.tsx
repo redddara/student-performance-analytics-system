@@ -1,77 +1,286 @@
-import React, { Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { useAuthStore } from './store';
+import { supabase } from './lib/supabase';
+import { fetchUserProfileByAuthId, fetchUserProfileByEmail } from './lib/authProfile';
+import {
+  clearActivityMarkers,
+  clearUserProfileEverywhere,
+  consumeVoluntaryLogoutFlag,
+  readLastActivity,
+  readUserProfileJson,
+  touchLastActivity,
+} from './lib/profileStorage';
+import {
+  INACTIVITY_MS,
+  SAPAS_TAB_SYNC_KEY,
+  SAPAS_USER_KEY,
+} from './lib/sessionConstants';
+import type { TabSyncPayload } from './lib/sessionConstants';
+import type { User } from './types';
 
 // Auth Pages
-const LoginPage = React.lazy(() => import('./pages/auth').then(module => ({ default: module.LoginPage })));
-const RegisterPage = React.lazy(() => import('./pages/auth').then(module => ({ default: module.RegisterPage })));
+import LoginPage from './pages/auth/Login';
+import ChangePasswordPage from './pages/auth/ChangePassword';
 
 // Admin Pages
-const AdminDashboard = React.lazy(() => import('./pages/admin/Dashboard'));
-const AdminUsers = React.lazy(() => import('./pages/admin/Users'));
-const AdminCourses = React.lazy(() => import('./pages/admin/Courses'));
-const AdminSubjects = React.lazy(() => import('./pages/admin/Subjects'));
-const AdminAnalytics = React.lazy(() => import('./pages/admin/Analytics'));
-const AdminEnrollment = React.lazy(() => import('./pages/admin/Enrollment'));
+import AdminDashboard from './pages/admin/Dashboard';
+import AdminUsersPage from './pages/admin/Users';
+import AdminCoursesPage from './pages/admin/Courses';
+import AdminSubjectsPage from './pages/admin/Subjects';
+import AdminAnalyticsPage from './pages/admin/Analytics';
 
 // Teacher Pages
-const TeacherDashboard = React.lazy(() => import('./pages/teacher/Dashboard'));
-const TeacherSubjects = React.lazy(() => import('./pages/teacher/MySubjects'));
-const TeacherGrades = React.lazy(() => import('./pages/teacher/Grades'));
-const TeacherAnalytics = React.lazy(() => import('./pages/teacher/Analytics'));
+import TeacherDashboard from './pages/teacher/Dashboard';
+import TeacherSubjectsPage from './pages/teacher/Subjects';
+import TeacherGradesPage from './pages/teacher/Grades';
+import TeacherStudentsPage from './pages/teacher/Students';
+import TeacherAnalyticsPage from './pages/teacher/Analytics';
+import TeacherUploadPage from './pages/teacher/Upload';
 
 // Student Pages
-const StudentDashboard = React.lazy(() => import('./pages/student/Dashboard'));
-const StudentSubjects = React.lazy(() => import('./pages/student/Subjects'));
-const StudentGrades = React.lazy(() => import('./pages/student/Grades'));
-const StudentAnalytics = React.lazy(() => import('./pages/student/Analytics'));
+import StudentDashboard from './pages/student/Dashboard';
+import StudentSubjectsPage from './pages/student/Subjects';
+import StudentGradesPage from './pages/student/Grades';
+import StudentAnalyticsPage from './pages/student/Analytics';
 
-// Layouts
-import { AuthLayout } from './components/layouts';
-
-function App() {
+function LoadingScreen() {
   return (
-    <BrowserRouter>
-      <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading...</div>}>
-        <Routes>
-          {/* Auth Routes */}
-          <Route path="/auth/login" element={
-            <AuthLayout>
-              <LoginPage />
-            </AuthLayout>
-          } />
-          <Route path="/auth/register" element={
-            <AuthLayout>
-              <RegisterPage />
-            </AuthLayout>
-          } />
-
-          {/* Admin Routes */}
-          <Route path="/admin" element={<AdminDashboard />} />
-          <Route path="/admin/users" element={<AdminUsers />} />
-          <Route path="/admin/courses" element={<AdminCourses />} />
-          <Route path="/admin/subjects" element={<AdminSubjects />} />
-          <Route path="/admin/enrollment" element={<AdminEnrollment />} />
-          <Route path="/admin/analytics" element={<AdminAnalytics />} />
-
-          {/* Teacher Routes */}
-          <Route path="/teacher" element={<TeacherDashboard />} />
-          <Route path="/teacher/my-subjects" element={<TeacherSubjects />} />
-          <Route path="/teacher/grades" element={<TeacherGrades />} />
-          <Route path="/teacher/analytics" element={<TeacherAnalytics />} />
-
-          {/* Student Routes */}
-          <Route path="/student" element={<StudentDashboard />} />
-          <Route path="/student/subjects" element={<StudentSubjects />} />
-          <Route path="/student/grades" element={<StudentGrades />} />
-          <Route path="/student/analytics" element={<StudentAnalytics />} />
-
-          {/* Default Redirect */}
-          <Route path="/" element={<Navigate to="/auth/login" replace />} />
-          <Route path="*" element={<Navigate to="/auth/login" replace />} />
-        </Routes>
-      </Suspense>
-    </BrowserRouter>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#f5f5f5] via-[#e8e8e8] to-[#d4d4d4]">
+      <div className="text-center">
+        <div className="w-16 h-16 mx-auto mb-4 rounded-full border-4 border-[#800000]/30 border-t-[#800000] animate-spin" />
+        <p className="text-gray-600">Loading...</p>
+      </div>
+    </div>
   );
 }
 
-export default App;
+function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: string[] }) {
+  const { user, isLoading } = useAuthStore();
+
+  if (isLoading) return <LoadingScreen />;
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
+    if (user.role === 'admin') return <Navigate to="/admin/dashboard" replace />;
+    if (user.role === 'teacher') return <Navigate to="/teacher/dashboard" replace />;
+    if (user.role === 'student') return <Navigate to="/student/dashboard" replace />;
+    return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
+}
+
+function AppInitializer({ children }: { children: React.ReactNode }) {
+  const navigate = useNavigate();
+  const { setUser, setLoading, logout } = useAuthStore();
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function hydrate() {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (cancelled) return;
+
+        if (session?.user) {
+          let profile = await fetchUserProfileByAuthId(session.user.id);
+          if (!profile && session.user.email) {
+            profile = await fetchUserProfileByEmail(session.user.email);
+          }
+          if (profile) {
+            setUser(profile);
+            touchLastActivity();
+          } else {
+            await supabase.auth.signOut();
+          }
+        } else {
+          const raw = readUserProfileJson();
+          if (raw) {
+            try {
+              const parsed = JSON.parse(raw) as User;
+              setUser({ ...parsed, password_hash: parsed.password_hash ?? '' });
+              touchLastActivity();
+            } catch {
+              clearUserProfileEverywhere();
+            }
+          }
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void hydrate();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (cancelled || event === 'INITIAL_SESSION') return;
+
+      if (event === 'SIGNED_OUT') {
+        clearUserProfileEverywhere();
+        clearActivityMarkers();
+        useAuthStore.setState({ user: null });
+        const path = window.location.pathname;
+        if (path === '/login' || path === '/change-password') return;
+        if (consumeVoluntaryLogoutFlag()) return;
+        navigate('/login', { replace: true, state: { sessionExpired: true, reason: 'auth' } });
+        return;
+      }
+
+      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
+        touchLastActivity();
+        if (event === 'SIGNED_IN') {
+          let profile = await fetchUserProfileByAuthId(session.user.id);
+          if (!profile && session.user.email) {
+            profile = await fetchUserProfileByEmail(session.user.email);
+          }
+          if (profile) {
+            setUser(profile);
+          }
+        }
+      }
+    });
+
+    const onStorage = (e: StorageEvent) => {
+      if (e.storageArea !== localStorage && e.storageArea !== sessionStorage) return;
+
+      if (e.key === SAPAS_TAB_SYNC_KEY && e.newValue) {
+        try {
+          const p = JSON.parse(e.newValue) as TabSyncPayload;
+          if (p.type === 'logout') {
+            void supabase.auth.signOut();
+            clearUserProfileEverywhere();
+            clearActivityMarkers();
+            useAuthStore.setState({ user: null });
+            const path = window.location.pathname;
+            if (path !== '/login' && path !== '/change-password') {
+              window.location.assign(`${window.location.origin}/login`);
+            }
+          }
+        } catch {
+          /* ignore */
+        }
+        return;
+      }
+
+      if (e.key === SAPAS_USER_KEY && e.newValue === null) {
+        void supabase.auth.signOut();
+        clearActivityMarkers();
+        useAuthStore.setState({ user: null });
+        const path = window.location.pathname;
+        if (path !== '/login' && path !== '/change-password') {
+          window.location.assign(`${window.location.origin}/login`);
+        }
+      }
+    };
+
+    window.addEventListener('storage', onStorage);
+
+    const checkInactivity = () => {
+      const path = window.location.pathname;
+      if (path === '/login' || path === '/change-password') return;
+      const u = useAuthStore.getState().user;
+      if (!u) return;
+      const last = readLastActivity();
+      if (Date.now() - last > INACTIVITY_MS) {
+        void (async () => {
+          await logout({ voluntary: true });
+          clearActivityMarkers();
+          navigate('/login', { replace: true, state: { sessionExpired: true, reason: 'inactivity' } });
+        })();
+      }
+    };
+
+    const interval = window.setInterval(checkInactivity, 60_000);
+
+    const bumpActivity = () => {
+      if (useAuthStore.getState().user) touchLastActivity();
+    };
+    window.addEventListener('mousedown', bumpActivity);
+    window.addEventListener('keydown', bumpActivity);
+    window.addEventListener('scroll', bumpActivity, { passive: true });
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('mousedown', bumpActivity);
+      window.removeEventListener('keydown', bumpActivity);
+      window.removeEventListener('scroll', bumpActivity);
+      window.clearInterval(interval);
+    };
+  }, [navigate, setUser, setLoading, logout]);
+
+  return <>{children}</>;
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AppInitializer>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/change-password" element={<ChangePasswordPage />} />
+
+          <Route
+            path="/admin/*"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <Routes>
+                  <Route path="dashboard" element={<AdminDashboard />} />
+                  <Route path="users" element={<AdminUsersPage />} />
+                  <Route path="courses" element={<AdminCoursesPage />} />
+                  <Route path="subjects" element={<AdminSubjectsPage />} />
+                  <Route path="analytics" element={<AdminAnalyticsPage />} />
+                  <Route path="*" element={<Navigate to="dashboard" replace />} />
+                </Routes>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/teacher/*"
+            element={
+              <ProtectedRoute allowedRoles={['teacher']}>
+                <Routes>
+                  <Route path="dashboard" element={<TeacherDashboard />} />
+                  <Route path="subjects" element={<TeacherSubjectsPage />} />
+                  <Route path="grades" element={<TeacherGradesPage />} />
+                  <Route path="students" element={<TeacherStudentsPage />} />
+                  <Route path="analytics" element={<TeacherAnalyticsPage />} />
+                  <Route path="upload" element={<TeacherUploadPage />} />
+                  <Route path="*" element={<Navigate to="dashboard" replace />} />
+                </Routes>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/student/*"
+            element={
+              <ProtectedRoute allowedRoles={['student']}>
+                <Routes>
+                  <Route path="dashboard" element={<StudentDashboard />} />
+                  <Route path="subjects" element={<StudentSubjectsPage />} />
+                  <Route path="grades" element={<StudentGradesPage />} />
+                  <Route path="analytics" element={<StudentAnalyticsPage />} />
+                  <Route path="*" element={<Navigate to="dashboard" replace />} />
+                </Routes>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </AppInitializer>
+    </BrowserRouter>
+  );
+}

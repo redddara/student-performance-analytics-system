@@ -1,587 +1,944 @@
-import React, { useState, useEffect } from 'react';
-import { useStore } from '../../store';
-import { DashboardLayout } from '../../components/layouts';
-import { Card, Button, Input, Select, Modal, Table, Badge } from '../../components/ui';
-import { 
-  Users, 
-  Plus, 
+import { useState, useEffect, useMemo } from 'react';
+import {
+  ListFilter,
+  LockOpen,
+  Pencil,
+  Plus,
+  RefreshCw,
   Search,
-  UserPlus,
   Trash2,
-  Edit,
-  X,
-  Mail,
-  Shield,
-  BookOpen,
-  GraduationCap,
-  UserCog
+  UserPlus,
+  XCircle,
+  CheckCircle2,
 } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
+import { DashboardLayout } from '../../components/layouts/DashboardLayout';
+import { PageIntro } from '../../components/layouts/PageIntro';
+import {
+  GlassCard,
+  Button,
+  Input,
+  Table,
+  Modal,
+  Spinner,
+  Badge,
+  Select,
+  ConfirmModal,
+  MessageModal,
+  type AppMessagePayload,
+} from '../../components/ui';
+import { supabase, hashPassword, generateTempPassword, generateStudentUsername } from '../../lib/supabase';
+import { sendEmail, generateStudentCredentialEmail, generatePasswordResetEmail } from '../../api/email';
+import {
+  DEFAULT_SCHOOL_SECTION,
+  SCHOOL_SECTION_SELECT_OPTIONS,
+  normalizeSchoolSection,
+  sectionFromUserRecord,
+} from '../../constants/schoolSections';
+import { isLoginLocked } from '../../lib/loginLock';
 
-const GRADE_LEVELS = [
-  { value: '1st-Year', label: '1st-Year' },
-  { value: '2nd-Year', label: '2nd-Year' },
-  { value: '3rd-Year', label: '3rd-Year' },
-  { value: '4th-Year', label: '4th-Year' },
-];
-
-const SECTIONS = [
-  { value: '1m1', label: '1m1 - 1st Year Morning Section 1' },
-  { value: '1m2', label: '1m2 - 1st Year Morning Section 2' },
-  { value: '1n1', label: '1n1 - 1st Year Afternoon Section 1' },
-  { value: '1n2', label: '1n2 - 1st Year Afternoon Section 2' },
-  { value: '2m1', label: '2m1 - 2nd Year Morning Section 1' },
-  { value: '2m2', label: '2m2 - 2nd Year Morning Section 2' },
-  { value: '2n1', label: '2n1 - 2nd Year Afternoon Section 1' },
-  { value: '2n2', label: '2n2 - 2nd Year Afternoon Section 2' },
-  { value: '3m1', label: '3m1 - 3rd Year Morning Section 1' },
-  { value: '3m2', label: '3m2 - 3rd Year Morning Section 2' },
-  { value: '3n1', label: '3n1 - 3rd Year Afternoon Section 1' },
-  { value: '3n2', label: '3n2 - 3rd Year Afternoon Section 2' },
-  { value: '4m1', label: '4m1 - 4th Year Morning Section 1' },
-  { value: '4m2', label: '4m2 - 4th Year Morning Section 2' },
-  { value: '4n1', label: '4n1 - 4th Year Afternoon Section 1' },
-  { value: '4n2', label: '4n2 - 4th Year Afternoon Section 2' },
-];
-
-const AdminUsers: React.FC = () => {
-  const { courses, students, subjects } = useStore();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [roleFilter, setRoleFilter] = useState('all');
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
+export default function AdminUsersPage() {
+  // const { setStudents } = useDataStore();
   const [users, setUsers] = useState<any[]>([]);
-  const [studentsData, setStudentsData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createType, setCreateType] = useState<'student' | 'teacher' | 'admin'>('student');
+  const [courses, setCourses] = useState<any[]>([]);
 
-  // Form states
-  const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    name: '',
-    role: 'student',
-    firstName: '',
-    lastName: '',
-    gradeLevel: '1st-Year',
-    section: '1m1',
-    courseId: ''
-  });
+  const [filterSearch, setFilterSearch] = useState('');
+  const [filterRole, setFilterRole] = useState('');
+  const [filterCourseId, setFilterCourseId] = useState('');
+  const [filterYearLevel, setFilterYearLevel] = useState('');
+  const [filterTempStatus, setFilterTempStatus] = useState('');
+  const [filterSection, setFilterSection] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
-  // Edit form
-  const [editData, setEditData] = useState({
-    name: '',
-    email: '',
-    role: 'student',
-    firstName: '',
-    lastName: '',
-    gradeLevel: '1st-Year',
-    section: '1m1',
-    courseId: ''
-  });
+  // Confirmation modal states
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    type: 'delete' | 'reset' | null;
+    userId: string | null;
+    userName: string | null;
+  }>({ isOpen: false, type: null, userId: null, userName: null });
+
+  const [appMessage, setAppMessage] = useState<AppMessagePayload | null>(null);
+  const showMessage = (payload: AppMessagePayload) => setAppMessage(payload);
 
   useEffect(() => {
-    fetchAllData();
+    loadData();
   }, []);
 
-  const fetchAllData = async () => {
+  const loadData = async () => {
     try {
-      // Fetch all users
-      const { data: usersData, error: usersError } = await supabase
-        .from('users')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (usersError) {
-        console.error('Error fetching users:', usersError);
-      }
-
-      // Fetch all students with their user data
-      const { data: studentsDataResult, error: studentsError } = await supabase
-        .from('students')
-        .select('*, user:users(*)')
-        .order('last_name');
-
-      if (studentsError) {
-        console.error('Error fetching students:', studentsError);
-      }
-
-      console.log('Users:', usersData);
-      console.log('Students:', studentsDataResult);
-
-      setUsers(usersData || []);
-      setStudentsData(studentsDataResult || []);
-    } catch (err) {
-      console.error('Error fetching data:', err);
-    }
-  };
-
-  // Merge users with student data
-  const getFullUserData = (user: any) => {
-    const student = studentsData.find(s => s.user_id === user.id);
-    return { ...user, student };
-  };
-
-  const handleCreateUser = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email: formData.email,
-        password: formData.password,
-        options: { data: { name: formData.name, role: formData.role } }
-      });
-
-      if (error) throw error;
-
-      if (data.user) {
-        await supabase.from('users').insert({
-          id: data.user.id,
-          email: formData.email,
-          name: formData.name,
-          role: formData.role,
-          password_hash: 'managed_by_auth'
-        });
-
-        if (formData.role === 'student') {
-          await supabase.from('students').insert({
-            user_id: data.user.id,
-            first_name: formData.firstName,
-            last_name: formData.lastName,
-            grade_level: formData.gradeLevel,
-            section: formData.section,
-            course_id: formData.courseId || null
-          });
-        }
-
-        await fetchAllData();
-        setIsModalOpen(false);
-        resetForm();
-      }
-    } catch (err: any) {
-      alert(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleEditUser = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-
-    try {
-      // Update user record
-      await supabase.from('users').update({ 
-        name: editData.name,
-        role: editData.role 
-      }).eq('id', selectedUser.id);
-
-      // If student, update student record
-      const { data: studentData } = await supabase
-        .from('students')
-        .select('*')
-        .eq('user_id', selectedUser.id)
-        .single();
+      const [usersRes, coursesRes] = await Promise.all([
+        supabase.from('users').select('*').order('created_at', { ascending: false }),
+        supabase.from('courses').select('*'),
+      ]);
       
-      if (studentData) {
-        await supabase.from('students').update({
-          first_name: editData.firstName,
-          last_name: editData.lastName,
-          grade_level: editData.gradeLevel,
-          section: editData.section,
-          course_id: editData.courseId || null
-        }).eq('id', studentData.id);
-      } else if (editData.role === 'student') {
-        // Create student record if doesn't exist
-        await supabase.from('students').insert({
-          user_id: selectedUser.id,
-          first_name: editData.firstName,
-          last_name: editData.lastName,
-          grade_level: editData.gradeLevel,
-          section: editData.section,
-          course_id: editData.courseId || null
-        });
-      }
-
-      await fetchAllData();
-      setIsEditModalOpen(false);
-    } catch (err: any) {
-      alert(err.message);
+      setUsers(usersRes.data || []);
+      setCourses(coursesRes.data || []);
+    } catch (error) {
+      console.error('Error loading data:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const openEditModal = (user: any) => {
-    const fullUser = getFullUserData(user);
-    setSelectedUser(fullUser);
-    setEditData({
-      name: fullUser.name || '',
-      email: fullUser.email || '',
-      role: fullUser.role || 'student',
-      firstName: fullUser.student?.first_name || '',
-      lastName: fullUser.student?.last_name || '',
-      gradeLevel: fullUser.student?.grade_level || '1st-Year',
-      section: fullUser.student?.section || '1m1',
-      courseId: fullUser.student?.course_id || ''
+  const handleUnlockLogin = async (userId: string) => {
+    const { error } = await supabase
+      .from('users')
+      .update({ login_failed_attempts: 0, login_locked_until: null })
+      .eq('id', userId);
+    if (error) {
+      showMessage({
+        title: 'Could not unlock account',
+        message: error.message || 'Check your connection and try again.',
+        variant: 'error',
+      });
+      return;
+    }
+    showMessage({
+      title: 'Login unlocked',
+      message: 'This user can sign in again. Failed attempt count was reset.',
+      variant: 'success',
     });
-    setIsEditModalOpen(true);
+    loadData();
   };
 
-  const handleDeleteUser = async (userId: string) => {
-    if (!confirm('Are you sure you want to delete this user and all related data (student record if exists)? This action cannot be undone.')) return;
+  const handleResetPassword = async () => {
+    if (!confirmModal.userId) return;
+    
+    // Get user data first
+    const { data: user } = await supabase.from('users').select('*').eq('id', confirmModal.userId).single();
+    if (!user) return;
+    
+    const tempPassword = generateTempPassword();
+    const passwordHash = await hashPassword(tempPassword);
+    
+    await supabase
+      .from('users')
+      .update({ 
+        password_hash: passwordHash,
+        is_temp_password: true,
+        temp_password_visible: tempPassword 
+      })
+      .eq('id', confirmModal.userId);
 
+    let emailNote = user.email ? '' : 'No email on file for this user.';
+    if (user.email) {
+      const emailData = generatePasswordResetEmail(user.first_name || 'User', tempPassword);
+      const sent = await sendEmail(user.email, emailData.subject, emailData.html);
+      emailNote = sent.success
+        ? `Notification sent to ${user.email}.`
+        : `Email could not be sent (${sent.error ?? 'unknown error'}). Share the new password manually.`;
+    }
+
+    showMessage({
+      title: 'Password reset',
+      message: `Temporary password: ${tempPassword}\n\n${emailNote}`,
+      variant: 'success',
+    });
+  };
+
+  const handleDeleteUser = async () => {
+    if (!confirmModal.userId) return;
+    
     try {
-      // First, delete student record if exists
-      const { data: student } = await supabase
-        .from('students')
-        .select('id')
-        .eq('user_id', userId)
-        .single();
-
-      if (student) {
-        const { error: studentError } = await supabase
+      const { data: user } = await supabase.from('users').select('*').eq('id', confirmModal.userId).single();
+      
+      if (user?.role === 'student') {
+        // First get the student record
+        const { data: studentData } = await supabase
           .from('students')
-          .delete()
+          .select('id')
+          .eq('user_id', confirmModal.userId)
+          .single();
+        
+        if (studentData?.id) {
+          // Delete grades associated with the student
+          await supabase.from('grades').delete().eq('student_id', studentData.id);
+          // Delete student subject enrollments
+          await supabase.from('student_subjects').delete().eq('student_id', studentData.id);
+          // Delete the student record
+          await supabase.from('students').delete().eq('user_id', confirmModal.userId);
+        }
+      }
+      
+      // Also clean up any subjects where this user was assigned as teacher
+      await supabase.from('subjects').update({ teacher_id: null }).eq('teacher_id', confirmModal.userId);
+      
+      // Delete the user
+      await supabase.from('users').delete().eq('id', confirmModal.userId);
+      
+      showMessage({ title: 'User deleted', message: 'The user has been removed from the system.', variant: 'success' });
+      loadData();
+    } catch (err: any) {
+      showMessage({
+        title: 'Could not delete user',
+        message: err.message || 'Something went wrong. Try again.',
+        variant: 'error',
+      });
+    }
+  };
+
+  const openConfirmModal = (type: 'delete' | 'reset', userId: string, userName: string) => {
+    setConfirmModal({ isOpen: true, type, userId, userName });
+  };
+
+  const handleEditUser = async (userId: string, updatedData: any, role?: string) => {
+    try {
+      const payload: Record<string, unknown> = {
+        first_name: updatedData.first_name,
+        last_name: updatedData.last_name,
+        email: updatedData.email,
+        year_level: updatedData.year_level,
+        course_id: updatedData.course_id || null,
+      };
+      if (role === 'student') {
+        payload.section = updatedData.section;
+      }
+      await supabase.from('users').update(payload).eq('id', userId);
+
+      if (role === 'student') {
+        await supabase
+          .from('students')
+          .update({ section: updatedData.section })
           .eq('user_id', userId);
-        if (studentError) throw studentError;
       }
 
-      // Then delete user record
-      const { error: userError } = await supabase
-        .from('users')
-        .delete()
-        .eq('id', userId);
-      if (userError) throw userError;
-
-      // Refresh data
-      await fetchAllData();
-
-      alert('User deleted successfully.');
+      loadData();
+      showMessage({ title: 'Changes saved', message: 'User details were updated successfully.', variant: 'success' });
     } catch (err: any) {
-      console.error('Error deleting user:', err);
-      alert(`Error deleting user: ${err.message}`);
+      showMessage({
+        title: 'Could not save changes',
+        message: err.message || 'Something went wrong. Try again.',
+        variant: 'error',
+      });
     }
   };
 
-
-  const resetForm = () => {
-    setFormData({
-      email: '',
-      password: '',
-      name: '',
-      role: 'student',
-      firstName: '',
-      lastName: '',
-      gradeLevel: '1st-Year',
-      section: '1m1',
-      courseId: ''
+  const filteredUsers = useMemo(() => {
+    const q = filterSearch.trim().toLowerCase();
+    return users.filter((u) => {
+      const displayName = (u.name || `${u.first_name || ''} ${u.last_name || ''}`).trim().toLowerCase();
+      const email = String(u.email || '').toLowerCase();
+      const uname = String(u.username || '').toLowerCase();
+      if (q && !displayName.includes(q) && !email.includes(q) && !uname.includes(q)) return false;
+      if (filterRole && u.role !== filterRole) return false;
+      if (filterCourseId && u.course_id !== filterCourseId) return false;
+      if (filterYearLevel && (u.year_level || '') !== filterYearLevel) return false;
+      if (filterTempStatus === 'temp' && !u.is_temp_password) return false;
+      if (filterTempStatus === 'active' && u.is_temp_password) return false;
+      if (filterSection) {
+        if (u.role !== 'student') return false;
+        if (normalizeSchoolSection(u.section) !== filterSection) return false;
+      }
+      return true;
     });
+  }, [users, filterSearch, filterRole, filterCourseId, filterYearLevel, filterTempStatus, filterSection]);
+
+  const hasActiveFilters =
+    Boolean(filterSearch.trim()) ||
+    Boolean(filterRole) ||
+    Boolean(filterCourseId) ||
+    Boolean(filterYearLevel) ||
+    Boolean(filterTempStatus) ||
+    Boolean(filterSection);
+
+  const clearFilters = () => {
+    setFilterSearch('');
+    setFilterRole('');
+    setFilterCourseId('');
+    setFilterYearLevel('');
+    setFilterTempStatus('');
+    setFilterSection('');
   };
 
-  const filteredUsers = users.filter(user => {
-    const fullUser = getFullUserData(user);
-    const matchesSearch = 
-      fullUser.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      fullUser.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      fullUser.student?.first_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      fullUser.student?.last_name?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesRole = roleFilter === 'all' || fullUser.role === roleFilter;
-    return matchesSearch && matchesRole;
-  });
-
-  const getRoleBadge = (role: string) => {
-    switch (role) {
-      case 'admin':
-        return <Badge variant="danger">Admin</Badge>;
-      case 'teacher':
-        return <Badge variant="info">Teacher</Badge>;
-      default:
-        return <Badge variant="success">Student</Badge>;
-    }
-  };
-
-  const getCourseName = (courseId: string) => {
-    const course = courses.find(c => c.id === courseId);
-    return course?.name || 'N/A';
-  };
+  if (loading) {
+    return (
+      <DashboardLayout title="Users">
+        <div className="flex items-center justify-center h-64">
+          <Spinner size="lg" />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
-    <DashboardLayout>
-      <div className="space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-white">User Management</h1>
-            <p className="text-gray-400 mt-2">Manage all users - students, teachers, and admins</p>
-          </div>
-          <Button onClick={() => setIsModalOpen(true)}>
-            <Plus size={18} className="mr-2" />
-            Add User
-          </Button>
-        </div>
-
-        {/* Filters */}
-        <Card>
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1">
-              <Input
-                placeholder="Search by name or email..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                icon={<Search size={18} />}
-              />
-            </div>
-            <Select
-              value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value)}
-              options={[
-                { value: 'all', label: 'All Roles' },
-                { value: 'admin', label: 'Admins' },
-                { value: 'teacher', label: 'Teachers' },
-                { value: 'student', label: 'Students' },
-              ]}
-            />
-          </div>
-        </Card>
-
-        {/* Users Table */}
-        <Card>
-          <Table headers={['User', 'Email', 'Role', 'Details', 'Created', 'Actions']}>
-            {filteredUsers.map(user => {
-              const fullUser = getFullUserData(user);
-              return (
-                <tr key={user.id} className="hover:bg-white/5 transition-colors">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-maroon-600 to-gold-500 flex items-center justify-center text-white font-semibold">
-                        {user.name?.charAt(0) || 'U'}
-                      </div>
-                      <span className="text-white font-medium">{user.name}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-gray-300">{user.email}</td>
-                  <td className="px-4 py-3">{getRoleBadge(user.role)}</td>
-                  <td className="px-4 py-3 text-gray-300">
-                    {user.role === 'student' && fullUser.student ? (
-                      <div>
-                        <p>{fullUser.student.first_name} {fullUser.student.last_name}</p>
-                        <p className="text-xs text-gray-500">
-                          {fullUser.student.grade_level} - {fullUser.student.section}
-                        </p>
-                      </div>
-                    ) : user.role === 'teacher' ? (
-                      <span className="text-gray-400">Teacher Account</span>
-                    ) : (
-                      <span className="text-gray-400">Admin Account</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-gray-400">
-                    {new Date(user.created_at).toLocaleDateString()}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => openEditModal(fullUser)}
-                        className="p-2 rounded-lg text-gold-400 hover:bg-gold-500/10 transition-colors"
-                        title="Edit User"
-                      >
-                        <Edit size={18} />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteUser(user.id)}
-                        className="p-2 rounded-lg text-red-400 hover:bg-red-500/10 transition-colors"
-                        title="Delete User"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </Table>
-          {filteredUsers.length === 0 && (
-            <div className="text-center py-8 text-gray-400">
-              {users.length === 0 ? 'No users found. Create your first user!' : 'No users match your search criteria.'}
-            </div>
-          )}
-        </Card>
-
-        {/* Debug info */}
-        <div className="text-center text-gray-500 text-sm">
-          Total Users: {users.length} | Students: {studentsData.length}
+    <DashboardLayout title="User Management">
+      <PageIntro
+        title="Accounts directory"
+        subtitle="Search and filter students, teachers, and admins. Add users or reset passwords from here. Teachers can be created without linking a course."
+      />
+      <div className="mb-5 w-full max-w-2xl">
+        <label htmlFor="user-search" className="sr-only">
+          Search users
+        </label>
+        <div className="relative">
+          <span
+            className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-maroon-700/75"
+            aria-hidden
+          >
+            <Search className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+          </span>
+          <input
+            id="user-search"
+            type="search"
+            autoComplete="off"
+            placeholder="Search by name, email, or student ID…"
+            value={filterSearch}
+            onChange={(e) => setFilterSearch(e.target.value)}
+            className="w-full rounded-2xl border border-white/70 bg-white/55 py-3.5 pl-12 pr-4 text-base text-gray-900 shadow-[0_8px_32px_rgba(128,0,0,0.1),inset_0_1px_0_rgba(255,255,255,0.9)] backdrop-blur-xl placeholder:text-gray-500 focus:border-maroon-500 focus:outline-none focus:ring-2 focus:ring-maroon-500/35"
+          />
         </div>
       </div>
 
-      {/* Add User Modal */}
-      <Modal
-        isOpen={isModalOpen}
-        onClose={() => { setIsModalOpen(false); resetForm(); }}
-        title="Add New User"
-      >
-        <form onSubmit={handleCreateUser} className="space-y-3">
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <Button
+          variant="glass"
+          className="w-full sm:w-auto"
+          onClick={() => {
+            setCreateType('student');
+            setShowCreateModal(true);
+          }}
+        >
+          <UserPlus className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+          Add Student
+        </Button>
+        <Button
+          variant="glass"
+          className="w-full sm:w-auto"
+          onClick={() => {
+            setCreateType('teacher');
+            setShowCreateModal(true);
+          }}
+        >
+          <UserPlus className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+          Add Teacher
+        </Button>
+        <Button
+          variant="glass"
+          className="w-full sm:w-auto"
+          onClick={() => {
+            setCreateType('admin');
+            setShowCreateModal(true);
+          }}
+        >
+          <UserPlus className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+          Add Admin
+        </Button>
+        <button
+          type="button"
+          onClick={() => setFiltersOpen((o) => !o)}
+          className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-maroon-200 bg-white text-[#800000] shadow-sm transition-colors hover:bg-maroon-50 touch-manipulation"
+          aria-expanded={filtersOpen}
+          aria-label={filtersOpen ? 'Hide user filters' : 'Show user filters'}
+          title="Filters"
+        >
+          <ListFilter className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+          {hasActiveFilters && (
+            <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-[#d4af37] ring-2 ring-white" aria-hidden />
+          )}
+        </button>
+        {!filtersOpen && (
+          <span className="text-sm text-gray-600">
+            Showing <span className="font-semibold text-[#800000]">{filteredUsers.length}</span>
+            {' / '}
+            {users.length} user{users.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
 
-          <Input
-            label="Full Name"
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            required
-          />
-          <Input
-            label="Email"
-            type="email"
-            value={formData.email}
-            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-            required
-          />
-          <Input
-            label="Password"
-            type="password"
-            value={formData.password}
-            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-            required
-          />
-          <Select
-            label="Role"
-            value={formData.role}
-            onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-            options={[
-              { value: 'student', label: 'Student' },
-              { value: 'teacher', label: 'Teacher' },
-              { value: 'admin', label: 'Admin' },
-            ]}
-          />
-          
-          {formData.role === 'student' && (
-            <>
-              <div className="grid grid-cols-2 gap-4">
-                <Input
-                  label="First Name"
-                  value={formData.firstName}
-                  onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                  required
-                />
-                <Input
-                  label="Last Name"
-                  value={formData.lastName}
-                  onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                  required
-                />
-              </div>
-              <Select
-                label="Year Level"
-                value={formData.gradeLevel}
-                onChange={(e) => setFormData({ ...formData, gradeLevel: e.target.value })}
-                options={GRADE_LEVELS}
-              />
+      {filtersOpen && (
+        <div className="mb-6 overflow-hidden rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6 animate-fade-in">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-lg font-semibold text-[#800000]">Filter users</h2>
+            {hasActiveFilters && (
+              <Button type="button" variant="secondary" className="w-full shrink-0 sm:w-auto" onClick={clearFilters}>
+                <RefreshCw className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+                Clear filters
+              </Button>
+            )}
+          </div>
+          <p className="mb-4 text-sm text-gray-600">
+            Use the search bar above to filter by name, email, or student ID. Choosing a section shows only
+            students in that section (teachers and admins are hidden while a section is selected).
+          </p>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <Select
+              label="Role"
+              value={filterRole}
+              onChange={(e) => setFilterRole(e.target.value)}
+              options={[
+                { value: '', label: 'All roles' },
+                { value: 'admin', label: 'Admin' },
+                { value: 'teacher', label: 'Teacher' },
+                { value: 'student', label: 'Student' },
+              ]}
+            />
+            <Select
+              label="Course"
+              value={filterCourseId}
+              onChange={(e) => setFilterCourseId(e.target.value)}
+              options={[{ value: '', label: 'All courses' }, ...courses.map((c) => ({ value: c.id, label: c.name }))]}
+            />
+            <Select
+              label="Year level"
+              value={filterYearLevel}
+              onChange={(e) => setFilterYearLevel(e.target.value)}
+              options={[
+                { value: '', label: 'All years' },
+                { value: '1st', label: '1st Year' },
+                { value: '2nd', label: '2nd Year' },
+                { value: '3rd', label: '3rd Year' },
+                { value: '4th', label: '4th Year' },
+              ]}
+            />
+            <Select
+              label="Section (students)"
+              value={filterSection}
+              onChange={(e) => setFilterSection(e.target.value)}
+              options={[{ value: '', label: 'All sections' }, ...SCHOOL_SECTION_SELECT_OPTIONS]}
+            />
+            <Select
+              label="Password status"
+              value={filterTempStatus}
+              onChange={(e) => setFilterTempStatus(e.target.value)}
+              options={[
+                { value: '', label: 'All' },
+                { value: 'temp', label: 'Temporary password' },
+                { value: 'active', label: 'Active (password changed)' },
+              ]}
+            />
+          </div>
+          <p className="mt-4 text-sm text-gray-600">
+            Showing <span className="font-semibold text-[#800000]">{filteredUsers.length}</span> of {users.length} user
+            {users.length !== 1 ? 's' : ''}
+          </p>
+        </div>
+      )}
+
+      <GlassCard className="p-4 sm:p-6">
+        <h2 className="text-xl font-semibold text-[#800000] mb-4">All Users</h2>
+        <Table headers={['Name', 'Username', 'Role', 'Email', 'Status', 'Actions']}>
+          {filteredUsers.map((user) => (
+            <tr key={user.id} className="hover:bg-white/20 transition-colors">
+              <td className="px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#800000] to-[#d4af37] flex items-center justify-center text-white text-sm font-bold">
+                    {user.name?.[0] || user.first_name?.[0] || 'U'}
+                  </div>
+                  <span className="font-medium text-gray-800">
+                    {user.name || `${user.first_name || ''} ${user.last_name || ''}`.trim()}
+                  </span>
+                </div>
+              </td>
+              <td className="px-4 py-3 text-gray-600">{user.username || '-'}</td>
+              <td className="px-4 py-3">
+                <Badge variant={user.role === 'admin' ? 'danger' : user.role === 'teacher' ? 'warning' : 'success'}>
+                  {user.role}
+                </Badge>
+              </td>
+              <td className="px-4 py-3 text-gray-600">{user.email}</td>
+              <td className="px-4 py-3">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {user.is_temp_password && <Badge variant="warning">Temp</Badge>}
+                  {isLoginLocked(user) && <Badge variant="danger">Login locked</Badge>}
+                  {!user.is_temp_password && !isLoginLocked(user) && (
+                    <span className="text-xs text-gray-500">—</span>
+                  )}
+                </div>
+              </td>
+              <td className="px-4 py-3">
+                <div className="flex flex-wrap gap-2">
+                  {isLoginLocked(user) && (
+                    <button
+                      type="button"
+                      className="p-2 rounded-lg glass-hover text-green-700"
+                      onClick={() => handleUnlockLogin(user.id)}
+                      title="Unlock login (clear lockout)"
+                      aria-label={`Unlock login for ${user.name || user.first_name || 'user'}`}
+                    >
+                      <LockOpen className="h-[1.15rem] w-[1.15rem] shrink-0" strokeWidth={2} aria-hidden />
+                    </button>
+                  )}
+                  <button 
+                    type="button"
+                    className="p-2 rounded-lg glass-hover text-[#800000]" 
+                    onClick={() => openConfirmModal('reset', user.id, user.name || `${user.first_name} ${user.last_name}`)}
+                    title="Reset Password"
+                  >
+                    <RefreshCw className="h-[1.15rem] w-[1.15rem] shrink-0" strokeWidth={2} aria-hidden />
+                  </button>
+                  <EditUserModal user={user} courses={courses} onSave={handleEditUser} />
+                  <button 
+                    type="button"
+                    className="p-2 rounded-lg glass-hover text-red-600" 
+                    onClick={() => openConfirmModal('delete', user.id, user.name || `${user.first_name} ${user.last_name}`)}
+                    title="Delete User"
+                  >
+                    <Trash2 className="h-[1.15rem] w-[1.15rem] shrink-0" strokeWidth={2} aria-hidden />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </Table>
+        {users.length === 0 && <p className="text-center text-gray-500 py-8">No users found</p>}
+        {users.length > 0 && filteredUsers.length === 0 && (
+          <p className="text-center text-gray-500 py-8">No users match your filters. Try adjusting or clear filters.</p>
+        )}
+      </GlassCard>
+
+      <CreateUserModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        type={createType}
+        courses={courses}
+        onSuccess={loadData}
+        onFeedback={showMessage}
+      />
+
+      {appMessage && (
+        <MessageModal
+          isOpen
+          onClose={() => setAppMessage(null)}
+          title={appMessage.title}
+          message={appMessage.message}
+          variant={appMessage.variant}
+        />
+      )}
+
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ isOpen: false, type: null, userId: null, userName: null })}
+        onConfirm={() => {
+          if (confirmModal.type === 'reset') handleResetPassword();
+          else if (confirmModal.type === 'delete') handleDeleteUser();
+        }}
+        title={confirmModal.type === 'reset' ? 'Reset Password' : 'Delete User'}
+        message={confirmModal.type === 'reset' 
+          ? `Are you sure you want to reset the password for ${confirmModal.userName}?`
+          : `Are you sure you want to delete ${confirmModal.userName}? This action cannot be undone.`
+        }
+        confirmText={confirmModal.type === 'reset' ? 'Reset' : 'Delete'}
+        variant={confirmModal.type === 'reset' ? 'warning' : 'danger'}
+      />
+    </DashboardLayout>
+  );
+}
+
+interface CreateUserModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  type: 'student' | 'teacher' | 'admin';
+  courses: any[];
+  onSuccess: () => void;
+  onFeedback: (payload: AppMessagePayload) => void;
+}
+
+function CreateUserModal({ isOpen, onClose, type, courses, onSuccess, onFeedback }: CreateUserModalProps) {
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    first_name: '',
+    last_name: '',
+    email: '',
+    course_id: '',
+    grade_level: '1st',
+    section: DEFAULT_SCHOOL_SECTION,
+    semester: '1st Sem',
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const course = courses.find(c => c.id === formData.course_id);
+      const tempPassword = generateTempPassword();
+      const passwordHash = await hashPassword(tempPassword);
+
+      let username: string | null = null;
+
+      if (type === 'student') {
+        if (!formData.course_id?.trim()) {
+          onFeedback({
+            title: 'Course required',
+            message:
+              'Select a course so the correct student ID prefix can be assigned (e.g. STUD-OA-, STUD-VTED-, STUD-CS-).',
+            variant: 'warning',
+          });
+          setLoading(false);
+          return;
+        }
+
+        let courseName = course?.name?.trim();
+        if (!courseName) {
+          const { data: courseRow } = await supabase
+            .from('courses')
+            .select('name')
+            .eq('id', formData.course_id)
+            .maybeSingle();
+          courseName = courseRow?.name?.trim();
+        }
+        if (!courseName) {
+          onFeedback({
+            title: 'Course not found',
+            message: 'Could not load the selected course. Choose a course again, then create the student.',
+            variant: 'error',
+          });
+          setLoading(false);
+          return;
+        }
+
+        const { data: existingUsers } = await supabase
+          .from('users')
+          .select('username')
+          .like('username', 'STUD-%')
+          .order('username', { ascending: false })
+          .limit(1);
+
+        let nextNumber = 1001;
+        if (existingUsers && existingUsers.length > 0) {
+          const lastNum = parseInt(existingUsers[0].username?.split('-')[2] || '1000');
+          nextNumber = lastNum + 1;
+        }
+
+        username = generateStudentUsername(courseName, nextNumber);
+      }
+
+      if (formData.email?.trim()) {
+        const { data: existingEmail } = await supabase
+          .from('users')
+          .select('id')
+          .eq('email', formData.email.trim())
+          .maybeSingle();
+
+        if (existingEmail?.id) {
+          onFeedback({
+            title: 'Email already in use',
+            message: 'A user with this email already exists. Use a different email or edit the existing user.',
+            variant: 'warning',
+          });
+          setLoading(false);
+          return;
+        }
+      }
+
+      if (username) {
+        const { data: existingUsername } = await supabase
+          .from('users')
+          .select('id')
+          .eq('username', username)
+          .maybeSingle();
+
+        if (existingUsername?.id) {
+          onFeedback({
+            title: 'Student ID in use',
+            message: 'This student ID is already in use. Try again or contact support.',
+            variant: 'error',
+          });
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Create the user
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .insert({
+          email: formData.email,
+          password_hash: passwordHash,
+          role: type,
+          username,
+          is_temp_password: true,
+          temp_password_visible: tempPassword,
+          first_name: formData.first_name,
+          last_name: formData.last_name,
+          course_id: type === 'admin' ? null : formData.course_id || null,
+          year_level: type === 'student' ? formData.grade_level : null,
+          section: type === 'student' ? formData.section : null,
+        })
+        .select()
+        .single();
+
+      if (userError) {
+        // If error is about duplicate, try to handle it
+        if (userError.message?.includes('duplicate') || userError.code === '23505') {
+          onFeedback({
+            title: 'Duplicate email',
+            message: 'A user with this email already exists. Please use a different email.',
+            variant: 'error',
+          });
+          setLoading(false);
+          return;
+        }
+        throw userError;
+      }
+
+      // If creating a student, also create student record
+      if (type === 'student' && userData?.id) {
+        // Check if student record already exists
+        const { data: existingStudent } = await supabase
+          .from('students')
+          .select('id')
+          .eq('user_id', userData.id)
+          .limit(1);
+
+        if (!existingStudent || existingStudent.length === 0) {
+          const { data: studentData, error: studentError } = await supabase
+            .from('students')
+            .insert({
+              first_name: formData.first_name,
+              last_name: formData.last_name,
+              grade_level: formData.grade_level,
+              section: formData.section,
+              course_id: formData.course_id,
+              user_id: userData.id,
+            })
+            .select()
+            .single();
+
+          if (studentError && !studentError.message?.includes('duplicate')) {
+            console.error('Student creation error:', studentError);
+          }
+
+          // Auto-enroll student in subjects for their year level and course
+          if (studentData?.id) {
+            const { data: matchingSubjects } = await supabase
+              .from('subjects')
+              .select('*')
+              .eq('course_id', formData.course_id)
+              .eq('year_level', formData.grade_level)
+              .eq('semester', formData.semester);
+
+            if (matchingSubjects && matchingSubjects.length > 0) {
+              const enrollments = matchingSubjects.map(sub => ({
+                student_id: studentData.id,
+                subject_id: sub.id,
+              }));
+              await supabase.from('student_subjects').insert(enrollments);
+            }
+          }
+        }
+      }
+
+      let emailNote = formData.email
+        ? ''
+        : 'No email on file; share credentials manually.';
+      if (formData.email) {
+        const credentialRole =
+          type === 'admin' ? 'admin' : type === 'teacher' ? 'teacher' : 'student';
+        const emailData = generateStudentCredentialEmail(
+          formData.first_name,
+          username || formData.email,
+          tempPassword,
+          credentialRole
+        );
+        const sent = await sendEmail(formData.email, emailData.subject, emailData.html);
+        emailNote = sent.success
+          ? `Credentials sent to ${formData.email}.`
+          : `Email could not be sent (${sent.error ?? 'unknown error'}). Share credentials manually.`;
+      }
+
+      const loginLine =
+        type === 'student'
+          ? `Student ID: ${username}`
+          : `Login email: ${formData.email}`;
+
+      onFeedback({
+        title: 'User created',
+        message: `${loginLine}\nTemporary password: ${tempPassword}\n\n${emailNote}`,
+        variant: 'success',
+      });
+      onSuccess();
+      onClose();
+      setFormData({
+        first_name: '',
+        last_name: '',
+        email: '',
+        course_id: '',
+        grade_level: '1st',
+        section: DEFAULT_SCHOOL_SECTION,
+        semester: '1st Sem',
+      });
+    } catch (err: any) {
+      console.error('Create user error:', err);
+      onFeedback({
+        title: 'Could not create user',
+        message: err.message || 'Something went wrong. Try again.',
+        variant: 'error',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={`Create ${type === 'student' ? 'Student' : type === 'teacher' ? 'Teacher' : 'Admin'}`} size="md">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <Input label="First Name" value={formData.first_name} onChange={e => setFormData({ ...formData, first_name: e.target.value })} required />
+        <Input label="Last Name" value={formData.last_name} onChange={e => setFormData({ ...formData, last_name: e.target.value })} required />
+        <Input label="Email" type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} required />
+        
+        {type === 'student' && (
+          <>
+            <Select label="Course" value={formData.course_id} onChange={e => setFormData({ ...formData, course_id: e.target.value })} options={courses.map(c => ({ value: c.id, label: c.name }))} required />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <Select label="Year Level" value={formData.grade_level} onChange={e => setFormData({ ...formData, grade_level: e.target.value })} options={[{ value: '1st', label: '1st Year' }, { value: '2nd', label: '2nd Year' }, { value: '3rd', label: '3rd Year' }, { value: '4th', label: '4th Year' }]} />
               <Select
                 label="Section"
                 value={formData.section}
-                onChange={(e) => setFormData({ ...formData, section: e.target.value })}
-                options={SECTIONS}
+                onChange={e => setFormData({ ...formData, section: e.target.value })}
+                options={SCHOOL_SECTION_SELECT_OPTIONS}
+                required
               />
-              <Select
-                label="Course"
-                value={formData.courseId}
-                onChange={(e) => setFormData({ ...formData, courseId: e.target.value })}
-                options={[
-                  { value: '', label: 'Select Course' },
-                  ...courses.map(c => ({ value: c.id, label: c.name }))
-                ]}
-              />
-            </>
-          )}
-
-          <div className="flex gap-3 pt-4">
-            <Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)} className="flex-1">
-              Cancel
-            </Button>
-            <Button type="submit" disabled={loading} className="flex-1">
-              {loading ? 'Creating...' : 'Create User'}
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Edit User Modal */}
-      <Modal
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        title="Edit User Information"
-      >
-        <form onSubmit={handleEditUser} className="space-y-3">
-
-          <Input
-            label="Full Name"
-            value={editData.name}
-            onChange={(e) => setEditData({ ...editData, name: e.target.value })}
-            required
-          />
-          
+              <Select label="Semester" value={formData.semester} onChange={e => setFormData({ ...formData, semester: e.target.value })} options={[{ value: '1st Sem', label: '1st Sem' }, { value: '2nd Sem', label: '2nd Sem' }]} />
+            </div>
+          </>
+        )}
+        
+        {type === 'teacher' && (
           <Select
-            label="Role"
-            value={editData.role}
-            onChange={(e) => setEditData({ ...editData, role: e.target.value })}
+            label="Course (optional)"
+            value={formData.course_id}
+            onChange={e => setFormData({ ...formData, course_id: e.target.value })}
             options={[
-              { value: 'student', label: 'Student' },
-              { value: 'teacher', label: 'Teacher' },
-              { value: 'admin', label: 'Admin' },
+              { value: '', label: 'None — not linked to a program' },
+              ...courses.map((c) => ({ value: c.id, label: c.name })),
             ]}
           />
-          
-          {(editData.role === 'student' || selectedUser?.student) && (
+        )}
+
+        <div className="flex gap-4 pt-4">
+          <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>
+            <XCircle className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+            Cancel
+          </Button>
+          <Button type="submit" className="flex-1" disabled={loading}>
+            {loading ? (
+              <Spinner size="sm" />
+            ) : (
+              <>
+                <Plus className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+                Create
+              </>
+            )}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+interface EditUserModalProps {
+  user: any;
+  courses: any[];
+  onSave: (userId: string, data: any, role?: string) => void;
+}
+
+function EditUserModal({ user, courses, onSave }: EditUserModalProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    first_name: user.first_name || '',
+    last_name: user.last_name || '',
+    email: user.email || '',
+    year_level: user.year_level || '',
+    section: user.role === 'student' ? sectionFromUserRecord(user.section) : '',
+    course_id: user.course_id || '',
+  });
+
+  useEffect(() => {
+    setFormData({
+      first_name: user.first_name || '',
+      last_name: user.last_name || '',
+      email: user.email || '',
+      year_level: user.year_level || '',
+      section: user.role === 'student' ? sectionFromUserRecord(user.section) : '',
+      course_id: user.course_id || '',
+    });
+  }, [user]);
+
+  const studentSectionOptions = useMemo(() => {
+    const opts = [...SCHOOL_SECTION_SELECT_OPTIONS];
+    const cur = (formData.section || '').trim();
+    if (cur && !opts.some((o) => o.value === cur)) {
+      opts.unshift({ value: cur, label: cur });
+    }
+    return opts;
+  }, [formData.section]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    await onSave(user.id, formData, user.role);
+    setLoading(false);
+    setIsOpen(false);
+  };
+
+  return (
+    <>
+      <button 
+        type="button"
+        className="p-2 rounded-lg glass-hover text-[#800000]" 
+        onClick={() => setIsOpen(true)}
+        title="Edit User"
+      >
+        <Pencil className="h-[1.15rem] w-[1.15rem] shrink-0" strokeWidth={2} aria-hidden />
+      </button>
+      <Modal isOpen={isOpen} onClose={() => setIsOpen(false)} title="Edit User">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Input label="First Name" value={formData.first_name} onChange={e => setFormData({ ...formData, first_name: e.target.value })} required />
+            <Input label="Last Name" value={formData.last_name} onChange={e => setFormData({ ...formData, last_name: e.target.value })} required />
+          </div>
+          <Input label="Email" type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} required />
+          {(user.role === 'student' || user.role === 'teacher') && (
             <>
-              <div className="grid grid-cols-2 gap-4">
-                <Input
-                  label="First Name"
-                  value={editData.firstName}
-                  onChange={(e) => setEditData({ ...editData, firstName: e.target.value })}
-                  required
-                />
-                <Input
-                  label="Last Name"
-                  value={editData.lastName}
-                  onChange={(e) => setEditData({ ...editData, lastName: e.target.value })}
-                  required
-                />
+              <Select
+                label={user.role === 'teacher' ? 'Course (optional)' : 'Course'}
+                value={formData.course_id}
+                onChange={e => setFormData({ ...formData, course_id: e.target.value })}
+                options={
+                  user.role === 'teacher'
+                    ? [{ value: '', label: 'None — not linked to a program' }, ...courses.map((c) => ({ value: c.id, label: c.name }))]
+                    : courses.map((c) => ({ value: c.id, label: c.name }))
+                }
+                required={user.role === 'student'}
+              />
+              <div
+                className={`grid grid-cols-1 gap-4 ${user.role === 'student' ? 'sm:grid-cols-2' : ''}`}
+              >
+                <Select label="Year Level" value={formData.year_level} onChange={e => setFormData({ ...formData, year_level: e.target.value })} options={[{ value: '1st', label: '1st Year' }, { value: '2nd', label: '2nd Year' }, { value: '3rd', label: '3rd Year' }, { value: '4th', label: '4th Year' }]} />
+                {user.role === 'student' ? (
+                  <Select
+                    label="Section"
+                    value={formData.section}
+                    onChange={e => setFormData({ ...formData, section: e.target.value })}
+                    options={studentSectionOptions}
+                  />
+                ) : null}
               </div>
-              <Select
-                label="Year Level"
-                value={editData.gradeLevel}
-                onChange={(e) => setEditData({ ...editData, gradeLevel: e.target.value })}
-                options={GRADE_LEVELS}
-              />
-              <Select
-                label="Section"
-                value={editData.section}
-                onChange={(e) => setEditData({ ...editData, section: e.target.value })}
-                options={SECTIONS}
-              />
-              <Select
-                label="Course"
-                value={editData.courseId}
-                onChange={(e) => setEditData({ ...editData, courseId: e.target.value })}
-                options={[
-                  { value: '', label: 'Select Course' },
-                  ...courses.map(c => ({ value: c.id, label: c.name }))
-                ]}
-              />
             </>
           )}
-
-          <div className="flex gap-3 pt-4">
-            <Button type="button" variant="secondary" onClick={() => setIsEditModalOpen(false)} className="flex-1">
+          <div className="flex gap-4 pt-4">
+            <Button type="button" variant="secondary" className="flex-1" onClick={() => setIsOpen(false)}>
+              <XCircle className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
               Cancel
             </Button>
-            <Button type="submit" disabled={loading} className="flex-1">
-              {loading ? 'Saving...' : 'Save Changes'}
+            <Button type="submit" className="flex-1" disabled={loading}>
+              {loading ? (
+                <Spinner size="sm" />
+              ) : (
+                <>
+                  <CheckCircle2 className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+                  Save
+                </>
+              )}
             </Button>
           </div>
         </form>
       </Modal>
-    </DashboardLayout>
+    </>
   );
-};
-
-export default AdminUsers;
+}

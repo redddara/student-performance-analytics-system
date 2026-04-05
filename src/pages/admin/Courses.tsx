@@ -63,6 +63,7 @@ export default function AdminCoursesPage() {
     <DashboardLayout title="Course Management">
       <Button
         type="button"
+        variant="glass"
         onClick={() => setShowModal(true)}
         className="mb-6 w-full sm:w-auto"
       >
@@ -107,8 +108,26 @@ export default function AdminCoursesPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input label="Course Name" value={courseName} onChange={e => setCourseName(e.target.value)} placeholder="e.g., BSCS" required />
           <div className="flex gap-4">
-            <Button type="button" variant="secondary" className="flex-1" onClick={() => { setShowModal(false); setCourseName(''); setEditingCourse(null); }}>Cancel</Button>
-            <Button type="submit" className="flex-1">{editingCourse ? 'Update' : 'Create'}</Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="flex-1"
+              onClick={() => {
+                setShowModal(false);
+                setCourseName('');
+                setEditingCourse(null);
+              }}
+            >
+              <i className="hgi-stroke hgi-close-circle text-lg" aria-hidden />
+              Cancel
+            </Button>
+            <Button type="submit" className="flex-1">
+              <i
+                className={`hgi-stroke text-lg ${editingCourse ? 'hgi-edit-02' : 'hgi-plus'}`}
+                aria-hidden
+              />
+              {editingCourse ? 'Update' : 'Create'}
+            </Button>
           </div>
         </form>
       </Modal>

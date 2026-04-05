@@ -1,12 +1,24 @@
 import { create } from 'zustand';
 import type { User, Course, Subject, Student, Grade, StudentSubject } from '../types';
+import { supabase } from '../lib/supabase';
+import {
+  clearUserProfileEverywhere,
+  markVoluntaryLogout,
+  persistUserProfile,
+} from '../lib/profileStorage';
+import { SAPAS_TAB_SYNC_KEY } from '../lib/sessionConstants';
+import type { TabSyncPayload } from '../lib/sessionConstants';
+
+function toSessionUser(user: User): User {
+  return { ...user, password_hash: '' };
+}
 
 interface AuthState {
   user: User | null;
   isLoading: boolean;
   setUser: (user: User | null) => void;
   setLoading: (loading: boolean) => void;
-  logout: () => void;
+  logout: (options?: { voluntary?: boolean }) => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -14,13 +26,30 @@ export const useAuthStore = create<AuthState>((set) => ({
   isLoading: true,
   setUser: (user) => {
     if (user) {
-      localStorage.setItem('sapas_user', JSON.stringify(user));
+      persistUserProfile(user);
+      set({ user: toSessionUser(user) });
+      return;
     }
-    set({ user });
+    clearUserProfileEverywhere();
+    set({ user: null });
   },
   setLoading: (isLoading) => set({ isLoading }),
-  logout: () => {
-    localStorage.removeItem('sapas_user');
+  logout: async (options) => {
+    if (options?.voluntary) {
+      markVoluntaryLogout();
+    }
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      /* still clear local session */
+    }
+    clearUserProfileEverywhere();
+    try {
+      const payload: TabSyncPayload = { type: 'logout', t: Date.now() };
+      localStorage.setItem(SAPAS_TAB_SYNC_KEY, JSON.stringify(payload));
+    } catch {
+      /* ignore */
+    }
     set({ user: null });
   },
 }));

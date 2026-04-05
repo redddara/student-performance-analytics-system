@@ -121,13 +121,19 @@ export default function TeacherDashboard() {
               <div key={subject.id} className="p-4 glass-inset">
                 <h3 className="font-semibold text-gray-800">{subject.name}</h3>
                 <p className="text-sm text-gray-500">{subject.course?.name} - {subject.year_level} - {subject.semester}</p>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
+                <Button
+                  variant="ghost"
+                  size="sm"
                   className="mt-2 w-full sm:w-auto"
-                  onClick={() => window.location.href = `/teacher/subjects?id=${subject.id}`}
+                  onClick={() => {
+                    window.location.href = `/teacher/subjects?id=${subject.id}`;
+                  }}
                 >
-                  View Grades →
+                  <i className="hgi-stroke hgi-edit-user-02 text-lg" aria-hidden />
+                  View Grades
+                  <span className="text-sm font-semibold opacity-90" aria-hidden>
+                    →
+                  </span>
                 </Button>
               </div>
             ))}

@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { GlassCard, Button, Input, Select, Modal, Spinner, Badge } from '../../components/ui';
 import { useDataStore } from '../../store';
@@ -7,6 +8,7 @@ import { sendEmail, generateStudentCredentialEmail } from '../../api/email';
 import type { Course } from '../../types';
 
 export default function AdminDashboard() {
+  const navigate = useNavigate();
   const { students, teachers, courses, subjects, grades, setCourses, setSubjects, setStudents, setGrades, setTeachers } = useDataStore();
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -46,6 +48,63 @@ export default function AdminDashboard() {
   const passRate = grades.length > 0
     ? Math.round((grades.filter(g => g.grade >= 75).length / grades.length) * 100)
     : 0;
+
+  const recentStudentsSorted = useMemo(
+    () =>
+      [...students]
+        .sort((a, b) => {
+          const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+          return tb - ta;
+        })
+        .slice(0, 5),
+    [students]
+  );
+
+  const recentGradeHistory = useMemo(() => {
+    const studentMap = new Map(students.map((s) => [s.id, s]));
+    const subjectMap = new Map(subjects.map((s) => [s.id, s.name]));
+    return [...grades]
+      .sort((a, b) => {
+        const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return tb - ta;
+      })
+      .slice(0, 25)
+      .map((g) => {
+        const st = studentMap.get(g.student_id);
+        return {
+          id: g.id,
+          dateLabel: g.created_at
+            ? new Date(g.created_at).toLocaleString(undefined, {
+                dateStyle: 'medium',
+                timeStyle: 'short',
+              })
+            : '—',
+          studentLabel: st ? `${st.first_name} ${st.last_name}` : '—',
+          subjectLabel: subjectMap.get(g.subject_id) ?? '—',
+          grade: g.grade,
+          semester: g.semester,
+          quarter: g.quarter,
+        };
+      });
+  }, [grades, students, subjects]);
+
+  const monthlyGradeVolume = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const g of grades) {
+      if (!g.created_at) continue;
+      const d = new Date(g.created_at);
+      if (Number.isNaN(d.getTime())) continue;
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-12);
+  }, [grades]);
+
+  const maxMonthly = monthlyGradeVolume.reduce((m, [, n]) => Math.max(m, n), 0) || 1;
 
   if (loading) {
     return (
@@ -114,16 +173,44 @@ export default function AdminDashboard() {
       <GlassCard className="p-4 sm:p-6 mb-8">
         <h2 className="text-xl font-semibold text-[#800000] mb-4">Quick Actions</h2>
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-          <Button className="w-full sm:w-auto" onClick={() => { setCreateType('student'); setShowCreateModal(true); }}>
-<i className="hgi-stroke hgi-plus mr-1 text-lg"/>Create Student
+          <Button
+            variant="glass"
+            className="w-full sm:w-auto"
+            onClick={() => {
+              setCreateType('student');
+              setShowCreateModal(true);
+            }}
+          >
+            <i className="hgi-stroke hgi-plus text-lg" aria-hidden />
+            Create Student
           </Button>
-          <Button className="w-full sm:w-auto" onClick={() => { setCreateType('teacher'); setShowCreateModal(true); }}>
-<i className="hgi-stroke hgi-plus mr-1 text-lg"/>Create Teacher
+          <Button
+            variant="glass"
+            className="w-full sm:w-auto"
+            onClick={() => {
+              setCreateType('teacher');
+              setShowCreateModal(true);
+            }}
+          >
+            <i className="hgi-stroke hgi-plus text-lg" aria-hidden />
+            Create Teacher
           </Button>
-          <Button className="w-full sm:w-auto" onClick={() => window.location.href = '/admin/courses'}>
+          <Button
+            variant="glass"
+            className="w-full sm:w-auto"
+            type="button"
+            onClick={() => navigate('/admin/courses')}
+          >
+            <i className="hgi-stroke hgi-book-user text-lg" aria-hidden />
             Manage Courses
           </Button>
-          <Button className="w-full sm:w-auto" onClick={() => window.location.href = '/admin/subjects'}>
+          <Button
+            variant="glass"
+            className="w-full sm:w-auto"
+            type="button"
+            onClick={() => navigate('/admin/subjects')}
+          >
+            <i className="hgi-stroke hgi-school-tie text-lg" aria-hidden />
             Manage Subjects
           </Button>
         </div>
@@ -133,11 +220,12 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <GlassCard className="p-4 sm:p-6">
           <h2 className="text-xl font-semibold text-[#800000] mb-4">Recent Students</h2>
+          <p className="text-xs text-gray-500 mb-3">Newest registrations first (by record date).</p>
           {students.length === 0 ? (
             <p className="text-gray-500 text-center py-8">No students yet</p>
           ) : (
             <div className="space-y-3">
-              {students.slice(0, 5).map(student => (
+              {recentStudentsSorted.map((student) => (
                 <div key={student.id} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between p-3 glass-inset">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-10 h-10 shrink-0 rounded-full bg-gradient-to-br from-[#800000] to-[#d4af37] flex items-center justify-center text-white font-bold">
@@ -145,7 +233,14 @@ export default function AdminDashboard() {
                     </div>
                     <div className="min-w-0">
                       <p className="font-medium text-gray-800 truncate">{student.first_name} {student.last_name}</p>
-                      <p className="text-sm text-gray-500">{student.grade_level} - {student.section}</p>
+                      <p className="text-sm text-gray-500">
+                        {student.grade_level} - {student.section}
+                        {student.created_at && (
+                          <span className="block text-xs text-gray-400 mt-0.5">
+                            Added {new Date(student.created_at).toLocaleDateString()}
+                          </span>
+                        )}
+                      </p>
                     </div>
                   </div>
                   {student.course && (
@@ -178,6 +273,92 @@ export default function AdminDashboard() {
           )}
         </GlassCard>
       </div>
+
+      {/* Historical data — plain card so tables & monospace labels stay readable (not maroon glass overrides) */}
+      <GlassCard variant="plain" className="mt-8 border-maroon-200/70 p-4 shadow-md sm:p-6">
+        <h2 className="text-xl font-semibold text-maroon-900 mb-1">Historical data</h2>
+        <p className="mb-6 text-sm leading-relaxed text-gray-700">
+          Grade records and trends use each row’s{' '}
+          <span className="inline-block rounded-md border border-gray-400/80 bg-gray-100 px-2 py-0.5 font-mono text-xs font-semibold text-gray-900 shadow-sm">
+            created_at
+          </span>{' '}
+          field—the time that grade was saved in the database.
+        </p>
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-800 mb-3">Recent grade records</h3>
+            {recentGradeHistory.length === 0 ? (
+              <p className="text-gray-500 text-sm py-6 text-center border border-dashed border-gray-200 rounded-xl">
+                No grade history yet. Entries will appear here after teachers upload or enter grades.
+              </p>
+            ) : (
+              <div className="max-h-[min(24rem,55vh)] overflow-auto rounded-xl border border-gray-200/80">
+                <table className="w-full text-left text-sm">
+                  <thead className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-gray-200 z-10">
+                    <tr>
+                      <th className="px-3 py-2 font-semibold text-gray-700">When</th>
+                      <th className="px-3 py-2 font-semibold text-gray-700">Student</th>
+                      <th className="px-3 py-2 font-semibold text-gray-700">Subject</th>
+                      <th className="px-3 py-2 font-semibold text-gray-700 text-right">Grade</th>
+                      <th className="px-3 py-2 font-semibold text-gray-700 text-center">Sem / Q</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {recentGradeHistory.map((row) => (
+                      <tr key={row.id} className="hover:bg-gray-50/80">
+                        <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{row.dateLabel}</td>
+                        <td className="px-3 py-2 text-gray-800 max-w-[8rem] truncate" title={row.studentLabel}>
+                          {row.studentLabel}
+                        </td>
+                        <td className="px-3 py-2 text-gray-700 max-w-[10rem] truncate" title={row.subjectLabel}>
+                          {row.subjectLabel}
+                        </td>
+                        <td className="px-3 py-2 text-right font-medium text-[#800000]">{row.grade}</td>
+                        <td className="px-3 py-2 text-center text-gray-600 text-xs">
+                          {row.semester} / Q{row.quarter}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold text-gray-800 mb-3">Grade entries by month</h3>
+            {monthlyGradeVolume.length === 0 ? (
+              <p className="text-gray-500 text-sm py-6 text-center border border-dashed border-gray-200 rounded-xl">
+                No dated grade entries yet to chart over time.
+              </p>
+            ) : (
+              <ul className="space-y-3">
+                {monthlyGradeVolume.map(([monthKey, count]) => {
+                  const [y, m] = monthKey.split('-');
+                  const label = new Date(Number(y), Number(m) - 1, 1).toLocaleDateString(undefined, {
+                    month: 'short',
+                    year: 'numeric',
+                  });
+                  const pct = Math.round((count / maxMonthly) * 100);
+                  return (
+                    <li key={monthKey}>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="font-medium text-gray-700">{label}</span>
+                        <span className="text-gray-600">{count} record{count !== 1 ? 's' : ''}</span>
+                      </div>
+                      <div className="h-2.5 rounded-full bg-gray-100 overflow-hidden border border-gray-200/80">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-maroon-600 to-gold-500 transition-all duration-500"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        </div>
+      </GlassCard>
 
       {/* Create User Modal */}
       <CreateUserModal 
@@ -424,10 +605,18 @@ function CreateUserModal({ isOpen, onClose, type, courses }: CreateUserModalProp
 
         <div className="flex gap-4 pt-4">
           <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>
+            <i className="hgi-stroke hgi-close-circle text-lg" aria-hidden />
             Cancel
           </Button>
           <Button type="submit" className="flex-1" disabled={loading}>
-            {loading ? <Spinner size="sm" /> : `Create ${type === 'student' ? 'Student' : 'Teacher'}`}
+            {loading ? (
+              <Spinner size="sm" />
+            ) : (
+              <>
+                <i className="hgi-stroke hgi-plus text-lg" aria-hidden />
+                {`Create ${type === 'student' ? 'Student' : 'Teacher'}`}
+              </>
+            )}
           </Button>
         </div>
       </form>

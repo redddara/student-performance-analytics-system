@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { GlassCard, Button, Input, Table, Modal, Spinner, Badge, Select, ConfirmModal } from '../../components/ui';
 import { supabase, hashPassword, generateTempPassword, generateStudentUsername } from '../../lib/supabase';
@@ -11,7 +11,14 @@ export default function AdminUsersPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createType, setCreateType] = useState<'student' | 'teacher' | 'admin'>('student');
   const [courses, setCourses] = useState<any[]>([]);
-  
+
+  const [filterSearch, setFilterSearch] = useState('');
+  const [filterRole, setFilterRole] = useState('');
+  const [filterCourseId, setFilterCourseId] = useState('');
+  const [filterYearLevel, setFilterYearLevel] = useState('');
+  const [filterTempStatus, setFilterTempStatus] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
   // Confirmation modal states
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
@@ -133,6 +140,37 @@ export default function AdminUsersPage() {
     }
   };
 
+  const filteredUsers = useMemo(() => {
+    const q = filterSearch.trim().toLowerCase();
+    return users.filter((u) => {
+      const displayName = (u.name || `${u.first_name || ''} ${u.last_name || ''}`).trim().toLowerCase();
+      const email = String(u.email || '').toLowerCase();
+      const uname = String(u.username || '').toLowerCase();
+      if (q && !displayName.includes(q) && !email.includes(q) && !uname.includes(q)) return false;
+      if (filterRole && u.role !== filterRole) return false;
+      if (filterCourseId && u.course_id !== filterCourseId) return false;
+      if (filterYearLevel && (u.year_level || '') !== filterYearLevel) return false;
+      if (filterTempStatus === 'temp' && !u.is_temp_password) return false;
+      if (filterTempStatus === 'active' && u.is_temp_password) return false;
+      return true;
+    });
+  }, [users, filterSearch, filterRole, filterCourseId, filterYearLevel, filterTempStatus]);
+
+  const hasActiveFilters =
+    Boolean(filterSearch.trim()) ||
+    Boolean(filterRole) ||
+    Boolean(filterCourseId) ||
+    Boolean(filterYearLevel) ||
+    Boolean(filterTempStatus);
+
+  const clearFilters = () => {
+    setFilterSearch('');
+    setFilterRole('');
+    setFilterCourseId('');
+    setFilterYearLevel('');
+    setFilterTempStatus('');
+  };
+
   if (loading) {
     return (
       <DashboardLayout title="Users">
@@ -145,22 +183,151 @@ export default function AdminUsersPage() {
 
   return (
     <DashboardLayout title="User Management">
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap mb-6">
-        <Button className="w-full sm:w-auto" onClick={() => { setCreateType('student'); setShowCreateModal(true); }}>
-          <i className="hgi-stroke hgi-add-to-list"></i> Add Student
-        </Button>
-        <Button className="w-full sm:w-auto" onClick={() => { setCreateType('teacher'); setShowCreateModal(true); }}>
-          <i className="hgi-stroke hgi-add-to-list"></i> Add Teacher
-        </Button>
-        <Button className="w-full sm:w-auto" onClick={() => { setCreateType('admin'); setShowCreateModal(true); }}>
-          <i className="hgi-stroke hgi-add-to-list"></i> Add Admin
-        </Button>
+      <div className="mb-5 w-full max-w-2xl">
+        <label htmlFor="user-search" className="sr-only">
+          Search users
+        </label>
+        <div className="relative">
+          <span
+            className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-maroon-700/75"
+            aria-hidden
+          >
+            <i className="hgi-stroke hgi-search text-xl" />
+          </span>
+          <input
+            id="user-search"
+            type="search"
+            autoComplete="off"
+            placeholder="Search by name, email, or student ID…"
+            value={filterSearch}
+            onChange={(e) => setFilterSearch(e.target.value)}
+            className="w-full rounded-2xl border border-white/70 bg-white/55 py-3.5 pl-12 pr-4 text-base text-gray-900 shadow-[0_8px_32px_rgba(128,0,0,0.1),inset_0_1px_0_rgba(255,255,255,0.9)] backdrop-blur-xl placeholder:text-gray-500 focus:border-maroon-500 focus:outline-none focus:ring-2 focus:ring-maroon-500/35"
+          />
+        </div>
       </div>
+
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <Button
+          variant="glass"
+          className="w-full sm:w-auto"
+          onClick={() => {
+            setCreateType('student');
+            setShowCreateModal(true);
+          }}
+        >
+          <i className="hgi-stroke hgi-add-to-list text-lg" aria-hidden />
+          Add Student
+        </Button>
+        <Button
+          variant="glass"
+          className="w-full sm:w-auto"
+          onClick={() => {
+            setCreateType('teacher');
+            setShowCreateModal(true);
+          }}
+        >
+          <i className="hgi-stroke hgi-add-to-list text-lg" aria-hidden />
+          Add Teacher
+        </Button>
+        <Button
+          variant="glass"
+          className="w-full sm:w-auto"
+          onClick={() => {
+            setCreateType('admin');
+            setShowCreateModal(true);
+          }}
+        >
+          <i className="hgi-stroke hgi-add-to-list text-lg" aria-hidden />
+          Add Admin
+        </Button>
+        <button
+          type="button"
+          onClick={() => setFiltersOpen((o) => !o)}
+          className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-maroon-200 bg-white text-[#800000] shadow-sm transition-colors hover:bg-maroon-50 touch-manipulation"
+          aria-expanded={filtersOpen}
+          aria-label={filtersOpen ? 'Hide user filters' : 'Show user filters'}
+          title="Filters"
+        >
+          <i className="hgi-stroke hgi-filter text-xl" aria-hidden />
+          {hasActiveFilters && (
+            <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-[#d4af37] ring-2 ring-white" aria-hidden />
+          )}
+        </button>
+        {!filtersOpen && (
+          <span className="text-sm text-gray-600">
+            Showing <span className="font-semibold text-[#800000]">{filteredUsers.length}</span>
+            {' / '}
+            {users.length} user{users.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
+
+      {filtersOpen && (
+        <div className="mb-6 overflow-hidden rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6 animate-fade-in">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-lg font-semibold text-[#800000]">Filter users</h2>
+            {hasActiveFilters && (
+              <Button type="button" variant="secondary" className="w-full shrink-0 sm:w-auto" onClick={clearFilters}>
+                <i className="hgi-stroke hgi-refresh text-lg" aria-hidden />
+                Clear filters
+              </Button>
+            )}
+          </div>
+          <p className="mb-4 text-sm text-gray-600">
+            Use the search bar above to filter by name, email, or student ID.
+          </p>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <Select
+              label="Role"
+              value={filterRole}
+              onChange={(e) => setFilterRole(e.target.value)}
+              options={[
+                { value: '', label: 'All roles' },
+                { value: 'admin', label: 'Admin' },
+                { value: 'teacher', label: 'Teacher' },
+                { value: 'student', label: 'Student' },
+              ]}
+            />
+            <Select
+              label="Course"
+              value={filterCourseId}
+              onChange={(e) => setFilterCourseId(e.target.value)}
+              options={[{ value: '', label: 'All courses' }, ...courses.map((c) => ({ value: c.id, label: c.name }))]}
+            />
+            <Select
+              label="Year level"
+              value={filterYearLevel}
+              onChange={(e) => setFilterYearLevel(e.target.value)}
+              options={[
+                { value: '', label: 'All years' },
+                { value: '1st', label: '1st Year' },
+                { value: '2nd', label: '2nd Year' },
+                { value: '3rd', label: '3rd Year' },
+                { value: '4th', label: '4th Year' },
+              ]}
+            />
+            <Select
+              label="Password status"
+              value={filterTempStatus}
+              onChange={(e) => setFilterTempStatus(e.target.value)}
+              options={[
+                { value: '', label: 'All' },
+                { value: 'temp', label: 'Temporary password' },
+                { value: 'active', label: 'Active (password changed)' },
+              ]}
+            />
+          </div>
+          <p className="mt-4 text-sm text-gray-600">
+            Showing <span className="font-semibold text-[#800000]">{filteredUsers.length}</span> of {users.length} user
+            {users.length !== 1 ? 's' : ''}
+          </p>
+        </div>
+      )}
 
       <GlassCard className="p-4 sm:p-6">
         <h2 className="text-xl font-semibold text-[#800000] mb-4">All Users</h2>
         <Table headers={['Name', 'Username', 'Role', 'Email', 'Status', 'Actions']}>
-          {users.map(user => (
+          {filteredUsers.map((user) => (
             <tr key={user.id} className="hover:bg-white/20 transition-colors">
               <td className="px-4 py-3">
                 <div className="flex items-center gap-3">
@@ -208,8 +375,9 @@ export default function AdminUsersPage() {
             </tr>
           ))}
         </Table>
-        {users.length === 0 && (
-          <p className="text-center text-gray-500 py-8">No users found</p>
+        {users.length === 0 && <p className="text-center text-gray-500 py-8">No users found</p>}
+        {users.length > 0 && filteredUsers.length === 0 && (
+          <p className="text-center text-gray-500 py-8">No users match your filters. Try adjusting or clear filters.</p>
         )}
       </GlassCard>
 
@@ -289,29 +457,31 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess }: CreateUs
         username = generateStudentUsername(course?.name || 'BSCS', nextNumber);
       }
 
-      // Check if email already exists (including soft-deleted users)
-      const { data: existingEmail } = await supabase
-        .from('users')
-        .select('id, email')
-        .eq('email', formData.email)
-        .limit(1);
+      if (formData.email?.trim()) {
+        const { data: existingEmail } = await supabase
+          .from('users')
+          .select('id')
+          .eq('email', formData.email.trim())
+          .maybeSingle();
 
-      if (existingEmail && existingEmail.length > 0) {
-        // User with this email exists, delete the existing record to avoid UUID conflict
-        await supabase.from('users').delete().eq('id', existingEmail[0].id);
+        if (existingEmail?.id) {
+          alert('A user with this email already exists. Use a different email or edit the existing user.');
+          setLoading(false);
+          return;
+        }
       }
 
-      // Check if username already exists (for students)
       if (username) {
         const { data: existingUsername } = await supabase
           .from('users')
-          .select('id, username')
+          .select('id')
           .eq('username', username)
-          .limit(1);
+          .maybeSingle();
 
-        if (existingUsername && existingUsername.length > 0) {
-          // Delete existing user with same username
-          await supabase.from('users').delete().eq('id', existingUsername[0].id);
+        if (existingUsername?.id) {
+          alert('This student ID is already in use. Try again or adjust the sequence.');
+          setLoading(false);
+          return;
         }
       }
 
@@ -459,8 +629,20 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess }: CreateUs
         )}
 
         <div className="flex gap-4 pt-4">
-          <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>Cancel</Button>
-          <Button type="submit" className="flex-1" disabled={loading}>{loading ? <Spinner size="sm" /> : 'Create'}</Button>
+          <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>
+            <i className="hgi-stroke hgi-close-circle text-lg" aria-hidden />
+            Cancel
+          </Button>
+          <Button type="submit" className="flex-1" disabled={loading}>
+            {loading ? (
+              <Spinner size="sm" />
+            ) : (
+              <>
+                <i className="hgi-stroke hgi-plus text-lg" aria-hidden />
+                Create
+              </>
+            )}
+          </Button>
         </div>
       </form>
     </Modal>
@@ -531,8 +713,20 @@ function EditUserModal({ user, courses, onSave }: EditUserModalProps) {
             </>
           )}
           <div className="flex gap-4 pt-4">
-            <Button type="button" variant="secondary" className="flex-1" onClick={() => setIsOpen(false)}>Cancel</Button>
-            <Button type="submit" className="flex-1" disabled={loading}>{loading ? <Spinner size="sm" /> : 'Save'}</Button>
+            <Button type="button" variant="secondary" className="flex-1" onClick={() => setIsOpen(false)}>
+              <i className="hgi-stroke hgi-close-circle text-lg" aria-hidden />
+              Cancel
+            </Button>
+            <Button type="submit" className="flex-1" disabled={loading}>
+              {loading ? (
+                <Spinner size="sm" />
+              ) : (
+                <>
+                  <i className="hgi-stroke hgi-checkmark-circle-02 text-lg" aria-hidden />
+                  Save
+                </>
+              )}
+            </Button>
           </div>
         </form>
       </Modal>

@@ -20,7 +20,6 @@ export function GlassCard({ children, className, style, onClick, variant = 'maro
         'relative isolate overflow-hidden rounded-3xl transition-all duration-300',
         isMaroon && [
           'p-8 lg:p-10',
-          // Opaque maroon — no transparency/blur so the white page doesn’t wash it to pink
           'border border-maroon-600 bg-gradient-to-b from-maroon-600 to-maroon-900',
           'shadow-2xl',
           '[box-shadow:0_0_0_1px_rgba(212,165,0,0.22),0_16px_40px_rgba(51,0,0,0.55),inset_0_1px_0_rgba(255,255,255,0.06)]',
@@ -51,7 +50,7 @@ export function GlassCard({ children, className, style, onClick, variant = 'maro
 }
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
+  variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'glass';
   size?: 'sm' | 'md' | 'lg';
   children: ReactNode;
 }
@@ -64,14 +63,17 @@ export function Button({
   ...props 
 }: ButtonProps) {
   const baseStyles = 'font-medium rounded-xl transition-all duration-300 flex items-center justify-center gap-2 touch-manipulation';
-  
+
   const variants = {
-primary:
+    primary:
       'bg-gradient-to-r from-maroon-600 to-maroon-700 text-white hover:from-maroon-500 hover:to-maroon-600 shadow-lg hover:shadow-xl backdrop-blur-md [box-shadow:0_0_24px_rgba(212,165,0,0.22)]',
-secondary: 'bg-white/90 text-maroon-700 border border-maroon-200/80 hover:bg-white shadow-md backdrop-blur-md',
+    secondary: 'bg-white/90 text-maroon-700 border border-maroon-200/80 hover:bg-white shadow-md backdrop-blur-md',
     danger: 'bg-red-600 text-white hover:bg-red-700 backdrop-blur-md',
-ghost:
+    ghost:
       'bg-white/10 text-gold-100 border border-gold-400/35 hover:bg-white/18 hover:border-gold-400/50 backdrop-blur-md',
+    /** Frosted maroon CTA — strong contrast on light pages; lift + glow on hover */
+    glass:
+      'min-h-[46px] font-semibold rounded-2xl border-2 border-white/35 bg-gradient-to-br from-maroon-700/95 via-maroon-800/98 to-maroon-950 text-white shadow-[0_10px_36px_rgba(89,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.2)] backdrop-blur-xl ring-1 ring-maroon-500/30 hover:border-gold-400/45 hover:shadow-[0_14px_44px_rgba(102,0,0,0.48),0_0_0_1px_rgba(212,165,0,0.28)] hover:from-maroon-600 hover:via-maroon-700 hover:to-maroon-900 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 disabled:hover:translate-y-0',
   };
   
   const sizes = {
@@ -363,7 +365,10 @@ export function ConfirmModal({
   };
   
   const v = variants[variant];
-  
+
+  const confirmIconClass =
+    variant === 'danger' ? 'hgi-delete-01' : variant === 'warning' ? 'hgi-refresh' : 'hgi-checkmark-circle-02';
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
       <div
@@ -386,15 +391,20 @@ export function ConfirmModal({
             <button
               type="button"
               onClick={onClose}
-              className="min-h-[44px] w-full touch-manipulation rounded-xl border border-gray-300 px-4 py-2.5 text-gray-700 hover:bg-gray-100 transition-all duration-300 sm:w-auto sm:min-h-0"
+              className="flex min-h-[44px] w-full items-center justify-center gap-2 touch-manipulation rounded-xl border border-gray-300 px-4 py-2.5 text-gray-700 hover:bg-gray-100 transition-all duration-300 sm:w-auto sm:min-h-0"
             >
+              <i className="hgi-stroke hgi-close-circle text-lg" aria-hidden />
               {cancelText}
             </button>
             <button
               type="button"
-              onClick={() => { onConfirm(); onClose(); }}
-              className={`min-h-[44px] w-full touch-manipulation rounded-xl px-4 py-2.5 text-white ${v.button} transition-all duration-300 shadow-lg hover:shadow-xl sm:w-auto sm:min-h-0`}
+              onClick={() => {
+                onConfirm();
+                onClose();
+              }}
+              className={`flex min-h-[44px] w-full items-center justify-center gap-2 touch-manipulation rounded-xl px-4 py-2.5 text-white ${v.button} transition-all duration-300 shadow-lg hover:shadow-xl sm:w-auto sm:min-h-0`}
             >
+              <i className={clsx('hgi-stroke text-lg', confirmIconClass)} aria-hidden />
               {confirmText}
             </button>
           </div>

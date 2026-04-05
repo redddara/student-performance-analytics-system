@@ -43,8 +43,8 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
 
   const currentPage = location.pathname.split('/')[2] || 'dashboard';
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout({ voluntary: true });
     navigate('/login');
   };
 

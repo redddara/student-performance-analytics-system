@@ -192,7 +192,8 @@ export default function TeacherUploadPage() {
               className="w-full min-w-0 text-sm file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-[#800000] file:text-white hover:file:bg-[#600000]"
             />
             <Button variant="secondary" className="w-full shrink-0 sm:w-auto" onClick={downloadTemplate}>
-              📥 Download Template
+              <i className="hgi-stroke hgi-download-04 text-lg" aria-hidden />
+              Download Template
             </Button>
           </div>
 

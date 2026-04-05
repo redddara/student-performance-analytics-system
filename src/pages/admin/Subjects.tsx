@@ -134,6 +134,7 @@ export default function AdminSubjectsPage() {
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <Button
           type="button"
+          variant="glass"
           onClick={() => setShowModal(true)}
           className="w-full sm:w-auto"
         >
@@ -167,7 +168,8 @@ export default function AdminSubjectsPage() {
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-lg font-semibold text-[#800000]">Filter subjects</h2>
             {hasActiveFilters && (
-              <Button type="button" variant="secondary" className="w-full sm:w-auto shrink-0" onClick={clearFilters}>
+              <Button type="button" variant="secondary" className="w-full shrink-0 sm:w-auto" onClick={clearFilters}>
+                <i className="hgi-stroke hgi-refresh text-lg" aria-hidden />
                 Clear filters
               </Button>
             )}
@@ -278,8 +280,32 @@ export default function AdminSubjectsPage() {
           </div>
           <Select label="Teacher (Optional)" value={formData.teacher_id} onChange={e => setFormData({ ...formData, teacher_id: e.target.value })} options={[{ value: '', label: 'No Teacher' }, ...teachers.map(t => ({ value: t.id, label: t.name || `${t.first_name} ${t.last_name}` || t.username }))]} />
           <div className="flex gap-4 pt-4">
-            <Button type="button" variant="secondary" className="flex-1" onClick={() => { setShowModal(false); setFormData({ name: '', course_id: '', year_level: '1st', semester: '1st Sem', teacher_id: '' }); setEditingSubject(null); }}>Cancel</Button>
-            <Button type="submit" className="flex-1">{editingSubject ? 'Update' : 'Create'}</Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="flex-1"
+              onClick={() => {
+                setShowModal(false);
+                setFormData({
+                  name: '',
+                  course_id: '',
+                  year_level: '1st',
+                  semester: '1st Sem',
+                  teacher_id: '',
+                });
+                setEditingSubject(null);
+              }}
+            >
+              <i className="hgi-stroke hgi-close-circle text-lg" aria-hidden />
+              Cancel
+            </Button>
+            <Button type="submit" className="flex-1">
+              <i
+                className={`hgi-stroke text-lg ${editingSubject ? 'hgi-edit-02' : 'hgi-plus'}`}
+                aria-hidden
+              />
+              {editingSubject ? 'Update' : 'Create'}
+            </Button>
           </div>
         </form>
       </Modal>

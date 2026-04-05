@@ -46,6 +46,14 @@ export default function ChangePasswordPage() {
 
       if (updateError) throw updateError;
 
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (session) {
+        const { error: authPwError } = await supabase.auth.updateUser({ password: newPassword });
+        if (authPwError) console.warn('Auth password sync:', authPwError.message);
+      }
+
       // Fetch updated user and set state
       const { data: updatedUsers } = await supabase
         .from('users')
@@ -107,12 +115,15 @@ export default function ChangePasswordPage() {
           </GlassCard>
         )}
 
-        <Button 
-          type="submit" 
-          className="w-full"
-          disabled={loading}
-        >
-          {loading ? <Spinner size="sm" /> : 'Change Password'}
+        <Button type="submit" className="w-full" disabled={loading}>
+          {loading ? (
+            <Spinner size="sm" />
+          ) : (
+            <>
+              <i className="hgi-stroke hgi-edit-02 text-lg" aria-hidden />
+              Change Password
+            </>
+          )}
         </Button>
       </form>
     </AuthLayout>

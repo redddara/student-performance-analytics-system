@@ -141,7 +141,15 @@ export default function TeacherSubjectsPage() {
                     </td>
                   )))}
                   <td className="px-4 py-3">
-                    <Button variant="ghost" size="sm" onClick={() => { setSelectedStudent(es.student); setShowGradeModal(true); }}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedStudent(es.student);
+                        setShowGradeModal(true);
+                      }}
+                    >
+                      <i className="hgi-stroke hgi-edit-02 text-base" aria-hidden />
                       Add/Edit
                     </Button>
                   </td>
@@ -161,8 +169,14 @@ export default function TeacherSubjectsPage() {
           </div>
           <Input label="Grade (0-100)" type="number" min="0" max="100" value={gradeForm.grade} onChange={e => setGradeForm({ ...gradeForm, grade: e.target.value })} required placeholder="Enter grade" />
           <div className="flex gap-4">
-            <Button type="button" variant="secondary" className="flex-1" onClick={() => setShowGradeModal(false)}>Cancel</Button>
-            <Button type="submit" className="flex-1">Save Grade</Button>
+            <Button type="button" variant="secondary" className="flex-1" onClick={() => setShowGradeModal(false)}>
+              <i className="hgi-stroke hgi-close-circle text-lg" aria-hidden />
+              Cancel
+            </Button>
+            <Button type="submit" className="flex-1">
+              <i className="hgi-stroke hgi-checkmark-circle-02 text-lg" aria-hidden />
+              Save Grade
+            </Button>
           </div>
         </form>
       </Modal>

@@ -14,6 +14,7 @@ import {
   UserRound,
 } from 'lucide-react';
 import { useAuthStore } from '../../store';
+import logoSpas from '../../assets/LOGO SPAS.png';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -80,16 +81,19 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
       {/* Sidebar */}
       <aside className={`z-40 w-[min(100%,16rem)] max-w-[85vw] maroon-sidebar flex flex-col fixed md:sticky top-0 left-0 h-dvh min-h-screen pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)] transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         {/* Logo */}
-        <div className="mb-6 px-4 pt-6">
+        <div className="mb-6 px-3 pt-6 sm:px-4">
           <div className="flex items-center gap-3">
-            <img 
-              src="/src/assets/logo.png" 
-              className="w-10 h-10 object-contain drop-shadow-lg" 
-              alt="SAPAS Logo" 
+            <img
+              src={logoSpas}
+              className="h-14 w-14 shrink-0 object-contain drop-shadow-lg"
+              width={56}
+              height={56}
+              alt="PHILTECH Student Performance Analytics System"
+              decoding="async"
             />
-            <div>
-              <h1 className="text-lg font-bold text-maroon-100">Edulytics PHILTECH</h1>
-              <p className="text-xs text-maroon-200">Academic Performance System</p>
+            <div className="min-w-0">
+              <h1 className="text-lg font-bold leading-tight text-maroon-100">PHILTECH</h1>
+              <p className="text-xs leading-snug text-maroon-200/95">Student Performance Analytics</p>
             </div>
           </div>
         </div>

@@ -1,34 +1,51 @@
 import { useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import {
+  BarChart3,
+  BookUser,
+  Calendar,
+  GraduationCap,
+  LayoutDashboard,
+  LogOut,
+  Menu,
+  Upload,
+  UserPen,
+  Users,
+  UserRound,
+} from 'lucide-react';
 import { useAuthStore } from '../../store';
-// import { GlassCard, Button } from '../ui';
 
 interface DashboardLayoutProps {
   children: ReactNode;
   title: string;
 }
 
-const menuItems = {
+type NavIcon = typeof LayoutDashboard;
+
+const menuItems: Record<
+  'admin' | 'teacher' | 'student',
+  { id: string; label: string; Icon: NavIcon }[]
+> = {
   admin: [
-    { id: 'dashboard', label: 'Dashboard', icon: 'hgi-dashboard-square-01' },
-    { id: 'users', label: 'Users', icon: 'hgi-user-multiple' },
-    { id: 'courses', label: 'Courses', icon: 'hgi-book-user' },
-    { id: 'subjects', label: 'Subjects', icon: 'hgi-school-tie' },
-    { id: 'analytics', label: 'Analytics', icon: 'hgi-chart' },
+    { id: 'dashboard', label: 'Dashboard', Icon: LayoutDashboard },
+    { id: 'users', label: 'Users', Icon: Users },
+    { id: 'courses', label: 'Courses', Icon: BookUser },
+    { id: 'subjects', label: 'Subjects', Icon: GraduationCap },
+    { id: 'analytics', label: 'Analytics', Icon: BarChart3 },
   ],
   teacher: [
-    { id: 'dashboard', label: 'Dashboard', icon: 'hgi-dashboard-square-01' },
-    { id: 'subjects', label: 'My Subjects', icon: 'hgi-school-tie' },
-    { id: 'grades', label: 'Grades', icon: 'hgi-edit-user-02' },
-    { id: 'students', label: 'Students', icon: 'hgi-student' },
-    { id: 'analytics', label: 'Analytics', icon: 'hgi-chart' },
-    { id: 'upload', label: 'Upload Grades', icon: 'hgi-upload' },
+    { id: 'dashboard', label: 'Dashboard', Icon: LayoutDashboard },
+    { id: 'subjects', label: 'My Subjects', Icon: GraduationCap },
+    { id: 'grades', label: 'Grades', Icon: UserPen },
+    { id: 'students', label: 'Students', Icon: UserRound },
+    { id: 'analytics', label: 'Analytics', Icon: BarChart3 },
+    { id: 'upload', label: 'Upload Grades', Icon: Upload },
   ],
   student: [
-    { id: 'dashboard', label: 'Dashboard', icon: 'hgi-dashboard-square-01' },
-    { id: 'subjects', label: 'My Subjects', icon: 'hgi-school-tie' },
-    { id: 'grades', label: 'My Grades', icon: 'hgi-edit-user-02' },
-    { id: 'analytics', label: 'Analytics', icon: 'hgi-chart' },
+    { id: 'dashboard', label: 'Dashboard', Icon: LayoutDashboard },
+    { id: 'subjects', label: 'My Subjects', Icon: GraduationCap },
+    { id: 'grades', label: 'My Grades', Icon: UserPen },
+    { id: 'analytics', label: 'Analytics', Icon: BarChart3 },
   ],
 };
 
@@ -94,7 +111,9 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
 
         {/* Navigation */}
         <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
-          {items.map(item => (
+          {items.map(item => {
+            const Icon = item.Icon;
+            return (
             <Link
               key={item.id}
               to={`/${role}/${item.id}`}
@@ -105,10 +124,11 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
               }`}
               onClick={() => setSidebarOpen(false)}
             >
-              <i className={`hgi-stroke hgi-${item.icon} text-lg flex-shrink-0`}></i>
+              <Icon className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
               <span className="font-medium">{item.label}</span>
             </Link>
-          ))}
+            );
+          })}
         </nav>
 
         {/* Logout */}
@@ -118,7 +138,7 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
             className="flex min-h-[44px] items-center gap-3 px-4 py-3 w-full rounded-2xl bg-white/10 backdrop-blur-xl border border-white/20 shadow-lg hover:bg-white/20 hover:shadow-2xl hover:border-white/40 transition-all duration-300 hover:maroon-glow text-maroon-200 touch-manipulation"
             onClick={handleLogout}
           >
-            <i className="hgi-stroke hgi-logout-01 text-lg"></i>
+            <LogOut className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
             <span className="font-medium">Logout</span>
           </button>
         </div>
@@ -135,7 +155,7 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
               onClick={() => setSidebarOpen(true)}
               aria-label="Open menu"
             >
-              <i className="hgi-stroke hgi-menu-05 text-xl" aria-hidden />
+              <Menu className="h-6 w-6 shrink-0" strokeWidth={2} aria-hidden />
             </button>
             <div className="min-w-0 pt-0.5">
               <h1 className="text-xl sm:text-2xl md:text-4xl font-bold text-gray-800 bg-gradient-to-r from-maroon-800 to-maroon-600 bg-clip-text text-transparent drop-shadow-lg break-words">{title}</h1>
@@ -145,7 +165,10 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
           </div>
           <div className="flex items-center gap-2 sm:gap-4 self-stretch sm:self-auto">
             <div className="px-3 py-2 sm:px-5 rounded-2xl glass-card transition-all duration-300 hover:border-maroon-300/70 hover:shadow-md w-full sm:w-auto text-center sm:text-left">
-              <span className="text-xs sm:text-sm text-maroon-800 font-medium whitespace-nowrap"><i className="hgi-stroke hgi-calendar-01 mr-1.5 sm:mr-2 text-maroon-600" aria-hidden />{new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+              <span className="inline-flex items-center text-xs sm:text-sm text-maroon-800 font-medium whitespace-nowrap">
+                <Calendar className="mr-1.5 h-4 w-4 shrink-0 text-maroon-600 sm:mr-2 sm:h-[1.1rem] sm:w-[1.1rem]" strokeWidth={2} aria-hidden />
+                {new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+              </span>
             </div>
           </div>
         </header>
@@ -158,4 +181,3 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
     </div>
   );
 }
-

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
+import { PageIntro } from '../../components/layouts/PageIntro';
 import { GlassCard, Select, Spinner } from '../../components/ui';
 import { useDataStore } from '../../store';
 import { supabase, isPassing, calculateGWA } from '../../lib/supabase';
@@ -120,7 +121,11 @@ export default function AdminAnalyticsPage() {
 
   return (
     <DashboardLayout title="Analytics & Reports">
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+      <PageIntro
+        title="System-wide analytics"
+        subtitle="Filter by course to focus charts and KPIs. Data reflects grades and enrollments in the database."
+      />
+      <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:p-5">
         <Select
           label="Filter by Course"
           value={selectedCourse}

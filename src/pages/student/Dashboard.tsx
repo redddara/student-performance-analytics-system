@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
+import { BookOpen, CheckCircle2, Pencil, Target } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
+import { PageIntro } from '../../components/layouts/PageIntro';
 import { GlassCard, Spinner } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase, isPassing, calculateGWA } from '../../lib/supabase';
@@ -62,11 +64,17 @@ export default function StudentDashboard() {
 
   return (
     <DashboardLayout title="Student Dashboard">
+      <PageIntro
+        title="Your academic snapshot"
+        subtitle="Enrollment, grades recorded so far, and your general weighted average (GWA)."
+      />
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <GlassCard className="p-4 sm:p-6">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#800000] to-[#a52a2a] flex items-center justify-center text-2xl"><i className="hgi-stroke hgi-book-02 text-xl"></i></div>
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#800000] to-[#a52a2a] flex items-center justify-center text-white">
+              <BookOpen className="h-6 w-6 shrink-0" strokeWidth={2} aria-hidden />
+            </div>
             <div>
               <p className="text-2xl font-bold text-[#800000]">{mySubjects.length}</p>
               <p className="text-sm text-gray-500">Enrolled Subjects</p>
@@ -76,7 +84,9 @@ export default function StudentDashboard() {
 
         <GlassCard className="p-4 sm:p-6">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#d4af37] to-[#b8962e] flex items-center justify-center text-2xl"><i className="hgi-stroke hgi-edit-01 text-xl"></i></div>
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#d4af37] to-[#b8962e] flex items-center justify-center text-maroon-900">
+              <Pencil className="h-6 w-6 shrink-0" strokeWidth={2} aria-hidden />
+            </div>
             <div>
               <p className="text-2xl font-bold text-[#d4af37]">{myGrades.length}</p>
               <p className="text-sm text-gray-500">Total Grades</p>
@@ -86,7 +96,9 @@ export default function StudentDashboard() {
 
         <GlassCard className="p-4 sm:p-6">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-gold-500 to-gold-600 flex items-center justify-center text-2xl"><i className="hgi-stroke hgi-checkmark-circle-02 text-white text-xl"></i></div>
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-gold-500 to-gold-600 flex items-center justify-center text-white">
+              <CheckCircle2 className="h-6 w-6 shrink-0" strokeWidth={2} aria-hidden />
+            </div>
             <div>
               <p className="text-2xl font-bold text-gold-600">{passingGrades.length}</p>
               <p className="text-sm text-gray-500">Passing</p>
@@ -96,7 +108,9 @@ export default function StudentDashboard() {
 
         <GlassCard className="p-4 sm:p-6">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-maroon-500 to-maroon-600 flex items-center justify-center text-2xl"><i className="hgi-stroke hgi-target-02 text-white text-xl"></i></div>
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-maroon-500 to-maroon-600 flex items-center justify-center text-white">
+              <Target className="h-6 w-6 shrink-0" strokeWidth={2} aria-hidden />
+            </div>
             <div>
               <p className="text-2xl font-bold text-maroon-600">{gwa.toFixed(2)}</p>
               <p className="text-sm text-gray-500">GWA</p>

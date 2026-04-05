@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { Search } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
+import { PageIntro } from '../../components/layouts/PageIntro';
 import { GlassCard, Select, Table, Spinner } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase, calculateGWA } from '../../lib/supabase';
@@ -11,6 +13,7 @@ export default function StudentGradesPage() {
   const [loading, setLoading] = useState(true);
   const [selectedSemester, setSelectedSemester] = useState(1);
   const [selectedQuarter, setSelectedQuarter] = useState('');
+  const [filterSearch, setFilterSearch] = useState('');
 
   useEffect(() => {
     loadData();
@@ -64,15 +67,53 @@ export default function StudentGradesPage() {
     return calculateGWA(semesterGrades).toFixed(2);
   };
 
+  const semesterSubjects = useMemo(
+    () => mySubjects.filter((ss) => ss.subject?.semester === (selectedSemester === 1 ? '1st Sem' : '2nd Sem')),
+    [mySubjects, selectedSemester]
+  );
+
+  const filteredSemesterSubjects = useMemo(() => {
+    const q = filterSearch.trim().toLowerCase();
+    if (!q) return semesterSubjects;
+    return semesterSubjects.filter((ss) => {
+      const name = String(ss.subject?.name || '').toLowerCase();
+      const course = String(ss.subject?.course?.name || '').toLowerCase();
+      return name.includes(q) || course.includes(q);
+    });
+  }, [semesterSubjects, filterSearch]);
+
   if (loading) {
     return <DashboardLayout title="My Grades"><Spinner size="lg" /></DashboardLayout>;
   }
 
-  const semesterSubjects = mySubjects.filter(ss => ss.subject?.semester === (selectedSemester === 1 ? '1st Sem' : '2nd Sem'));
-
   return (
     <DashboardLayout title="My Grades">
-      <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap mb-6">
+      <PageIntro
+        title="Grade report"
+        subtitle="Pick semester and quarter, then search subjects below. Averages use recorded grades only."
+      />
+
+      <div className="mb-5 w-full max-w-2xl">
+        <label htmlFor="student-grade-subject-search" className="sr-only">
+          Search subjects
+        </label>
+        <div className="relative">
+          <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-maroon-700/75" aria-hidden>
+            <Search className="h-5 w-5 shrink-0" strokeWidth={2} />
+          </span>
+          <input
+            id="student-grade-subject-search"
+            type="search"
+            autoComplete="off"
+            placeholder="Search subject or course…"
+            value={filterSearch}
+            onChange={(e) => setFilterSearch(e.target.value)}
+            className="w-full rounded-2xl border border-white/70 bg-white/55 py-3.5 pl-12 pr-4 text-base text-gray-900 shadow-[0_8px_32px_rgba(128,0,0,0.1),inset_0_1px_0_rgba(255,255,255,0.9)] backdrop-blur-xl placeholder:text-gray-500 focus:border-maroon-500 focus:outline-none focus:ring-2 focus:ring-maroon-500/35"
+          />
+        </div>
+      </div>
+
+      <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:flex-wrap sm:p-5">
         <div className="w-full sm:min-w-[150px] sm:w-auto">
           <Select
             label="Semester"
@@ -95,6 +136,10 @@ export default function StudentGradesPage() {
             ]} 
           />
         </div>
+        <p className="w-full text-sm text-gray-600 sm:pl-1">
+          Showing <span className="font-semibold text-[#800000]">{filteredSemesterSubjects.length}</span> /{' '}
+          {semesterSubjects.length} subject{semesterSubjects.length !== 1 ? 's' : ''} this semester
+        </p>
       </div>
 
       <GlassCard className="p-4 sm:p-6">
@@ -102,21 +147,27 @@ export default function StudentGradesPage() {
           {selectedSemester === 1 ? '1st' : '2nd'} Semester Grades
         </h2>
         
-        <Table headers={['Subject', 'Prelim', 'Midterm', 'Pre-Finals', 'Finals', 'Average']}>
-          {semesterSubjects.map(ss => (
-            <tr key={ss.id} className="hover:bg-white/20">
-              <td className="px-4 py-3 font-medium text-gray-800">{ss.subject?.name}</td>
-              <td className="px-4 py-3 text-gray-600">{getSubjectGrade(ss.subject_id, 1)}</td>
-              <td className="px-4 py-3 text-gray-600">{getSubjectGrade(ss.subject_id, 2)}</td>
-              <td className="px-4 py-3 text-gray-600">{getSubjectGrade(ss.subject_id, 3)}</td>
-              <td className="px-4 py-3 text-gray-600">{getSubjectGrade(ss.subject_id, 4)}</td>
-              <td className="px-4 py-3 font-semibold text-[#800000]">{getSubjectAverage(ss.subject_id)}</td>
-            </tr>
-          ))}
-        </Table>
+        {filteredSemesterSubjects.length > 0 && (
+          <Table headers={['Subject', 'Prelim', 'Midterm', 'Pre-Finals', 'Finals', 'Average']}>
+            {filteredSemesterSubjects.map((ss) => (
+              <tr key={ss.id} className="hover:bg-white/20">
+                <td className="px-4 py-3 font-medium text-gray-800">{ss.subject?.name}</td>
+                <td className="px-4 py-3 text-gray-600">{getSubjectGrade(ss.subject_id, 1)}</td>
+                <td className="px-4 py-3 text-gray-600">{getSubjectGrade(ss.subject_id, 2)}</td>
+                <td className="px-4 py-3 text-gray-600">{getSubjectGrade(ss.subject_id, 3)}</td>
+                <td className="px-4 py-3 text-gray-600">{getSubjectGrade(ss.subject_id, 4)}</td>
+                <td className="px-4 py-3 font-semibold text-[#800000]">{getSubjectAverage(ss.subject_id)}</td>
+              </tr>
+            ))}
+          </Table>
+        )}
 
         {semesterSubjects.length === 0 && (
           <p className="text-center text-gray-500 py-8">No subjects for this semester</p>
+        )}
+
+        {semesterSubjects.length > 0 && filteredSemesterSubjects.length === 0 && (
+          <p className="text-center text-gray-500 py-8">No subjects match your search.</p>
         )}
 
         {semesterSubjects.length > 0 && (

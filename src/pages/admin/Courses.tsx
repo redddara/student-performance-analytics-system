@@ -1,6 +1,18 @@
 import { useState, useEffect } from 'react';
+import { Pencil, Plus, Trash2, XCircle } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
-import { GlassCard, Button, Input, Table, Modal, Spinner, ConfirmModal } from '../../components/ui';
+import { PageIntro } from '../../components/layouts/PageIntro';
+import {
+  GlassCard,
+  Button,
+  Input,
+  Table,
+  Modal,
+  Spinner,
+  ConfirmModal,
+  MessageModal,
+  type AppMessagePayload,
+} from '../../components/ui';
 import { useDataStore } from '../../store';
 import { supabase } from '../../lib/supabase';
 
@@ -11,6 +23,7 @@ export default function AdminCoursesPage() {
   const [editingCourse, setEditingCourse] = useState<any>(null);
   const [courseName, setCourseName] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState<{isOpen: boolean; id: string | null; name: string | null}>({ isOpen: false, id: null, name: null });
+  const [appMessage, setAppMessage] = useState<AppMessagePayload | null>(null);
 
   useEffect(() => {
     loadCourses();
@@ -24,17 +37,28 @@ export default function AdminCoursesPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (editingCourse) {
-      await supabase.from('courses').update({ name: courseName }).eq('id', editingCourse.id);
-    } else {
-      await supabase.from('courses').insert({ name: courseName });
+    try {
+      if (editingCourse) {
+        const { error } = await supabase.from('courses').update({ name: courseName }).eq('id', editingCourse.id);
+        if (error) throw error;
+        setAppMessage({ title: 'Course updated', message: `"${courseName}" has been saved.`, variant: 'success' });
+      } else {
+        const { error } = await supabase.from('courses').insert({ name: courseName });
+        if (error) throw error;
+        setAppMessage({ title: 'Course added', message: `"${courseName}" is now available for subjects and students.`, variant: 'success' });
+      }
+
+      setShowModal(false);
+      setCourseName('');
+      setEditingCourse(null);
+      loadCourses();
+    } catch (err: any) {
+      setAppMessage({
+        title: 'Could not save course',
+        message: err.message || 'Check your connection and try again.',
+        variant: 'error',
+      });
     }
-    
-    setShowModal(false);
-    setCourseName('');
-    setEditingCourse(null);
-    loadCourses();
   };
 
   const handleEdit = (course: any) => {
@@ -48,9 +72,20 @@ export default function AdminCoursesPage() {
   };
 
   const confirmDelete = async () => {
-    if (deleteConfirm.id) {
-      await supabase.from('courses').delete().eq('id', deleteConfirm.id);
+    if (!deleteConfirm.id) return;
+    const name = deleteConfirm.name || 'Course';
+    try {
+      const { error } = await supabase.from('courses').delete().eq('id', deleteConfirm.id);
+      if (error) throw error;
+      setAppMessage({ title: 'Course deleted', message: `"${name}" has been removed.`, variant: 'success' });
       loadCourses();
+    } catch (err: any) {
+      setAppMessage({
+        title: 'Could not delete course',
+        message: err.message || 'It may still be linked to subjects or students.',
+        variant: 'error',
+      });
+    } finally {
       setDeleteConfirm({ isOpen: false, id: null, name: null });
     }
   };
@@ -61,13 +96,17 @@ export default function AdminCoursesPage() {
 
   return (
     <DashboardLayout title="Course Management">
+      <PageIntro
+        title="Programs & courses"
+        subtitle="Add and maintain degree programs. Course names are used for student ID prefixes (e.g. Office Administration → STUD-OA-) and subject assignment."
+      />
       <Button
         type="button"
         variant="glass"
         onClick={() => setShowModal(true)}
         className="mb-6 w-full sm:w-auto"
       >
-        <i className="hgi-stroke hgi-plus text-lg" aria-hidden />
+        <Plus className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
         Add Course
       </Button>
       
@@ -85,7 +124,7 @@ export default function AdminCoursesPage() {
                     aria-label={`Edit ${course.name}`}
                     title={`Edit ${course.name}`}
                   >
-                    <i className="hgi-stroke hgi-edit-02" aria-hidden />
+                    <Pencil className="h-[1.15rem] w-[1.15rem] shrink-0" strokeWidth={2} aria-hidden />
                   </button>
                   <button
                     type="button"
@@ -94,7 +133,7 @@ export default function AdminCoursesPage() {
                     aria-label={`Delete ${course.name}`}
                     title={`Delete ${course.name}`}
                   >
-                    <i className="hgi-stroke hgi-delete-01" aria-hidden />
+                    <Trash2 className="h-[1.15rem] w-[1.15rem] shrink-0" strokeWidth={2} aria-hidden />
                   </button>
                 </div>
               </td>
@@ -118,14 +157,15 @@ export default function AdminCoursesPage() {
                 setEditingCourse(null);
               }}
             >
-              <i className="hgi-stroke hgi-close-circle text-lg" aria-hidden />
+              <XCircle className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
               Cancel
             </Button>
             <Button type="submit" className="flex-1">
-              <i
-                className={`hgi-stroke text-lg ${editingCourse ? 'hgi-edit-02' : 'hgi-plus'}`}
-                aria-hidden
-              />
+              {editingCourse ? (
+                <Pencil className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+              ) : (
+                <Plus className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+              )}
               {editingCourse ? 'Update' : 'Create'}
             </Button>
           </div>
@@ -141,6 +181,16 @@ export default function AdminCoursesPage() {
         confirmText="Delete"
         variant="danger"
       />
+
+      {appMessage && (
+        <MessageModal
+          isOpen
+          onClose={() => setAppMessage(null)}
+          title={appMessage.title}
+          message={appMessage.message}
+          variant={appMessage.variant}
+        />
+      )}
     </DashboardLayout>
   );
 }

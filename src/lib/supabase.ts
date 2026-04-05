@@ -58,15 +58,58 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
   return passwordHash === hash;
 }
 
-export function generateStudentUsername(courseName: string, number: number): string {
-  const courseCodeMap: Record<string, string> = {
-    BSCS: 'CS',
-    BSOA: 'OA',
-    'Bachelor of Science in Computer Science': 'CS',
-    'Bachelor of Science in Office Administration': 'OA',
-  };
+const STUDENT_ID_COURSE_MAP: Record<string, string> = {
+  BSCS: 'CS',
+  BSOA: 'OA',
+  OA: 'OA',
+  BTVTED: 'VTED',
+  BTTE: 'VTED',
+  'Bachelor of Science in Computer Science': 'CS',
+  'Bachelor of Science in Office Administration': 'OA',
+  'Office Administration': 'OA',
+  'Bachelor of Technical-Vocational Teacher Education': 'VTED',
+};
 
-  const courseCode = courseCodeMap[courseName] || courseName.substring(0, 2).toUpperCase();
+function resolveStudentCourseCode(courseName: string): string {
+  const raw = courseName.trim();
+  if (!raw) return 'XX';
+
+  const lower = raw.toLowerCase();
+  for (const [key, code] of Object.entries(STUDENT_ID_COURSE_MAP)) {
+    if (key.toLowerCase() === lower) return code;
+  }
+
+  const u = raw.toUpperCase().replace(/\s+/g, ' ');
+
+  // Bachelor of Technical-Vocational Teacher Education (and common variants)
+  if (
+    u.includes('BTVTED') ||
+    u.includes('BTTE') ||
+    (u.includes('TECHNICAL') && u.includes('VOCATIONAL') && (u.includes('TEACHER') || u.includes('VTED'))) ||
+    (u.includes('TECH-VOC') && u.includes('TEACHER')) ||
+    (u.includes('TECH VOC') && u.includes('TEACHER'))
+  ) {
+    return 'VTED';
+  }
+
+  // Office Administration (program or shorthand)
+  if (
+    u.includes('BSOA') ||
+    (u.includes('OFFICE') && (u.includes('ADMIN') || u.includes('ADMINISTRATION')))
+  ) {
+    return 'OA';
+  }
+
+  if (u.includes('COMPUTER SCIENCE') || u === 'BSCS' || (u.includes('COMPUTER') && u.includes('SCIENCE'))) {
+    return 'CS';
+  }
+
+  // Unknown program — avoid defaulting to CS (was confusing vs OA/VTED)
+  return 'XX';
+}
+
+export function generateStudentUsername(courseName: string, number: number): string {
+  const courseCode = resolveStudentCourseCode(courseName);
   return `STUD-${courseCode}-${number.toString().padStart(4, '0')}`;
 }
 

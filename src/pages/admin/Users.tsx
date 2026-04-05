@@ -1,8 +1,38 @@
 import { useState, useEffect, useMemo } from 'react';
+import {
+  ListFilter,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Search,
+  Trash2,
+  UserPlus,
+  XCircle,
+  CheckCircle2,
+} from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
-import { GlassCard, Button, Input, Table, Modal, Spinner, Badge, Select, ConfirmModal } from '../../components/ui';
+import { PageIntro } from '../../components/layouts/PageIntro';
+import {
+  GlassCard,
+  Button,
+  Input,
+  Table,
+  Modal,
+  Spinner,
+  Badge,
+  Select,
+  ConfirmModal,
+  MessageModal,
+  type AppMessagePayload,
+} from '../../components/ui';
 import { supabase, hashPassword, generateTempPassword, generateStudentUsername } from '../../lib/supabase';
 import { sendEmail, generateStudentCredentialEmail, generatePasswordResetEmail } from '../../api/email';
+import {
+  DEFAULT_SCHOOL_SECTION,
+  SCHOOL_SECTION_SELECT_OPTIONS,
+  normalizeSchoolSection,
+  sectionFromUserRecord,
+} from '../../constants/schoolSections';
 
 export default function AdminUsersPage() {
   // const { setStudents } = useDataStore();
@@ -17,6 +47,7 @@ export default function AdminUsersPage() {
   const [filterCourseId, setFilterCourseId] = useState('');
   const [filterYearLevel, setFilterYearLevel] = useState('');
   const [filterTempStatus, setFilterTempStatus] = useState('');
+  const [filterSection, setFilterSection] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Confirmation modal states
@@ -26,6 +57,9 @@ export default function AdminUsersPage() {
     userId: string | null;
     userName: string | null;
   }>({ isOpen: false, type: null, userId: null, userName: null });
+
+  const [appMessage, setAppMessage] = useState<AppMessagePayload | null>(null);
+  const showMessage = (payload: AppMessagePayload) => setAppMessage(payload);
 
   useEffect(() => {
     loadData();
@@ -75,7 +109,11 @@ export default function AdminUsersPage() {
         : `Email could not be sent (${sent.error ?? 'unknown error'}). Share the new password manually.`;
     }
 
-    alert(`Password reset successful!\n\nTemporary password: ${tempPassword}\n\n${emailNote}`);
+    showMessage({
+      title: 'Password reset',
+      message: `Temporary password: ${tempPassword}\n\n${emailNote}`,
+      variant: 'success',
+    });
   };
 
   const handleDeleteUser = async () => {
@@ -108,10 +146,14 @@ export default function AdminUsersPage() {
       // Delete the user
       await supabase.from('users').delete().eq('id', confirmModal.userId);
       
-      alert('User deleted successfully!');
+      showMessage({ title: 'User deleted', message: 'The user has been removed from the system.', variant: 'success' });
       loadData();
     } catch (err: any) {
-      alert(err.message || 'Failed to delete user');
+      showMessage({
+        title: 'Could not delete user',
+        message: err.message || 'Something went wrong. Try again.',
+        variant: 'error',
+      });
     }
   };
 
@@ -119,24 +161,35 @@ export default function AdminUsersPage() {
     setConfirmModal({ isOpen: true, type, userId, userName });
   };
 
-  const handleEditUser = async (userId: string, updatedData: any) => {
+  const handleEditUser = async (userId: string, updatedData: any, role?: string) => {
     try {
-      await supabase
-        .from('users')
-        .update({
-          first_name: updatedData.first_name,
-          last_name: updatedData.last_name,
-          email: updatedData.email,
-          year_level: updatedData.year_level,
-          section: updatedData.section,
-          course_id: updatedData.course_id || null,
-        })
-        .eq('id', userId);
-      
+      const payload: Record<string, unknown> = {
+        first_name: updatedData.first_name,
+        last_name: updatedData.last_name,
+        email: updatedData.email,
+        year_level: updatedData.year_level,
+        course_id: updatedData.course_id || null,
+      };
+      if (role === 'student') {
+        payload.section = updatedData.section;
+      }
+      await supabase.from('users').update(payload).eq('id', userId);
+
+      if (role === 'student') {
+        await supabase
+          .from('students')
+          .update({ section: updatedData.section })
+          .eq('user_id', userId);
+      }
+
       loadData();
-      alert('User updated successfully!');
+      showMessage({ title: 'Changes saved', message: 'User details were updated successfully.', variant: 'success' });
     } catch (err: any) {
-      alert(err.message || 'Failed to update user');
+      showMessage({
+        title: 'Could not save changes',
+        message: err.message || 'Something went wrong. Try again.',
+        variant: 'error',
+      });
     }
   };
 
@@ -152,16 +205,21 @@ export default function AdminUsersPage() {
       if (filterYearLevel && (u.year_level || '') !== filterYearLevel) return false;
       if (filterTempStatus === 'temp' && !u.is_temp_password) return false;
       if (filterTempStatus === 'active' && u.is_temp_password) return false;
+      if (filterSection) {
+        if (u.role !== 'student') return false;
+        if (normalizeSchoolSection(u.section) !== filterSection) return false;
+      }
       return true;
     });
-  }, [users, filterSearch, filterRole, filterCourseId, filterYearLevel, filterTempStatus]);
+  }, [users, filterSearch, filterRole, filterCourseId, filterYearLevel, filterTempStatus, filterSection]);
 
   const hasActiveFilters =
     Boolean(filterSearch.trim()) ||
     Boolean(filterRole) ||
     Boolean(filterCourseId) ||
     Boolean(filterYearLevel) ||
-    Boolean(filterTempStatus);
+    Boolean(filterTempStatus) ||
+    Boolean(filterSection);
 
   const clearFilters = () => {
     setFilterSearch('');
@@ -169,6 +227,7 @@ export default function AdminUsersPage() {
     setFilterCourseId('');
     setFilterYearLevel('');
     setFilterTempStatus('');
+    setFilterSection('');
   };
 
   if (loading) {
@@ -183,6 +242,10 @@ export default function AdminUsersPage() {
 
   return (
     <DashboardLayout title="User Management">
+      <PageIntro
+        title="Accounts directory"
+        subtitle="Search and filter students, teachers, and admins. Add users or reset passwords from here. Teachers can be created without linking a course."
+      />
       <div className="mb-5 w-full max-w-2xl">
         <label htmlFor="user-search" className="sr-only">
           Search users
@@ -192,7 +255,7 @@ export default function AdminUsersPage() {
             className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-maroon-700/75"
             aria-hidden
           >
-            <i className="hgi-stroke hgi-search text-xl" />
+            <Search className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
           </span>
           <input
             id="user-search"
@@ -215,7 +278,7 @@ export default function AdminUsersPage() {
             setShowCreateModal(true);
           }}
         >
-          <i className="hgi-stroke hgi-add-to-list text-lg" aria-hidden />
+          <UserPlus className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
           Add Student
         </Button>
         <Button
@@ -226,7 +289,7 @@ export default function AdminUsersPage() {
             setShowCreateModal(true);
           }}
         >
-          <i className="hgi-stroke hgi-add-to-list text-lg" aria-hidden />
+          <UserPlus className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
           Add Teacher
         </Button>
         <Button
@@ -237,7 +300,7 @@ export default function AdminUsersPage() {
             setShowCreateModal(true);
           }}
         >
-          <i className="hgi-stroke hgi-add-to-list text-lg" aria-hidden />
+          <UserPlus className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
           Add Admin
         </Button>
         <button
@@ -248,7 +311,7 @@ export default function AdminUsersPage() {
           aria-label={filtersOpen ? 'Hide user filters' : 'Show user filters'}
           title="Filters"
         >
-          <i className="hgi-stroke hgi-filter text-xl" aria-hidden />
+          <ListFilter className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
           {hasActiveFilters && (
             <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-[#d4af37] ring-2 ring-white" aria-hidden />
           )}
@@ -268,13 +331,14 @@ export default function AdminUsersPage() {
             <h2 className="text-lg font-semibold text-[#800000]">Filter users</h2>
             {hasActiveFilters && (
               <Button type="button" variant="secondary" className="w-full shrink-0 sm:w-auto" onClick={clearFilters}>
-                <i className="hgi-stroke hgi-refresh text-lg" aria-hidden />
+                <RefreshCw className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
                 Clear filters
               </Button>
             )}
           </div>
           <p className="mb-4 text-sm text-gray-600">
-            Use the search bar above to filter by name, email, or student ID.
+            Use the search bar above to filter by name, email, or student ID. Choosing a section shows only
+            students in that section (teachers and admins are hidden while a section is selected).
           </p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Select
@@ -305,6 +369,12 @@ export default function AdminUsersPage() {
                 { value: '3rd', label: '3rd Year' },
                 { value: '4th', label: '4th Year' },
               ]}
+            />
+            <Select
+              label="Section (students)"
+              value={filterSection}
+              onChange={(e) => setFilterSection(e.target.value)}
+              options={[{ value: '', label: 'All sections' }, ...SCHOOL_SECTION_SELECT_OPTIONS]}
             />
             <Select
               label="Password status"
@@ -359,7 +429,7 @@ export default function AdminUsersPage() {
                     onClick={() => openConfirmModal('reset', user.id, user.name || `${user.first_name} ${user.last_name}`)}
                     title="Reset Password"
                   >
-                    <i className="hgi-stroke hgi-refresh" aria-hidden />
+                    <RefreshCw className="h-[1.15rem] w-[1.15rem] shrink-0" strokeWidth={2} aria-hidden />
                   </button>
                   <EditUserModal user={user} courses={courses} onSave={handleEditUser} />
                   <button 
@@ -368,7 +438,7 @@ export default function AdminUsersPage() {
                     onClick={() => openConfirmModal('delete', user.id, user.name || `${user.first_name} ${user.last_name}`)}
                     title="Delete User"
                   >
-                    <i className="hgi-stroke hgi-delete-01" aria-hidden />
+                    <Trash2 className="h-[1.15rem] w-[1.15rem] shrink-0" strokeWidth={2} aria-hidden />
                   </button>
                 </div>
               </td>
@@ -387,8 +457,19 @@ export default function AdminUsersPage() {
         type={createType}
         courses={courses}
         onSuccess={loadData}
+        onFeedback={showMessage}
       />
-      
+
+      {appMessage && (
+        <MessageModal
+          isOpen
+          onClose={() => setAppMessage(null)}
+          title={appMessage.title}
+          message={appMessage.message}
+          variant={appMessage.variant}
+        />
+      )}
+
       <ConfirmModal
         isOpen={confirmModal.isOpen}
         onClose={() => setConfirmModal({ isOpen: false, type: null, userId: null, userName: null })}
@@ -414,9 +495,10 @@ interface CreateUserModalProps {
   type: 'student' | 'teacher' | 'admin';
   courses: any[];
   onSuccess: () => void;
+  onFeedback: (payload: AppMessagePayload) => void;
 }
 
-function CreateUserModal({ isOpen, onClose, type, courses, onSuccess }: CreateUserModalProps) {
+function CreateUserModal({ isOpen, onClose, type, courses, onSuccess, onFeedback }: CreateUserModalProps) {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     first_name: '',
@@ -424,7 +506,7 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess }: CreateUs
     email: '',
     course_id: '',
     grade_level: '1st',
-    section: '3N1',
+    section: DEFAULT_SCHOOL_SECTION,
     semester: '1st Sem',
   });
 
@@ -440,7 +522,36 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess }: CreateUs
       let username: string | null = null;
 
       if (type === 'student') {
-        // Generate student ID for students
+        if (!formData.course_id?.trim()) {
+          onFeedback({
+            title: 'Course required',
+            message:
+              'Select a course so the correct student ID prefix can be assigned (e.g. STUD-OA-, STUD-VTED-, STUD-CS-).',
+            variant: 'warning',
+          });
+          setLoading(false);
+          return;
+        }
+
+        let courseName = course?.name?.trim();
+        if (!courseName) {
+          const { data: courseRow } = await supabase
+            .from('courses')
+            .select('name')
+            .eq('id', formData.course_id)
+            .maybeSingle();
+          courseName = courseRow?.name?.trim();
+        }
+        if (!courseName) {
+          onFeedback({
+            title: 'Course not found',
+            message: 'Could not load the selected course. Choose a course again, then create the student.',
+            variant: 'error',
+          });
+          setLoading(false);
+          return;
+        }
+
         const { data: existingUsers } = await supabase
           .from('users')
           .select('username')
@@ -454,7 +565,7 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess }: CreateUs
           nextNumber = lastNum + 1;
         }
 
-        username = generateStudentUsername(course?.name || 'BSCS', nextNumber);
+        username = generateStudentUsername(courseName, nextNumber);
       }
 
       if (formData.email?.trim()) {
@@ -465,7 +576,11 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess }: CreateUs
           .maybeSingle();
 
         if (existingEmail?.id) {
-          alert('A user with this email already exists. Use a different email or edit the existing user.');
+          onFeedback({
+            title: 'Email already in use',
+            message: 'A user with this email already exists. Use a different email or edit the existing user.',
+            variant: 'warning',
+          });
           setLoading(false);
           return;
         }
@@ -479,7 +594,11 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess }: CreateUs
           .maybeSingle();
 
         if (existingUsername?.id) {
-          alert('This student ID is already in use. Try again or adjust the sequence.');
+          onFeedback({
+            title: 'Student ID in use',
+            message: 'This student ID is already in use. Try again or contact support.',
+            variant: 'error',
+          });
           setLoading(false);
           return;
         }
@@ -507,7 +626,11 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess }: CreateUs
       if (userError) {
         // If error is about duplicate, try to handle it
         if (userError.message?.includes('duplicate') || userError.code === '23505') {
-          alert('A user with this email already exists. Please use a different email.');
+          onFeedback({
+            title: 'Duplicate email',
+            message: 'A user with this email already exists. Please use a different email.',
+            variant: 'error',
+          });
           setLoading(false);
           return;
         }
@@ -584,9 +707,11 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess }: CreateUs
           ? `Student ID: ${username}`
           : `Login email: ${formData.email}`;
 
-      alert(
-        `User created successfully!\n\n${loginLine}\nTemporary password: ${tempPassword}\n\n${emailNote}`
-      );
+      onFeedback({
+        title: 'User created',
+        message: `${loginLine}\nTemporary password: ${tempPassword}\n\n${emailNote}`,
+        variant: 'success',
+      });
       onSuccess();
       onClose();
       setFormData({
@@ -595,12 +720,16 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess }: CreateUs
         email: '',
         course_id: '',
         grade_level: '1st',
-        section: '3N1',
+        section: DEFAULT_SCHOOL_SECTION,
         semester: '1st Sem',
       });
     } catch (err: any) {
       console.error('Create user error:', err);
-      alert(err.message || 'Failed to create user');
+      onFeedback({
+        title: 'Could not create user',
+        message: err.message || 'Something went wrong. Try again.',
+        variant: 'error',
+      });
     } finally {
       setLoading(false);
     }
@@ -618,19 +747,33 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess }: CreateUs
             <Select label="Course" value={formData.course_id} onChange={e => setFormData({ ...formData, course_id: e.target.value })} options={courses.map(c => ({ value: c.id, label: c.name }))} required />
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <Select label="Year Level" value={formData.grade_level} onChange={e => setFormData({ ...formData, grade_level: e.target.value })} options={[{ value: '1st', label: '1st Year' }, { value: '2nd', label: '2nd Year' }, { value: '3rd', label: '3rd Year' }, { value: '4th', label: '4th Year' }]} />
-              <Input label="Section" value={formData.section} onChange={e => setFormData({ ...formData, section: e.target.value })} required />
+              <Select
+                label="Section"
+                value={formData.section}
+                onChange={e => setFormData({ ...formData, section: e.target.value })}
+                options={SCHOOL_SECTION_SELECT_OPTIONS}
+                required
+              />
               <Select label="Semester" value={formData.semester} onChange={e => setFormData({ ...formData, semester: e.target.value })} options={[{ value: '1st Sem', label: '1st Sem' }, { value: '2nd Sem', label: '2nd Sem' }]} />
             </div>
           </>
         )}
         
         {type === 'teacher' && (
-          <Select label="Course" value={formData.course_id} onChange={e => setFormData({ ...formData, course_id: e.target.value })} options={courses.map(c => ({ value: c.id, label: c.name }))} />
+          <Select
+            label="Course (optional)"
+            value={formData.course_id}
+            onChange={e => setFormData({ ...formData, course_id: e.target.value })}
+            options={[
+              { value: '', label: 'None — not linked to a program' },
+              ...courses.map((c) => ({ value: c.id, label: c.name })),
+            ]}
+          />
         )}
 
         <div className="flex gap-4 pt-4">
           <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>
-            <i className="hgi-stroke hgi-close-circle text-lg" aria-hidden />
+            <XCircle className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
             Cancel
           </Button>
           <Button type="submit" className="flex-1" disabled={loading}>
@@ -638,7 +781,7 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess }: CreateUs
               <Spinner size="sm" />
             ) : (
               <>
-                <i className="hgi-stroke hgi-plus text-lg" aria-hidden />
+                <Plus className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
                 Create
               </>
             )}
@@ -652,7 +795,7 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess }: CreateUs
 interface EditUserModalProps {
   user: any;
   courses: any[];
-  onSave: (userId: string, data: any) => void;
+  onSave: (userId: string, data: any, role?: string) => void;
 }
 
 function EditUserModal({ user, courses, onSave }: EditUserModalProps) {
@@ -663,7 +806,7 @@ function EditUserModal({ user, courses, onSave }: EditUserModalProps) {
     last_name: user.last_name || '',
     email: user.email || '',
     year_level: user.year_level || '',
-    section: user.section || '',
+    section: user.role === 'student' ? sectionFromUserRecord(user.section) : '',
     course_id: user.course_id || '',
   });
 
@@ -673,15 +816,24 @@ function EditUserModal({ user, courses, onSave }: EditUserModalProps) {
       last_name: user.last_name || '',
       email: user.email || '',
       year_level: user.year_level || '',
-      section: user.section || '',
+      section: user.role === 'student' ? sectionFromUserRecord(user.section) : '',
       course_id: user.course_id || '',
     });
   }, [user]);
 
+  const studentSectionOptions = useMemo(() => {
+    const opts = [...SCHOOL_SECTION_SELECT_OPTIONS];
+    const cur = (formData.section || '').trim();
+    if (cur && !opts.some((o) => o.value === cur)) {
+      opts.unshift({ value: cur, label: cur });
+    }
+    return opts;
+  }, [formData.section]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    await onSave(user.id, formData);
+    await onSave(user.id, formData, user.role);
     setLoading(false);
     setIsOpen(false);
   };
@@ -694,7 +846,7 @@ function EditUserModal({ user, courses, onSave }: EditUserModalProps) {
         onClick={() => setIsOpen(true)}
         title="Edit User"
       >
-        <i className="hgi-stroke hgi-edit-02" aria-hidden />
+        <Pencil className="h-[1.15rem] w-[1.15rem] shrink-0" strokeWidth={2} aria-hidden />
       </button>
       <Modal isOpen={isOpen} onClose={() => setIsOpen(false)} title="Edit User">
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -705,16 +857,35 @@ function EditUserModal({ user, courses, onSave }: EditUserModalProps) {
           <Input label="Email" type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} required />
           {(user.role === 'student' || user.role === 'teacher') && (
             <>
-              <Select label="Course" value={formData.course_id} onChange={e => setFormData({ ...formData, course_id: e.target.value })} options={courses.map(c => ({ value: c.id, label: c.name }))} />
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Select
+                label={user.role === 'teacher' ? 'Course (optional)' : 'Course'}
+                value={formData.course_id}
+                onChange={e => setFormData({ ...formData, course_id: e.target.value })}
+                options={
+                  user.role === 'teacher'
+                    ? [{ value: '', label: 'None — not linked to a program' }, ...courses.map((c) => ({ value: c.id, label: c.name }))]
+                    : courses.map((c) => ({ value: c.id, label: c.name }))
+                }
+                required={user.role === 'student'}
+              />
+              <div
+                className={`grid grid-cols-1 gap-4 ${user.role === 'student' ? 'sm:grid-cols-2' : ''}`}
+              >
                 <Select label="Year Level" value={formData.year_level} onChange={e => setFormData({ ...formData, year_level: e.target.value })} options={[{ value: '1st', label: '1st Year' }, { value: '2nd', label: '2nd Year' }, { value: '3rd', label: '3rd Year' }, { value: '4th', label: '4th Year' }]} />
-                <Input label="Section" value={formData.section} onChange={e => setFormData({ ...formData, section: e.target.value })} />
+                {user.role === 'student' ? (
+                  <Select
+                    label="Section"
+                    value={formData.section}
+                    onChange={e => setFormData({ ...formData, section: e.target.value })}
+                    options={studentSectionOptions}
+                  />
+                ) : null}
               </div>
             </>
           )}
           <div className="flex gap-4 pt-4">
             <Button type="button" variant="secondary" className="flex-1" onClick={() => setIsOpen(false)}>
-              <i className="hgi-stroke hgi-close-circle text-lg" aria-hidden />
+              <XCircle className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
               Cancel
             </Button>
             <Button type="submit" className="flex-1" disabled={loading}>
@@ -722,7 +893,7 @@ function EditUserModal({ user, courses, onSave }: EditUserModalProps) {
                 <Spinner size="sm" />
               ) : (
                 <>
-                  <i className="hgi-stroke hgi-checkmark-circle-02 text-lg" aria-hidden />
+                  <CheckCircle2 className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
                   Save
                 </>
               )}

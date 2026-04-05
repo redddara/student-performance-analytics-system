@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
+import { AlertTriangle, Star } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
+import { PageIntro } from '../../components/layouts/PageIntro';
 import { GlassCard, Spinner } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase, isPassing, calculateGWA } from '../../lib/supabase';
@@ -135,6 +137,10 @@ export default function StudentAnalyticsPage() {
 
   return (
     <DashboardLayout title="My Analytics">
+      <PageIntro
+        title="Your performance trends"
+        subtitle="GWA, pass rate, and charts built from your recorded grades."
+      />
       {/* Summary Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-8">
         <GlassCard className="p-4 sm:p-6 text-center">
@@ -184,7 +190,10 @@ export default function StudentAnalyticsPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Strengths */}
         <GlassCard className="p-4 sm:p-6">
-          <h3 className="text-lg font-semibold text-gold-600 mb-4"><i className="hgi-stroke hgi-star text-xl mr-2"/>Strengths</h3>
+          <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-gold-600">
+            <Star className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+            Strengths
+          </h3>
           {strengths.length === 0 ? (
             <p className="text-gray-500">No strong subjects yet</p>
           ) : (
@@ -198,7 +207,10 @@ export default function StudentAnalyticsPage() {
 
         {/* Weaknesses */}
         <GlassCard className="p-4 sm:p-6">
-          <h3 className="text-lg font-semibold text-red-600 mb-4"><i className="hgi-stroke hgi-warning-02 text-xl"></i> Areas to Improve</h3>
+          <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-red-600">
+            <AlertTriangle className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+            Areas to Improve
+          </h3>
           {weaknesses.length === 0 ? (
             <p className="text-gray-500">No weak subjects — great job!</p>
           ) : (

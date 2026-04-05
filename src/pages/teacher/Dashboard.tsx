@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
+import { CheckCircle2, GraduationCap, UserPen, UserRound } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
+import { PageIntro } from '../../components/layouts/PageIntro';
 import { GlassCard, Button, Spinner } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase, isPassing } from '../../lib/supabase';
@@ -59,12 +61,16 @@ export default function TeacherDashboard() {
 
   return (
     <DashboardLayout title="Teacher Dashboard">
+      <PageIntro
+        title="Your teaching overview"
+        subtitle="Quick stats for the subjects assigned to you and shortcuts to grade entry."
+      />
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <GlassCard className="p-4 sm:p-6">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#800000] to-[#a52a2a] flex items-center justify-center">
-              <i className="hgi-stroke hgi-school-tie text-white text-xl"></i>
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#800000] to-[#a52a2a] flex items-center justify-center text-white">
+              <GraduationCap className="h-6 w-6 shrink-0" strokeWidth={2} aria-hidden />
             </div>
             <div>
               <p className="text-2xl font-bold text-[#800000]">{mySubjects.length}</p>
@@ -75,8 +81,8 @@ export default function TeacherDashboard() {
 
         <GlassCard className="p-4 sm:p-6">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#d4af37] to-[#b8962e] flex items-center justify-center">
-              <i className="hgi-stroke hgi-student text-white text-xl"></i>
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#d4af37] to-[#b8962e] flex items-center justify-center text-maroon-900">
+              <UserRound className="h-6 w-6 shrink-0" strokeWidth={2} aria-hidden />
             </div>
             <div>
               <p className="text-2xl font-bold text-[#d4af37]">{myStudents.length}</p>
@@ -87,8 +93,8 @@ export default function TeacherDashboard() {
 
         <GlassCard className="p-4 sm:p-6">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-maroon-500 to-maroon-600 flex items-center justify-center">
-              <i className="hgi-stroke hgi-edit-user-02 text-white text-xl"></i>
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-maroon-500 to-maroon-600 flex items-center justify-center text-white">
+              <UserPen className="h-6 w-6 shrink-0" strokeWidth={2} aria-hidden />
             </div>
             <div>
               <p className="text-2xl font-bold text-maroon-600">{totalGrades}</p>
@@ -99,8 +105,8 @@ export default function TeacherDashboard() {
 
         <GlassCard className="p-4 sm:p-6">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-gold-500 to-gold-600 flex items-center justify-center">
-              <i className="hgi-stroke hgi-checkmark-circle text-white text-xl"></i>
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-gold-500 to-gold-600 flex items-center justify-center text-white">
+              <CheckCircle2 className="h-6 w-6 shrink-0" strokeWidth={2} aria-hidden />
             </div>
             <div>
               <p className="text-2xl font-bold text-gold-600">{passRate}%</p>
@@ -129,7 +135,7 @@ export default function TeacherDashboard() {
                     window.location.href = `/teacher/subjects?id=${subject.id}`;
                   }}
                 >
-                  <i className="hgi-stroke hgi-edit-user-02 text-lg" aria-hidden />
+                  <UserPen className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
                   View Grades
                   <span className="text-sm font-semibold opacity-90" aria-hidden>
                     →

@@ -1,6 +1,19 @@
 import { useState, useEffect, useMemo } from 'react';
+import { ListFilter, Pencil, Plus, RefreshCw, Trash2, XCircle } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
-import { GlassCard, Button, Input, Table, Modal, Spinner, Select, ConfirmModal } from '../../components/ui';
+import { PageIntro } from '../../components/layouts/PageIntro';
+import {
+  GlassCard,
+  Button,
+  Input,
+  Table,
+  Modal,
+  Spinner,
+  Select,
+  ConfirmModal,
+  MessageModal,
+  type AppMessagePayload,
+} from '../../components/ui';
 import { useDataStore } from '../../store';
 import { supabase } from '../../lib/supabase';
 
@@ -17,6 +30,7 @@ export default function AdminSubjectsPage() {
   const [editingSubject, setEditingSubject] = useState<any>(null);
   const [teachers, setTeachers] = useState<any[]>([]);
   const [deleteConfirm, setDeleteConfirm] = useState<{isOpen: boolean; id: string | null; name: string | null}>({ isOpen: false, id: null, name: null });
+  const [appMessage, setAppMessage] = useState<AppMessagePayload | null>(null);
 
   const [filterSearch, setFilterSearch] = useState('');
   const [filterCourseId, setFilterCourseId] = useState('');
@@ -51,32 +65,56 @@ export default function AdminSubjectsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
+    const courseId = formData.course_id?.trim() || null;
+    const teacherId = formData.teacher_id?.trim() || null;
+
+    if (!courseId) {
+      setAppMessage({
+        title: 'Course required',
+        message: 'Choose a course for this subject, or add a course first if the list is empty.',
+        variant: 'warning',
+      });
+      return;
+    }
+
     const data = {
-      name: formData.name,
-      course_id: formData.course_id,
+      name: formData.name.trim(),
+      course_id: courseId,
       year_level: formData.year_level,
       semester: formData.semester,
-      teacher_id: formData.teacher_id || null,
+      teacher_id: teacherId,
     };
-    
-    if (editingSubject) {
-      await supabase.from('subjects').update(data).eq('id', editingSubject.id);
-    } else {
-      await supabase.from('subjects').insert(data);
+
+    try {
+      if (editingSubject) {
+        const { error } = await supabase.from('subjects').update(data).eq('id', editingSubject.id);
+        if (error) throw error;
+        setAppMessage({ title: 'Subject updated', message: `"${formData.name}" has been saved.`, variant: 'success' });
+      } else {
+        const { error } = await supabase.from('subjects').insert(data);
+        if (error) throw error;
+        setAppMessage({ title: 'Subject added', message: `"${formData.name}" is now in the catalog.`, variant: 'success' });
+      }
+
+      setShowModal(false);
+      setFormData({ name: '', course_id: '', year_level: '1st', semester: '1st Sem', teacher_id: '' });
+      setEditingSubject(null);
+      loadData();
+    } catch (err: any) {
+      setAppMessage({
+        title: 'Could not save subject',
+        message: err.message || 'Check required fields and try again.',
+        variant: 'error',
+      });
     }
-    
-    setShowModal(false);
-    setFormData({ name: '', course_id: '', year_level: '1st', semester: '1st Sem', teacher_id: '' });
-    setEditingSubject(null);
-    loadData();
   };
 
   const handleEdit = (subject: any) => {
     setEditingSubject(subject);
     setFormData({
       name: subject.name,
-      course_id: subject.course_id,
+      course_id: subject.course_id ?? '',
       year_level: subject.year_level || '1st',
       semester: subject.semester || '1st Sem',
       teacher_id: subject.teacher_id || '',
@@ -89,9 +127,20 @@ export default function AdminSubjectsPage() {
   };
 
   const confirmDelete = async () => {
-    if (deleteConfirm.id) {
-      await supabase.from('subjects').delete().eq('id', deleteConfirm.id);
+    if (!deleteConfirm.id) return;
+    const name = deleteConfirm.name || 'Subject';
+    try {
+      const { error } = await supabase.from('subjects').delete().eq('id', deleteConfirm.id);
+      if (error) throw error;
+      setAppMessage({ title: 'Subject deleted', message: `"${name}" has been removed.`, variant: 'success' });
       loadData();
+    } catch (err: any) {
+      setAppMessage({
+        title: 'Could not delete subject',
+        message: err.message || 'It may still have grades or enrollments.',
+        variant: 'error',
+      });
+    } finally {
       setDeleteConfirm({ isOpen: false, id: null, name: null });
     }
   };
@@ -131,6 +180,10 @@ export default function AdminSubjectsPage() {
 
   return (
     <DashboardLayout title="Subject Management">
+      <PageIntro
+        title="Subjects & assignments"
+        subtitle="Link subjects to courses, year levels, and teachers. Use filters to find offerings quickly."
+      />
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <Button
           type="button"
@@ -138,7 +191,7 @@ export default function AdminSubjectsPage() {
           onClick={() => setShowModal(true)}
           className="w-full sm:w-auto"
         >
-          <i className="hgi-stroke hgi-plus text-lg" aria-hidden />
+          <Plus className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
           Add Subject
         </Button>
         <button
@@ -149,7 +202,7 @@ export default function AdminSubjectsPage() {
           aria-label={filtersOpen ? 'Hide subject filters' : 'Show subject filters'}
           title="Filters"
         >
-          <i className="hgi-stroke hgi-filter text-xl" aria-hidden />
+          <ListFilter className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
           {hasActiveFilters && (
             <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-[#d4af37] ring-2 ring-white" aria-hidden />
           )}
@@ -169,7 +222,7 @@ export default function AdminSubjectsPage() {
             <h2 className="text-lg font-semibold text-[#800000]">Filter subjects</h2>
             {hasActiveFilters && (
               <Button type="button" variant="secondary" className="w-full shrink-0 sm:w-auto" onClick={clearFilters}>
-                <i className="hgi-stroke hgi-refresh text-lg" aria-hidden />
+                <RefreshCw className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
                 Clear filters
               </Button>
             )}
@@ -248,7 +301,7 @@ export default function AdminSubjectsPage() {
                     aria-label={`Edit ${subject.name}`}
                     title={`Edit ${subject.name}`}
                   >
-                    <i className="hgi-stroke hgi-edit-02" aria-hidden />
+                    <Pencil className="h-[1.15rem] w-[1.15rem] shrink-0" strokeWidth={2} aria-hidden />
                   </button>
                   <button
                     type="button"
@@ -257,7 +310,7 @@ export default function AdminSubjectsPage() {
                     aria-label={`Delete ${subject.name}`}
                     title={`Delete ${subject.name}`}
                   >
-                    <i className="hgi-stroke hgi-delete-01" aria-hidden />
+                    <Trash2 className="h-[1.15rem] w-[1.15rem] shrink-0" strokeWidth={2} aria-hidden />
                   </button>
                 </div>
               </td>
@@ -296,14 +349,15 @@ export default function AdminSubjectsPage() {
                 setEditingSubject(null);
               }}
             >
-              <i className="hgi-stroke hgi-close-circle text-lg" aria-hidden />
+              <XCircle className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
               Cancel
             </Button>
             <Button type="submit" className="flex-1">
-              <i
-                className={`hgi-stroke text-lg ${editingSubject ? 'hgi-edit-02' : 'hgi-plus'}`}
-                aria-hidden
-              />
+              {editingSubject ? (
+                <Pencil className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+              ) : (
+                <Plus className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+              )}
               {editingSubject ? 'Update' : 'Create'}
             </Button>
           </div>
@@ -319,6 +373,16 @@ export default function AdminSubjectsPage() {
         confirmText="Delete"
         variant="danger"
       />
+
+      {appMessage && (
+        <MessageModal
+          isOpen
+          onClose={() => setAppMessage(null)}
+          title={appMessage.title}
+          message={appMessage.message}
+          variant={appMessage.variant}
+        />
+      )}
     </DashboardLayout>
   );
 }

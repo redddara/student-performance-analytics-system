@@ -14,9 +14,9 @@ export function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
           <div className="bg-gradient-to-r from-maroon-600 to-maroon-700 px-4 py-6 sm:p-8 text-center relative">
             <div className="flex justify-center mb-4 sm:mb-6">
               <img
-                src="/src/assets/logo.png"
+                src={`${import.meta.env.BASE_URL}spas-logo.png`}
                 className="w-20 h-20 sm:w-24 sm:h-24 object-contain drop-shadow-2xl"
-                alt="SAPAS Logo"
+                alt="PHILTECH Student Performance Analytics System"
               />
             </div>
 

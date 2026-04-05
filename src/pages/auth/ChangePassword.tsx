@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { AlertTriangle, KeyRound } from 'lucide-react';
 import { AuthLayout } from '../../components/layouts/AuthLayout';
 import { Button, Input, GlassCard, Spinner } from '../../components/ui';
 import { useAuthStore } from '../../store';
@@ -84,8 +85,9 @@ export default function ChangePasswordPage() {
     <AuthLayout title="Change Password" subtitle="You must change your temporary password">
       <form onSubmit={handleSubmit} className="space-y-6">
         <GlassCard variant="plain" className="!bg-yellow-50/50 !border-yellow-200 p-4">
-          <p className="text-sm text-yellow-800 text-center">
-            <i className="hgi-stroke hgi-warning-02 text-xl"></i> This is your first login. Please create a new password.
+          <p className="flex items-start justify-center gap-2 text-sm text-yellow-800 text-center">
+            <AlertTriangle className="h-5 w-5 shrink-0 text-yellow-700" strokeWidth={2} aria-hidden />
+            <span>This is your first login. Please create a new password.</span>
           </p>
         </GlassCard>
 
@@ -120,7 +122,7 @@ export default function ChangePasswordPage() {
             <Spinner size="sm" />
           ) : (
             <>
-              <i className="hgi-stroke hgi-edit-02 text-lg" aria-hidden />
+              <KeyRound className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
               Change Password
             </>
           )}

@@ -1,5 +1,115 @@
 import { clsx } from 'clsx';
 import { ReactNode, ButtonHTMLAttributes } from 'react';
+import {
+  AlertTriangle,
+  CheckCircle2,
+  CircleAlert,
+  Info,
+  Mail,
+  RefreshCw,
+  Trash2,
+  X,
+  XCircle,
+} from 'lucide-react';
+
+export type MessageModalVariant = 'success' | 'error' | 'info' | 'warning';
+
+export interface AppMessagePayload {
+  title: string;
+  message: string;
+  variant: MessageModalVariant;
+}
+
+interface MessageModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
+  message: string;
+  variant?: MessageModalVariant;
+  buttonText?: string;
+}
+
+/** Single-action dialog to replace window.alert for success, errors, and notices. */
+export function MessageModal({
+  isOpen,
+  onClose,
+  title,
+  message,
+  variant = 'info',
+  buttonText = 'OK',
+}: MessageModalProps) {
+  if (!isOpen) return null;
+
+  const styles = {
+    success: {
+      iconWrap: 'bg-green-500/15 border-green-400/50',
+      icon: CheckCircle2,
+      iconClass: 'text-green-600',
+      title: 'text-green-900',
+    },
+    error: {
+      iconWrap: 'bg-red-500/15 border-red-400/50',
+      icon: CircleAlert,
+      iconClass: 'text-red-600',
+      title: 'text-red-900',
+    },
+    info: {
+      iconWrap: 'bg-maroon-500/10 border-maroon-400/40',
+      icon: Info,
+      iconClass: 'text-[#800000]',
+      title: 'text-gray-900',
+    },
+    warning: {
+      iconWrap: 'bg-amber-500/15 border-amber-400/50',
+      icon: AlertTriangle,
+      iconClass: 'text-amber-700',
+      title: 'text-amber-950',
+    },
+  } as const;
+
+  const s = styles[variant];
+  const Icon = s.icon;
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end justify-center p-0 sm:items-center sm:p-4">
+      <div
+        className="absolute inset-0 bg-black/50 backdrop-blur-md touch-manipulation"
+        onClick={onClose}
+        aria-hidden
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="message-modal-title"
+        className="relative m-0 max-h-[min(88dvh,100vh)] w-full max-w-md overflow-y-auto overscroll-y-contain rounded-t-2xl bg-white shadow-2xl border border-gray-200/90 sm:m-4 sm:rounded-2xl"
+      >
+        <div className="p-5 sm:p-6">
+          <div className="flex gap-4">
+            <div
+              className={clsx(
+                'flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border-2',
+                s.iconWrap
+              )}
+            >
+              <Icon className={clsx('h-6 w-6 shrink-0', s.iconClass)} strokeWidth={2} aria-hidden />
+            </div>
+            <div className="min-w-0 flex-1 pt-0.5">
+              <h2 id="message-modal-title" className={clsx('text-lg font-semibold leading-snug', s.title)}>
+                {title}
+              </h2>
+              <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-gray-600">{message}</p>
+            </div>
+          </div>
+          <div className="mt-6 flex justify-end">
+            <Button type="button" variant="primary" className="min-w-[7rem]" onClick={onClose}>
+              {buttonText}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 interface GlassCardProps {
   children: ReactNode;
@@ -62,7 +172,8 @@ export function Button({
   className,
   ...props 
 }: ButtonProps) {
-  const baseStyles = 'font-medium rounded-xl transition-all duration-300 flex items-center justify-center gap-2 touch-manipulation';
+  const baseStyles =
+    'font-medium rounded-xl transition-all duration-300 flex items-center justify-center gap-2 touch-manipulation [&_svg]:h-[1.15em] [&_svg]:w-[1.15em] [&_svg]:shrink-0';
 
   const variants = {
     primary:
@@ -254,7 +365,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
             className="shrink-0 rounded-lg p-2 min-h-[44px] min-w-[44px] hover:bg-white/50 text-[#800000] transition-colors touch-manipulation flex items-center justify-center"
             aria-label="Close"
           >
-            <i className="hgi-stroke hgi-close-circle text-xl" aria-hidden />
+            <X className="h-6 w-6 shrink-0" strokeWidth={2} aria-hidden />
           </button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-4">{children}</div>
@@ -314,7 +425,7 @@ export function EmptyState({ title, description, action }: EmptyStateProps) {
   return (
     <div className="flex flex-col items-center justify-center py-12 text-center">
       <div className="w-16 h-16 mb-4 rounded-full bg-white/30 flex items-center justify-center">
-  <i className="hgi-stroke hgi-mail text-3xl text-gray-400"/>
+        <Mail className="h-10 w-10 shrink-0 text-gray-400" strokeWidth={1.5} aria-hidden />
       </div>
       <h3 className="text-lg font-semibold text-gray-700">{title}</h3>
       {description && <p className="text-sm text-gray-500 mt-1">{description}</p>}
@@ -366,8 +477,7 @@ export function ConfirmModal({
   
   const v = variants[variant];
 
-  const confirmIconClass =
-    variant === 'danger' ? 'hgi-delete-01' : variant === 'warning' ? 'hgi-refresh' : 'hgi-checkmark-circle-02';
+  const ConfirmActionIcon = variant === 'danger' ? Trash2 : variant === 'warning' ? RefreshCw : CheckCircle2;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
@@ -380,7 +490,7 @@ export function ConfirmModal({
         <div className={`p-4 sm:p-6 ${v.bg} border-b border-white/30`}>
           <div className="flex items-center gap-3 sm:gap-4">
             <div className="w-10 h-10 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center bg-maroon-500/20 border-2 border-maroon-400/50 backdrop-blur-sm">
-              <i className="hgi-stroke hgi-warning-02 text-maroon-600 text-lg sm:text-xl" aria-hidden />
+              <AlertTriangle className="h-6 w-6 shrink-0 text-maroon-700 sm:h-7 sm:w-7" strokeWidth={2} aria-hidden />
             </div>
             <h2 className={`text-lg sm:text-xl font-semibold ${v.text} break-words`}>{title}</h2>
           </div>
@@ -393,7 +503,7 @@ export function ConfirmModal({
               onClick={onClose}
               className="flex min-h-[44px] w-full items-center justify-center gap-2 touch-manipulation rounded-xl border border-gray-300 px-4 py-2.5 text-gray-700 hover:bg-gray-100 transition-all duration-300 sm:w-auto sm:min-h-0"
             >
-              <i className="hgi-stroke hgi-close-circle text-lg" aria-hidden />
+              <XCircle className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
               {cancelText}
             </button>
             <button
@@ -404,7 +514,7 @@ export function ConfirmModal({
               }}
               className={`flex min-h-[44px] w-full items-center justify-center gap-2 touch-manipulation rounded-xl px-4 py-2.5 text-white ${v.button} transition-all duration-300 shadow-lg hover:shadow-xl sm:w-auto sm:min-h-0`}
             >
-              <i className={clsx('hgi-stroke text-lg', confirmIconClass)} aria-hidden />
+              <ConfirmActionIcon className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
               {confirmText}
             </button>
           </div>

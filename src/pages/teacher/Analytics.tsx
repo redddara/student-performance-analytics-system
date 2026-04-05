@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
+import { PageIntro } from '../../components/layouts/PageIntro';
 import { GlassCard, Spinner } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase, isPassing } from '../../lib/supabase';
@@ -93,6 +94,10 @@ export default function TeacherAnalyticsPage() {
 
   return (
     <DashboardLayout title="My Analytics">
+      <PageIntro
+        title="Performance insights"
+        subtitle="Charts based on grades entered for your subjects and enrolled students."
+      />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-8">
         <GlassCard className="p-4 sm:p-6">
           <h3 className="text-lg font-semibold text-[#800000] mb-4">Grade Distribution</h3>

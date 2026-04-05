@@ -1,11 +1,35 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import {
+  BookOpen,
+  BookUser,
+  CheckCircle2,
+  GraduationCap,
+  Plus,
+  UserRound,
+  XCircle,
+} from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
-import { GlassCard, Button, Input, Select, Modal, Spinner, Badge } from '../../components/ui';
+import { PageIntro } from '../../components/layouts/PageIntro';
+import {
+  GlassCard,
+  Button,
+  Input,
+  Select,
+  Modal,
+  Spinner,
+  Badge,
+  MessageModal,
+  type AppMessagePayload,
+} from '../../components/ui';
 import { useDataStore } from '../../store';
 import { supabase, generateStudentUsername, generateTempPassword, hashPassword } from '../../lib/supabase';
 import { sendEmail, generateStudentCredentialEmail } from '../../api/email';
 import type { Course } from '../../types';
+import {
+  DEFAULT_SCHOOL_SECTION,
+  SCHOOL_SECTION_SELECT_OPTIONS,
+} from '../../constants/schoolSections';
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -13,6 +37,8 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createType, setCreateType] = useState<'student' | 'teacher'>('student');
+  const [appMessage, setAppMessage] = useState<AppMessagePayload | null>(null);
+  const showMessage = (payload: AppMessagePayload) => setAppMessage(payload);
 
   useEffect(() => {
     loadData();
@@ -118,12 +144,16 @@ export default function AdminDashboard() {
 
   return (
     <DashboardLayout title="Admin Dashboard">
+      <PageIntro
+        title="Institution overview"
+        subtitle="Enrollment, staffing, subjects, and grade health at a glance. Use quick actions to add users or open course and subject management."
+      />
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <GlassCard className="p-4 sm:p-6">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#800000] to-[#a52a2a] flex items-center justify-center text-2xl">
-              <i className="hgi-stroke hgi-student text-xl"></i>
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#800000] to-[#a52a2a] flex items-center justify-center text-2xl text-white">
+              <UserRound className="h-6 w-6 shrink-0" strokeWidth={2} aria-hidden />
             </div>
             <div>
               <p className="text-2xl font-bold text-[#800000]">{totalStudents}</p>
@@ -134,8 +164,8 @@ export default function AdminDashboard() {
 
         <GlassCard className="p-4 sm:p-6">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#d4af37] to-[#b8962e] flex items-center justify-center text-2xl">
-              <i className="hgi-stroke hgi-school-tie text-xl"></i>
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#d4af37] to-[#b8962e] flex items-center justify-center text-2xl text-maroon-900">
+              <GraduationCap className="h-6 w-6 shrink-0" strokeWidth={2} aria-hidden />
             </div>
             <div>
               <p className="text-2xl font-bold text-[#d4af37]">{totalTeachers}</p>
@@ -146,8 +176,8 @@ export default function AdminDashboard() {
 
         <GlassCard className="p-4 sm:p-6">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-maroon-500 to-maroon-600 flex items-center justify-center text-2xl">
-              <i className="hgi-stroke hgi-book-02 text-white text-xl"></i>
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-maroon-500 to-maroon-600 flex items-center justify-center text-2xl text-white">
+              <BookOpen className="h-6 w-6 shrink-0" strokeWidth={2} aria-hidden />
             </div>
             <div>
               <p className="text-2xl font-bold text-maroon-600">{totalSubjects}</p>
@@ -158,8 +188,8 @@ export default function AdminDashboard() {
 
         <GlassCard className="p-4 sm:p-6">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-gold-500 to-gold-600 flex items-center justify-center text-2xl">
-              <i className="hgi-stroke hgi-checkmark-circle-02 text-white text-xl"></i>
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-gold-500 to-gold-600 flex items-center justify-center text-2xl text-white">
+              <CheckCircle2 className="h-6 w-6 shrink-0" strokeWidth={2} aria-hidden />
             </div>
             <div>
               <p className="text-2xl font-bold text-gold-600">{passRate}%</p>
@@ -181,7 +211,7 @@ export default function AdminDashboard() {
               setShowCreateModal(true);
             }}
           >
-            <i className="hgi-stroke hgi-plus text-lg" aria-hidden />
+            <Plus className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
             Create Student
           </Button>
           <Button
@@ -192,7 +222,7 @@ export default function AdminDashboard() {
               setShowCreateModal(true);
             }}
           >
-            <i className="hgi-stroke hgi-plus text-lg" aria-hidden />
+            <Plus className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
             Create Teacher
           </Button>
           <Button
@@ -201,7 +231,7 @@ export default function AdminDashboard() {
             type="button"
             onClick={() => navigate('/admin/courses')}
           >
-            <i className="hgi-stroke hgi-book-user text-lg" aria-hidden />
+            <BookUser className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
             Manage Courses
           </Button>
           <Button
@@ -210,7 +240,7 @@ export default function AdminDashboard() {
             type="button"
             onClick={() => navigate('/admin/subjects')}
           >
-            <i className="hgi-stroke hgi-school-tie text-lg" aria-hidden />
+            <GraduationCap className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
             Manage Subjects
           </Button>
         </div>
@@ -274,47 +304,46 @@ export default function AdminDashboard() {
         </GlassCard>
       </div>
 
-      {/* Historical data — plain card so tables & monospace labels stay readable (not maroon glass overrides) */}
-      <GlassCard variant="plain" className="mt-8 border-maroon-200/70 p-4 shadow-md sm:p-6">
-        <h2 className="text-xl font-semibold text-maroon-900 mb-1">Historical data</h2>
-        <p className="mb-6 text-sm leading-relaxed text-gray-700">
+      <GlassCard className="mt-8 p-4 shadow-md sm:p-6 lg:p-8">
+        <h2 className="text-xl font-semibold text-[#800000] mb-1">Historical data</h2>
+        <p className="mb-6 text-sm leading-relaxed text-gray-600">
           Grade records and trends use each row’s{' '}
-          <span className="inline-block rounded-md border border-gray-400/80 bg-gray-100 px-2 py-0.5 font-mono text-xs font-semibold text-gray-900 shadow-sm">
+          <span className="inline-block rounded-md border border-gold-400/50 bg-black/25 px-2 py-0.5 font-mono text-xs font-semibold text-gold-100 shadow-inner">
             created_at
           </span>{' '}
           field—the time that grade was saved in the database.
         </p>
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
           <div>
-            <h3 className="text-lg font-semibold text-gray-800 mb-3">Recent grade records</h3>
+            <h3 className="text-lg font-semibold text-[#800000] mb-3">Recent grade records</h3>
             {recentGradeHistory.length === 0 ? (
-              <p className="text-gray-500 text-sm py-6 text-center border border-dashed border-gray-200 rounded-xl">
+              <p className="text-sm py-6 text-center rounded-xl border border-dashed border-gold-400/35 text-white/70 glass-inset px-3">
                 No grade history yet. Entries will appear here after teachers upload or enter grades.
               </p>
             ) : (
-              <div className="max-h-[min(24rem,55vh)] overflow-auto rounded-xl border border-gray-200/80">
-                <table className="w-full text-left text-sm">
-                  <thead className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-gray-200 z-10">
+              <div className="glass-inset max-h-[min(24rem,55vh)] overflow-auto rounded-xl p-2">
+                <table className="w-full text-left text-sm text-white/95">
+                  <thead className="sticky top-0 z-10 border-b border-gold-400/25 bg-black/35 backdrop-blur-sm">
                     <tr>
-                      <th className="px-3 py-2 font-semibold text-gray-700">When</th>
-                      <th className="px-3 py-2 font-semibold text-gray-700">Student</th>
-                      <th className="px-3 py-2 font-semibold text-gray-700">Subject</th>
-                      <th className="px-3 py-2 font-semibold text-gray-700 text-right">Grade</th>
-                      <th className="px-3 py-2 font-semibold text-gray-700 text-center">Sem / Q</th>
+                      <th className="px-3 py-2 font-semibold text-gold-100/95">When</th>
+                      <th className="px-3 py-2 font-semibold text-gold-100/95">Student</th>
+                      <th className="px-3 py-2 font-semibold text-gold-100/95">Subject</th>
+                      <th className="px-3 py-2 font-semibold text-gold-100/95 text-right">Grade</th>
+                      <th className="px-3 py-2 font-semibold text-gold-100/95 text-center">Sem / Q</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-white/10">
                     {recentGradeHistory.map((row) => (
-                      <tr key={row.id} className="hover:bg-gray-50/80">
-                        <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{row.dateLabel}</td>
-                        <td className="px-3 py-2 text-gray-800 max-w-[8rem] truncate" title={row.studentLabel}>
+                      <tr key={row.id} className="hover:bg-white/5">
+                        <td className="px-3 py-2 whitespace-nowrap text-white/80">{row.dateLabel}</td>
+                        <td className="px-3 py-2 max-w-[8rem] truncate text-white/95" title={row.studentLabel}>
                           {row.studentLabel}
                         </td>
-                        <td className="px-3 py-2 text-gray-700 max-w-[10rem] truncate" title={row.subjectLabel}>
+                        <td className="px-3 py-2 max-w-[10rem] truncate text-white/90" title={row.subjectLabel}>
                           {row.subjectLabel}
                         </td>
-                        <td className="px-3 py-2 text-right font-medium text-[#800000]">{row.grade}</td>
-                        <td className="px-3 py-2 text-center text-gray-600 text-xs">
+                        <td className="px-3 py-2 text-right font-medium text-gold-300">{row.grade}</td>
+                        <td className="px-3 py-2 text-center text-xs text-white/75">
                           {row.semester} / Q{row.quarter}
                         </td>
                       </tr>
@@ -325,13 +354,13 @@ export default function AdminDashboard() {
             )}
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-gray-800 mb-3">Grade entries by month</h3>
+            <h3 className="text-lg font-semibold text-[#800000] mb-3">Grade entries by month</h3>
             {monthlyGradeVolume.length === 0 ? (
-              <p className="text-gray-500 text-sm py-6 text-center border border-dashed border-gray-200 rounded-xl">
+              <p className="text-sm py-6 text-center rounded-xl border border-dashed border-gold-400/35 text-white/70 glass-inset px-3">
                 No dated grade entries yet to chart over time.
               </p>
             ) : (
-              <ul className="space-y-3">
+              <ul className="glass-inset space-y-3 rounded-xl p-4">
                 {monthlyGradeVolume.map(([monthKey, count]) => {
                   const [y, m] = monthKey.split('-');
                   const label = new Date(Number(y), Number(m) - 1, 1).toLocaleDateString(undefined, {
@@ -342,12 +371,14 @@ export default function AdminDashboard() {
                   return (
                     <li key={monthKey}>
                       <div className="flex justify-between text-sm mb-1">
-                        <span className="font-medium text-gray-700">{label}</span>
-                        <span className="text-gray-600">{count} record{count !== 1 ? 's' : ''}</span>
+                        <span className="font-medium text-gold-100/95">{label}</span>
+                        <span className="text-white/75">
+                          {count} record{count !== 1 ? 's' : ''}
+                        </span>
                       </div>
-                      <div className="h-2.5 rounded-full bg-gray-100 overflow-hidden border border-gray-200/80">
+                      <div className="h-2.5 overflow-hidden rounded-full border border-white/15 bg-black/30">
                         <div
-                          className="h-full rounded-full bg-gradient-to-r from-maroon-600 to-gold-500 transition-all duration-500"
+                          className="h-full rounded-full bg-gradient-to-r from-maroon-400 to-gold-400 transition-all duration-500"
                           style={{ width: `${pct}%` }}
                         />
                       </div>
@@ -361,12 +392,23 @@ export default function AdminDashboard() {
       </GlassCard>
 
       {/* Create User Modal */}
-      <CreateUserModal 
-        isOpen={showCreateModal} 
+      <CreateUserModal
+        isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         type={createType}
         courses={courses}
+        onFeedback={showMessage}
       />
+
+      {appMessage && (
+        <MessageModal
+          isOpen
+          onClose={() => setAppMessage(null)}
+          title={appMessage.title}
+          message={appMessage.message}
+          variant={appMessage.variant}
+        />
+      )}
     </DashboardLayout>
   );
 }
@@ -376,9 +418,10 @@ interface CreateUserModalProps {
   onClose: () => void;
   type: 'student' | 'teacher';
   courses: Course[];
+  onFeedback: (payload: AppMessagePayload) => void;
 }
 
-function CreateUserModal({ isOpen, onClose, type, courses }: CreateUserModalProps) {
+function CreateUserModal({ isOpen, onClose, type, courses, onFeedback }: CreateUserModalProps) {
   const { students, setStudents } = useDataStore();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -387,7 +430,7 @@ function CreateUserModal({ isOpen, onClose, type, courses }: CreateUserModalProp
     email: '',
     course_id: '',
     grade_level: '1st',
-    section: '1',
+    section: DEFAULT_SCHOOL_SECTION,
     semester: '1st Sem',
   });
 
@@ -409,7 +452,7 @@ function CreateUserModal({ isOpen, onClose, type, courses }: CreateUserModalProp
           temp_password_visible: tempPassword,
           first_name: formData.first_name,
           last_name: formData.last_name,
-          course_id: null,
+          course_id: formData.course_id || null,
           year_level: null,
           section: null,
         });
@@ -430,11 +473,42 @@ function CreateUserModal({ isOpen, onClose, type, courses }: CreateUserModalProp
             : `Email could not be sent (${sent.error ?? 'unknown error'}). Share the password manually.`;
         }
 
-        alert(
-          `Teacher created successfully!\n\nLogin email: ${formData.email}\nTemporary password: ${tempPassword}\n\n${emailNote}`
-        );
+        onFeedback({
+          title: 'Teacher created',
+          message: `Login email: ${formData.email}\nTemporary password: ${tempPassword}\n\n${emailNote}`,
+          variant: 'success',
+        });
       } else {
-        const course = courses.find(c => c.id === formData.course_id);
+        if (!formData.course_id?.trim()) {
+          onFeedback({
+            title: 'Course required',
+            message:
+              'Select a course so the correct student ID prefix can be assigned (e.g. STUD-OA-, STUD-VTED-, STUD-CS-).',
+            variant: 'warning',
+          });
+          setLoading(false);
+          return;
+        }
+
+        let courseName = courses.find(c => c.id === formData.course_id)?.name?.trim();
+        if (!courseName) {
+          const { data: courseRow } = await supabase
+            .from('courses')
+            .select('name')
+            .eq('id', formData.course_id)
+            .maybeSingle();
+          courseName = courseRow?.name?.trim();
+        }
+        if (!courseName) {
+          onFeedback({
+            title: 'Course not found',
+            message: 'Could not load the selected course. Choose a course again, then create the student.',
+            variant: 'error',
+          });
+          setLoading(false);
+          return;
+        }
+
         const { data: existingUsers } = await supabase
           .from('users')
           .select('username')
@@ -448,7 +522,7 @@ function CreateUserModal({ isOpen, onClose, type, courses }: CreateUserModalProp
           nextNumber = lastNum + 1;
         }
 
-        const username = generateStudentUsername(course?.name || 'BSCS', nextNumber);
+        const username = generateStudentUsername(courseName, nextNumber);
 
         const { data: userData, error: userError } = await supabase
           .from('users')
@@ -517,9 +591,11 @@ function CreateUserModal({ isOpen, onClose, type, courses }: CreateUserModalProp
             : `Email could not be sent (${sent.error ?? 'unknown error'}). Share the password manually.`;
         }
 
-        alert(
-          `Student created successfully!\n\nStudent ID: ${username}\nTemporary password: ${tempPassword}\n\n${emailNote}`
-        );
+        onFeedback({
+          title: 'Student created',
+          message: `Student ID: ${username}\nTemporary password: ${tempPassword}\n\n${emailNote}`,
+          variant: 'success',
+        });
       }
 
       onClose();
@@ -529,11 +605,15 @@ function CreateUserModal({ isOpen, onClose, type, courses }: CreateUserModalProp
         email: '',
         course_id: '',
         grade_level: '1st',
-        section: '1',
+        section: DEFAULT_SCHOOL_SECTION,
         semester: '1st Sem',
       });
     } catch (err: any) {
-      alert(err.message || 'Failed to create user');
+      onFeedback({
+        title: 'Could not create user',
+        message: err.message || 'Something went wrong. Try again.',
+        variant: 'error',
+      });
     } finally {
       setLoading(false);
     }
@@ -562,6 +642,18 @@ function CreateUserModal({ isOpen, onClose, type, courses }: CreateUserModalProp
           required
         />
         
+        {type === 'teacher' && (
+          <Select
+            label="Course (optional)"
+            value={formData.course_id}
+            onChange={e => setFormData({ ...formData, course_id: e.target.value })}
+            options={[
+              { value: '', label: 'None — not linked to a program' },
+              ...courses.map((c) => ({ value: c.id, label: c.name })),
+            ]}
+          />
+        )}
+
         {type === 'student' && (
           <>
             <Select
@@ -583,11 +675,11 @@ function CreateUserModal({ isOpen, onClose, type, courses }: CreateUserModalProp
                   { value: '4th', label: '4th Year' },
                 ]}
               />
-              <Input
+              <Select
                 label="Section"
                 value={formData.section}
                 onChange={e => setFormData({ ...formData, section: e.target.value })}
-                placeholder="e.g., 3N1"
+                options={SCHOOL_SECTION_SELECT_OPTIONS}
                 required
               />
               <Select
@@ -605,7 +697,7 @@ function CreateUserModal({ isOpen, onClose, type, courses }: CreateUserModalProp
 
         <div className="flex gap-4 pt-4">
           <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>
-            <i className="hgi-stroke hgi-close-circle text-lg" aria-hidden />
+            <XCircle className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
             Cancel
           </Button>
           <Button type="submit" className="flex-1" disabled={loading}>
@@ -613,7 +705,7 @@ function CreateUserModal({ isOpen, onClose, type, courses }: CreateUserModalProp
               <Spinner size="sm" />
             ) : (
               <>
-                <i className="hgi-stroke hgi-plus text-lg" aria-hidden />
+                <Plus className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
                 {`Create ${type === 'student' ? 'Student' : 'Teacher'}`}
               </>
             )}

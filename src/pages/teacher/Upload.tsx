@@ -1,7 +1,9 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
-import { GlassCard, Button, Select, Spinner } from '../../components/ui';
+import { PageIntro } from '../../components/layouts/PageIntro';
+import { GlassCard, Button, Select, Spinner, MessageModal, type AppMessagePayload } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase, getGradeRemarks } from '../../lib/supabase';
 
@@ -24,6 +26,7 @@ export default function TeacherUploadPage() {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [appMessage, setAppMessage] = useState<AppMessagePayload | null>(null);
 
   const loadSubjects = async () => {
     const { data } = await supabase.from('subjects').select('*, course:courses(*)').eq('teacher_id', user?.id);
@@ -31,14 +34,18 @@ export default function TeacherUploadPage() {
     if (data?.length) setSelectedSubject(data[0].id);
   };
 
-  useState(() => {
+  useEffect(() => {
     loadSubjects();
-  });
+  }, [user?.id]);
 
   const processFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !selectedSubject) {
-      alert('Please select a subject first');
+      setAppMessage({
+        title: 'Select a subject',
+        message: 'Choose a subject before uploading a grade file.',
+        variant: 'warning',
+      });
       return;
     }
 
@@ -130,7 +137,11 @@ export default function TeacherUploadPage() {
 
       setResults({ success, failed, errors: errors.slice(0, 10) });
     } catch (err: any) {
-      alert('Error processing file: ' + err.message);
+      setAppMessage({
+        title: 'Upload failed',
+        message: err.message || 'Could not read or process the file.',
+        variant: 'error',
+      });
     } finally {
       setLoading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -150,8 +161,15 @@ export default function TeacherUploadPage() {
 
   return (
     <DashboardLayout title="Upload Grades">
-      <GlassCard className="p-4 sm:p-6 mb-6">
-        <h2 className="text-lg font-semibold text-[#800000] mb-4">Upload Excel File</h2>
+      <PageIntro
+        title="Bulk grade import"
+        subtitle="Upload a spreadsheet to add or update grades for students enrolled in your subject. Download the template for the correct column layout."
+      />
+      <GlassCard variant="plain" className="p-4 sm:p-6 mb-6">
+        <h2 className="text-xl font-semibold text-[#800000] mb-1">Upload Excel file</h2>
+        <p className="mb-4 text-sm leading-relaxed text-gray-600">
+          Columns: student_name, semester (1 or 2), quarter (1–4), grade (0–100).
+        </p>
         
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -191,17 +209,24 @@ export default function TeacherUploadPage() {
               onChange={processFile}
               className="w-full min-w-0 text-sm file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-[#800000] file:text-white hover:file:bg-[#600000]"
             />
-            <Button variant="secondary" className="w-full shrink-0 sm:w-auto" onClick={downloadTemplate}>
-              <i className="hgi-stroke hgi-download-04 text-lg" aria-hidden />
+            <Button variant="primary" className="w-full shrink-0 sm:w-auto" onClick={downloadTemplate}>
+              <Download className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
               Download Template
             </Button>
           </div>
 
-          <p className="text-sm text-gray-500">
-            Expected columns: student_name, semester (1 or 2), quarter (1-4), grade (0-100)
-          </p>
         </div>
       </GlassCard>
+
+      {appMessage && (
+        <MessageModal
+          isOpen
+          onClose={() => setAppMessage(null)}
+          title={appMessage.title}
+          message={appMessage.message}
+          variant={appMessage.variant}
+        />
+      )}
 
       {loading && (
         <div className="flex justify-center py-8">
@@ -210,7 +235,7 @@ export default function TeacherUploadPage() {
       )}
 
       {results && (
-        <GlassCard className="p-4 sm:p-6">
+        <GlassCard variant="plain" className="p-4 sm:p-6">
           <h3 className="text-lg font-semibold text-[#800000] mb-4">Upload Results</h3>
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div className="text-center p-4 rounded-xl bg-green-50 border border-green-200">

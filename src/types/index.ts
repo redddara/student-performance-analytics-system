@@ -15,6 +15,10 @@ export interface User {
   is_temp_password: boolean;
   temp_password_visible?: string;
   created_at?: string;
+  /** Failed password attempts (server-side when RPC migration is applied). */
+  login_failed_attempts?: number;
+  /** If set and in the future, login is blocked until this time or admin unlock. */
+  login_locked_until?: string | null;
 }
 
 export interface Course {

@@ -188,7 +188,17 @@ export default function AdminSubjectsPage() {
         <Button
           type="button"
           variant="glass"
-          onClick={() => setShowModal(true)}
+          onClick={() => {
+            setEditingSubject(null);
+            setFormData({
+              name: '',
+              course_id: '',
+              year_level: '1st',
+              semester: '1st Sem',
+              teacher_id: '',
+            });
+            setShowModal(true);
+          }}
           className="w-full sm:w-auto"
         >
           <Plus className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
@@ -324,9 +334,28 @@ export default function AdminSubjectsPage() {
       </GlassCard>
 
       <Modal isOpen={showModal} onClose={() => { setShowModal(false); setFormData({ name: '', course_id: '', year_level: '1st', semester: '1st Sem', teacher_id: '' }); setEditingSubject(null); }} title={editingSubject ? 'Edit Subject' : 'Add Subject'}>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <Input label="Subject Name" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} required />
-          <Select label="Course" value={formData.course_id} onChange={e => setFormData({ ...formData, course_id: e.target.value })} options={courses.map(c => ({ value: c.id, label: c.name }))} required />
+        <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
+          <Input
+            label="Subject Name"
+            name="subject-display-name"
+            autoComplete="off"
+            value={formData.name}
+            onChange={e => setFormData({ ...formData, name: e.target.value })}
+            required
+          />
+          <Select
+            label="Course"
+            name="sapas-subject-course"
+            autoComplete="off"
+            value={formData.course_id}
+            onChange={e => setFormData({ ...formData, course_id: e.target.value })}
+            options={
+              editingSubject
+                ? courses.map(c => ({ value: c.id, label: c.name }))
+                : [{ value: '', label: 'Select a course' }, ...courses.map(c => ({ value: c.id, label: c.name }))]
+            }
+            required
+          />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Select label="Year Level" value={formData.year_level} onChange={e => setFormData({ ...formData, year_level: e.target.value })} options={[{ value: '1st', label: '1st Year' }, { value: '2nd', label: '2nd Year' }, { value: '3rd', label: '3rd Year' }, { value: '4th', label: '4th Year' }]} />
             <Select label="Semester" value={formData.semester} onChange={e => setFormData({ ...formData, semester: e.target.value })} options={[{ value: '1st Sem', label: '1st Sem' }, { value: '2nd Sem', label: '2nd Sem' }]} />

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
   ListFilter,
+  LockOpen,
   Pencil,
   Plus,
   RefreshCw,
@@ -33,6 +34,7 @@ import {
   normalizeSchoolSection,
   sectionFromUserRecord,
 } from '../../constants/schoolSections';
+import { isLoginLocked } from '../../lib/loginLock';
 
 export default function AdminUsersPage() {
   // const { setStudents } = useDataStore();
@@ -79,6 +81,27 @@ export default function AdminUsersPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleUnlockLogin = async (userId: string) => {
+    const { error } = await supabase
+      .from('users')
+      .update({ login_failed_attempts: 0, login_locked_until: null })
+      .eq('id', userId);
+    if (error) {
+      showMessage({
+        title: 'Could not unlock account',
+        message: error.message || 'Check your connection and try again.',
+        variant: 'error',
+      });
+      return;
+    }
+    showMessage({
+      title: 'Login unlocked',
+      message: 'This user can sign in again. Failed attempt count was reset.',
+      variant: 'success',
+    });
+    loadData();
   };
 
   const handleResetPassword = async () => {
@@ -417,12 +440,27 @@ export default function AdminUsersPage() {
               </td>
               <td className="px-4 py-3 text-gray-600">{user.email}</td>
               <td className="px-4 py-3">
-                {user.is_temp_password && (
-                  <Badge variant="warning">Temp</Badge>
-                )}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {user.is_temp_password && <Badge variant="warning">Temp</Badge>}
+                  {isLoginLocked(user) && <Badge variant="danger">Login locked</Badge>}
+                  {!user.is_temp_password && !isLoginLocked(user) && (
+                    <span className="text-xs text-gray-500">—</span>
+                  )}
+                </div>
               </td>
               <td className="px-4 py-3">
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
+                  {isLoginLocked(user) && (
+                    <button
+                      type="button"
+                      className="p-2 rounded-lg glass-hover text-green-700"
+                      onClick={() => handleUnlockLogin(user.id)}
+                      title="Unlock login (clear lockout)"
+                      aria-label={`Unlock login for ${user.name || user.first_name || 'user'}`}
+                    >
+                      <LockOpen className="h-[1.15rem] w-[1.15rem] shrink-0" strokeWidth={2} aria-hidden />
+                    </button>
+                  )}
                   <button 
                     type="button"
                     className="p-2 rounded-lg glass-hover text-[#800000]" 

@@ -67,7 +67,7 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
   };
 
   return (
-    <div className="min-h-screen flex relative bg-white overflow-x-hidden">
+    <div className="relative flex h-dvh bg-white overflow-hidden">
 
       {/* Mobile Overlay */}
       {sidebarOpen && (
@@ -79,7 +79,7 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
       )}
 
       {/* Sidebar */}
-      <aside className={`z-40 w-[min(100%,16rem)] max-w-[85vw] maroon-sidebar flex flex-col fixed md:sticky top-0 left-0 h-dvh min-h-screen pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)] transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+      <aside className={`z-40 w-[min(100%,16rem)] max-w-[85vw] maroon-sidebar flex flex-col fixed top-0 left-0 h-dvh min-h-screen pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)] transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         {/* Logo */}
         <div className="mb-6 px-3 pt-6 sm:px-4">
           <div className="flex items-center gap-3">
@@ -149,7 +149,7 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
       </aside>
 
       {/* Main Content */}
-      <main className="relative z-10 flex-1 min-w-0 min-h-dvh px-4 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom,0px))] sm:px-6 md:px-8 lg:px-12 md:pt-6 lg:pt-8 bg-white">
+      <main className="relative z-10 min-w-0 flex-1 h-dvh overflow-y-auto px-4 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom,0px))] sm:px-6 md:ml-64 md:w-[calc(100%-16rem)] md:px-8 lg:px-12 md:pt-6 lg:pt-8 bg-white">
         {/* Mobile Header with Hamburger */}
         <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-6 md:mb-10">
           <div className="flex items-start gap-3 min-w-0">

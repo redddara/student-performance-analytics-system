@@ -26,6 +26,7 @@ function PillField({
         className="min-w-0 flex-1 border-0 bg-transparent text-base text-gray-900 outline-none placeholder:text-gray-400 lg:text-lg"
         {...props}
       />
+      <span className="h-10 w-10 shrink-0 opacity-0 pointer-events-none lg:h-11 lg:w-11" aria-hidden />
     </div>
   );
 }
@@ -320,7 +321,7 @@ export default function LoginPage() {
               ) : (
                 <form onSubmit={handleSubmit} className="mx-auto w-full max-w-md space-y-5 lg:max-w-xl lg:space-y-6">
                   <PillField
-                    label="Login"
+                    label="Username"
                     type="text"
                     name="username"
                     autoComplete="username"
@@ -330,7 +331,7 @@ export default function LoginPage() {
                     required
                     aria-label="Email or student ID"
                   />
-
+  
                   <PillPasswordField
                     label="Password"
                     value={password}

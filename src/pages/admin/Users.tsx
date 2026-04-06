@@ -31,6 +31,7 @@ import { sendEmail, generateStudentCredentialEmail, generatePasswordResetEmail }
 import {
   DEFAULT_SCHOOL_SECTION,
   SCHOOL_SECTION_SELECT_OPTIONS,
+  type SchoolSectionCode,
   normalizeSchoolSection,
   sectionFromUserRecord,
 } from '../../constants/schoolSections';
@@ -547,6 +548,19 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess, onFeedback
     semester: '1st Sem',
   });
 
+  useEffect(() => {
+    if (!isOpen) return;
+    setFormData({
+      first_name: '',
+      last_name: '',
+      email: '',
+      course_id: '',
+      grade_level: '1st',
+      section: DEFAULT_SCHOOL_SECTION,
+      semester: '1st Sem',
+    });
+  }, [isOpen, type]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -774,20 +788,28 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess, onFeedback
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={`Create ${type === 'student' ? 'Student' : type === 'teacher' ? 'Teacher' : 'Admin'}`} size="md">
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <Input label="First Name" value={formData.first_name} onChange={e => setFormData({ ...formData, first_name: e.target.value })} required />
-        <Input label="Last Name" value={formData.last_name} onChange={e => setFormData({ ...formData, last_name: e.target.value })} required />
-        <Input label="Email" type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} required />
+      <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
+        <Input label="First Name" value={formData.first_name} onChange={e => setFormData({ ...formData, first_name: e.target.value })} required autoComplete="off" />
+        <Input label="Last Name" value={formData.last_name} onChange={e => setFormData({ ...formData, last_name: e.target.value })} required autoComplete="off" />
+        <Input label="Email" type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} required autoComplete="off" />
         
         {type === 'student' && (
           <>
-            <Select label="Course" value={formData.course_id} onChange={e => setFormData({ ...formData, course_id: e.target.value })} options={courses.map(c => ({ value: c.id, label: c.name }))} required />
+            <Select
+              label="Course"
+              name="student-course"
+              autoComplete="off"
+              value={formData.course_id}
+              onChange={e => setFormData({ ...formData, course_id: e.target.value })}
+              options={[{ value: '', label: 'Select a course' }, ...courses.map(c => ({ value: c.id, label: c.name }))]}
+              required
+            />
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <Select label="Year Level" value={formData.grade_level} onChange={e => setFormData({ ...formData, grade_level: e.target.value })} options={[{ value: '1st', label: '1st Year' }, { value: '2nd', label: '2nd Year' }, { value: '3rd', label: '3rd Year' }, { value: '4th', label: '4th Year' }]} />
               <Select
                 label="Section"
                 value={formData.section}
-                onChange={e => setFormData({ ...formData, section: e.target.value })}
+                onChange={e => setFormData({ ...formData, section: e.target.value as SchoolSectionCode })}
                 options={SCHOOL_SECTION_SELECT_OPTIONS}
                 required
               />

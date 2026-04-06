@@ -98,7 +98,6 @@ export default function AdminCoursesPage() {
     <DashboardLayout title="Course Management">
       <PageIntro
         title="Programs & courses"
-        subtitle="Add and maintain degree programs. Course names are used for student ID prefixes (e.g. Office Administration → STUD-OA-) and subject assignment."
       />
       <Button
         type="button"

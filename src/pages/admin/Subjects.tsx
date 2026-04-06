@@ -181,8 +181,7 @@ export default function AdminSubjectsPage() {
   return (
     <DashboardLayout title="Subject Management">
       <PageIntro
-        title="Subjects & assignments"
-        subtitle="Link subjects to courses, year levels, and teachers. Use filters to find offerings quickly."
+        title="Subjects & Assignments"
       />
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <Button

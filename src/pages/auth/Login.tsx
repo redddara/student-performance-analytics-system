@@ -305,7 +305,7 @@ export default function LoginPage() {
                     <h2 className="text-xl font-semibold text-gray-900 lg:text-2xl">Sign up</h2>
                     <p className="mt-3 text-sm leading-relaxed text-gray-600 lg:text-base">
                       New accounts are created by your school administrator. If you are a student or teacher and need
-                      access, contact the registrar or IT office with your official school email or student ID.
+                      access, contact the registrar or admin office.
                     </p>
                   </div>
                   <Button

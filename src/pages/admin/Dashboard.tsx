@@ -146,7 +146,6 @@ export default function AdminDashboard() {
     <DashboardLayout title="Admin Dashboard">
       <PageIntro
         title="Institution overview"
-        subtitle="Enrollment, staffing, subjects, and grade health at a glance. Use quick actions to add users or open course and subject management."
       />
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

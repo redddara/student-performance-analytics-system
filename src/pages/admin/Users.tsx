@@ -267,7 +267,6 @@ export default function AdminUsersPage() {
     <DashboardLayout title="User Management">
       <PageIntro
         title="Accounts directory"
-        subtitle="Search and filter students, teachers, and admins. Add users or reset passwords from here. Teachers can be created without linking a course."
       />
       <div className="mb-5 w-full max-w-2xl">
         <label htmlFor="user-search" className="sr-only">

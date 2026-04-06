@@ -61,7 +61,6 @@ export default function StudentSubjectsPage() {
     <DashboardLayout title="My Subjects">
       <PageIntro
         title="Enrolled subjects"
-        subtitle="Search by subject, course, or teacher. Filter by semester to focus one term."
       />
 
       <div className="mb-5 w-full max-w-2xl">

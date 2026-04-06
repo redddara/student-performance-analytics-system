@@ -90,7 +90,6 @@ export default function StudentGradesPage() {
     <DashboardLayout title="My Grades">
       <PageIntro
         title="Grade report"
-        subtitle="Pick semester and quarter, then search subjects below. Averages use recorded grades only."
       />
 
       <div className="mb-5 w-full max-w-2xl">

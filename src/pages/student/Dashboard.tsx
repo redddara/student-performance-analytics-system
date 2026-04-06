@@ -66,7 +66,6 @@ export default function StudentDashboard() {
     <DashboardLayout title="Student Dashboard">
       <PageIntro
         title="Your academic snapshot"
-        subtitle="Enrollment, grades recorded so far, and your general weighted average (GWA)."
       />
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">

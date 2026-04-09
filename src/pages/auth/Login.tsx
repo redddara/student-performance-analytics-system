@@ -245,11 +245,9 @@ export default function LoginPage() {
           Philtech
         </p>
         <h1 className="mt-3 text-2xl font-bold uppercase leading-tight tracking-wide text-white sm:text-3xl lg:text-4xl xl:text-[2.75rem] xl:leading-tight">
-          Student performance analytics
+          Student performance analytics system
         </h1>
-        <p className="mt-4 text-sm leading-relaxed text-white/80 lg:text-base lg:leading-relaxed">
-          Sign in to view grades, analytics, and subject records. Your data stays with your institution.
-        </p>
+        
       </div>
 
       <div className="relative z-10 mt-8 flex min-h-0 flex-1 flex-col items-center justify-center lg:mt-10">
@@ -350,7 +348,7 @@ export default function LoginPage() {
                       className="mt-0.5 h-4 w-4 rounded-full border-gray-300 text-maroon-700 focus:ring-maroon-500 lg:mt-1 lg:h-5 lg:w-5"
                     />
                     <span className="text-sm text-gray-600 lg:text-base lg:leading-snug">
-                      Remember this device — stay signed in longer when the browser stays open.
+                      Remember Me
                     </span>
                   </label>
 

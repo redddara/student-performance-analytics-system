@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { ListFilter, RefreshCw, Search } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
-import { PageIntro } from '../../components/layouts/PageIntro';
 import { GlassCard, Select, Table, Spinner, Button } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase, calculateGWA } from '../../lib/supabase';
@@ -98,9 +97,7 @@ export default function StudentGradesPage() {
 
   return (
     <DashboardLayout title="My Grades">
-      <PageIntro
-        title="Grade report"
-      />
+      
 
       <div className="mb-5 w-full max-w-2xl">
         <label htmlFor="student-grade-subject-search" className="sr-only">

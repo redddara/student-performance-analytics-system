@@ -3,7 +3,6 @@ import { AlertTriangle, Download, ListFilter, RefreshCw, Search, Star } from 'lu
 import { useSearchParams } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
-import { PageIntro } from '../../components/layouts/PageIntro';
 import { GlassCard, Select, Table, Spinner, Badge, Button, MessageModal, type AppMessagePayload } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase, getGradeRemarks, isPassing } from '../../lib/supabase';
@@ -373,11 +372,7 @@ export default function TeacherGradesPage() {
 
   return (
     <DashboardLayout title="Grade Management">
-      <PageIntro
-        title="Grade book"
-        subtitle="Grade entry, grade uploads, and grade history are all in this page."
-      />
-
+      
       <div className="mb-4 text-sm text-gray-600">
         {mySubjects.length === 0 ? (
           <span className="text-gray-500">No subjects assigned.</span>

@@ -86,9 +86,12 @@ export default function TeacherSubjectsPage() {
             <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-[#d4af37] ring-2 ring-white" aria-hidden />
           )}
         </button>
-        <span className="text-sm text-gray-600">
-          Showing <span className="font-semibold text-[#800000]">{filteredSubjects.length}</span> / {mySubjects.length} subject{mySubjects.length !== 1 ? 's' : ''}
-        </span>
+        {!filtersOpen && (
+          <span className="text-sm text-gray-600">
+            Showing <span className="font-semibold text-[#800000]">{filteredSubjects.length}</span> / {mySubjects.length}{' '}
+            subject{mySubjects.length !== 1 ? 's' : ''}
+          </span>
+        )}
       </div>
 
       {filtersOpen && (

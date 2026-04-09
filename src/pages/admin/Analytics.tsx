@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { PageIntro } from '../../components/layouts/PageIntro';
-import { GlassCard, Select, Spinner } from '../../components/ui';
+import { GlassCard, Select, Spinner, Button } from '../../components/ui';
 import { useDataStore } from '../../store';
 import { supabase, isPassing, calculateGWA } from '../../lib/supabase';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, Legend, AreaChart, Area, ComposedChart
 } from 'recharts';
-import { Users, BarChart3, TrendingUp, GraduationCap, BookOpen, CheckCircle2, ChartLine, Trophy } from 'lucide-react';
+import { Users, BarChart3, TrendingUp, GraduationCap, BookOpen, CheckCircle2, ChartLine, Trophy, RefreshCw, ListFilter } from 'lucide-react';
 import { chartAxis, chartGrid, chartLegend, chartTooltip } from '../../lib/chartTheme';
 
 export default function AdminAnalyticsPage() {
@@ -16,6 +16,7 @@ export default function AdminAnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [selectedCourse, setSelectedCourse] = useState('all');
   const [animated, setAnimated] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -163,23 +164,66 @@ export default function AdminAnalyticsPage() {
   const overallAverage = filteredGrades.length > 0 ? Math.round(filteredGrades.reduce((sum, g) => sum + g.grade, 0) / filteredGrades.length * 100) / 100 : 0;
   const passRate = studentPassRows.length > 0 ? Math.round((passingCount / studentPassRows.length) * 100) : 0;
 
+  const hasActiveCourseFilter = selectedCourse !== 'all';
+  const clearFilters = () => {
+    setSelectedCourse('all');
+    setAnimated(false);
+    setTimeout(() => setAnimated(true), 100);
+  };
+
   return (
     <DashboardLayout title="Analytics & Reports">
       <PageIntro
         title="System-wide analytics" 
       />
-      <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:p-5">
-        <Select
-          label="Filter by Course"
-          value={selectedCourse}
-          onChange={e => { setSelectedCourse(e.target.value); setAnimated(false); setTimeout(() => setAnimated(true), 100); }}
-          options={[{ value: 'all', label: 'All Courses' }, ...courses.map(c => ({ value: c.id, label: c.name }))]}
-          className="w-full sm:max-w-xs"
-        />
-        <div className="text-xs text-gray-500 sm:text-sm shrink-0">
-          Total Records: {filteredGrades.length} grades • {filteredStudents.length} students
-        </div>
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => setFiltersOpen((o) => !o)}
+          className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-maroon-200 bg-white text-[#800000] shadow-sm transition-colors hover:bg-maroon-50 touch-manipulation"
+          aria-expanded={filtersOpen}
+          aria-label={filtersOpen ? 'Hide analytics filters' : 'Show analytics filters'}
+          title="Filters"
+        >
+          <ListFilter className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+          {hasActiveCourseFilter && (
+            <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-[#d4af37] ring-2 ring-white" aria-hidden />
+          )}
+        </button>
+        {!filtersOpen && (
+          <span className="text-xs text-gray-500 sm:text-sm">
+            Total Records: {filteredGrades.length} grades • {filteredStudents.length} students
+          </span>
+        )}
       </div>
+
+      {filtersOpen && (
+        <div className="mb-6 overflow-hidden rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6 animate-fade-in">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-lg font-semibold text-[#800000]">Filter analytics</h2>
+            {hasActiveCourseFilter && (
+              <Button type="button" variant="secondary" className="w-full shrink-0 sm:w-auto" onClick={clearFilters}>
+                <RefreshCw className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+                Clear filters
+              </Button>
+            )}
+          </div>
+          <Select
+            label="Filter by Course"
+            value={selectedCourse}
+            onChange={(e) => {
+              setSelectedCourse(e.target.value);
+              setAnimated(false);
+              setTimeout(() => setAnimated(true), 100);
+            }}
+            options={[{ value: 'all', label: 'All Courses' }, ...courses.map((c) => ({ value: c.id, label: c.name }))]}
+            className="w-full sm:max-w-xs"
+          />
+          <p className="mt-4 text-xs text-gray-500 sm:text-sm">
+            Total Records: {filteredGrades.length} grades • {filteredStudents.length} students
+          </p>
+        </div>
+      )}
 
       {/* Animated Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8">

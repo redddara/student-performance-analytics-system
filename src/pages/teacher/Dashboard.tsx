@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
 import { CheckCircle2, GraduationCap, UserPen, UserRound } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { PageIntro } from '../../components/layouts/PageIntro';
 import { GlassCard, Button, Spinner } from '../../components/ui';
 import { useAuthStore } from '../../store';
-import { supabase, isPassing } from '../../lib/supabase';
+import { supabase, isPassing, calculateGWA } from '../../lib/supabase';
 
 export default function TeacherDashboard() {
   const { user } = useAuthStore();
-  const grades: any[] = []; // local state or fetch directly
+  const navigate = useNavigate();
+  const [grades, setGrades] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [mySubjects, setMySubjects] = useState<any[]>([]);
   const [myStudents, setMyStudents] = useState<any[]>([]);
@@ -27,12 +29,15 @@ export default function TeacherDashboard() {
 
       setMySubjects(teacherSubjects || []);
 
-      // Get grades
-      // const { data: gradesData } = await supabase.from('grades').select('*');
-
       // Get unique students in teacher's subjects
       if (teacherSubjects && teacherSubjects.length > 0) {
         const subjectIds = teacherSubjects.map((s: any) => s.id);
+        const { data: gradesData } = await supabase
+          .from('grades')
+          .select('*')
+          .in('subject_id', subjectIds);
+        setGrades(gradesData || []);
+
         const { data: studentSubjects } = await supabase
           .from('student_subjects')
           .select('student_id')
@@ -40,6 +45,9 @@ export default function TeacherDashboard() {
         
         const uniqueStudentIds = [...new Set((studentSubjects || []).map((ss: any) => ss.student_id))];
         setMyStudents(uniqueStudentIds);
+      } else {
+        setGrades([]);
+        setMyStudents([]);
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -56,8 +64,16 @@ export default function TeacherDashboard() {
   const mySubjectIds = mySubjects.map((s: any) => s.id);
   const myGrades = grades.filter((g: any) => mySubjectIds.includes(g.subject_id));
   const totalGrades = myGrades.length;
-  const passingGrades = myGrades.filter((g: any) => isPassing(g.grade)).length;
-  const passRate = totalGrades > 0 ? Math.round((passingGrades / totalGrades) * 100) : 0;
+  const studentGwa = myStudents.map((studentId: any) => {
+    const studentGrades = myGrades.filter((g: any) => g.student_id === studentId);
+    return {
+      studentId,
+      gwa: studentGrades.length > 0 ? calculateGWA(studentGrades) : 0,
+      hasGrades: studentGrades.length > 0,
+    };
+  }).filter((entry) => entry.hasGrades);
+  const passingStudents = studentGwa.filter((entry) => isPassing(entry.gwa)).length;
+  const passRate = studentGwa.length > 0 ? Math.round((passingStudents / studentGwa.length) * 100) : 0;
 
   return (
     <DashboardLayout title="Teacher Dashboard">
@@ -132,7 +148,7 @@ export default function TeacherDashboard() {
                   size="sm"
                   className="mt-2 w-full sm:w-auto"
                   onClick={() => {
-                    window.location.href = `/teacher/subjects?id=${subject.id}`;
+                    navigate(`/teacher/grades?subject=${subject.id}`);
                   }}
                 >
                   <UserPen className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />

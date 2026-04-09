@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { AlertTriangle, Star } from 'lucide-react';
+import { AlertTriangle, Lightbulb, Star } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { PageIntro } from '../../components/layouts/PageIntro';
 import { GlassCard, Spinner } from '../../components/ui';
@@ -132,8 +132,16 @@ export default function StudentAnalyticsPage() {
   });
 
   const overallGWA = myGrades.length > 0 ? calculateGWA(myGrades) : 0;
-  const passingCount = myGrades.filter(g => isPassing(g.grade)).length;
-  const passRate = myGrades.length > 0 ? Math.round((passingCount / myGrades.length) * 100) : 0;
+  const subjectAverages = mySubjects.map((ss) => {
+    const subjectGrades = myGrades.filter((g) => g.subject_id === ss.subject_id);
+    return {
+      subjectId: ss.subject_id,
+      average: subjectGrades.length > 0 ? calculateGWA(subjectGrades) : 0,
+      hasGrades: subjectGrades.length > 0,
+    };
+  }).filter((row) => row.hasGrades);
+  const passingSubjects = subjectAverages.filter((row) => isPassing(row.average)).length;
+  const passRate = subjectAverages.length > 0 ? Math.round((passingSubjects / subjectAverages.length) * 100) : 0;
 
   return (
     <DashboardLayout title="My Analytics">
@@ -149,7 +157,7 @@ export default function StudentAnalyticsPage() {
         </GlassCard>
         <GlassCard className="p-4 sm:p-6 text-center">
           <p className="text-3xl sm:text-4xl font-bold text-gold-600">{passRate}%</p>
-          <p className="text-sm sm:text-base text-gray-500">Pass Rate</p>
+          <p className="text-sm sm:text-base text-gray-500">Pass Rate (Subject GWA)</p>
         </GlassCard>
         <GlassCard className="p-4 sm:p-6 text-center">
           <p className="text-3xl sm:text-4xl font-bold text-[#d4af37]">{mySubjects.length}</p>
@@ -224,7 +232,10 @@ export default function StudentAnalyticsPage() {
 
         {/* Suggestions */}
         <GlassCard className="p-4 sm:p-6">
-          <h3 className="text-lg font-semibold text-[#800000] mb-4">💡 Suggestions</h3>
+          <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-[#800000]">
+            <Lightbulb className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+            Suggestions
+          </h3>
           {suggestions.length === 0 ? (
             <p className="text-gray-500">Keep studying!</p>
           ) : (

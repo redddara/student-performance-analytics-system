@@ -92,8 +92,8 @@ export default function TeacherUploadPage() {
             continue;
           }
 
-          const semester = row.semester || 1;
-          const quarter = row.quarter || 1;
+          const semester = Number(row.semester) || selectedSemester;
+          const quarter = Number(row.quarter) || selectedQuarter;
           const grade = parseFloat(row.grade as any);
 
           if (isNaN(grade) || grade < 0 || grade > 100) {

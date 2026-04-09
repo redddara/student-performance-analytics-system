@@ -1,11 +1,19 @@
 import { createClient, type SupportedStorage } from '@supabase/supabase-js';
 import { SAPAS_AUTH_STORAGE_PREF_KEY } from './sessionConstants';
 
-export const supabaseUrl =
-  import.meta.env.VITE_SUPABASE_URL || 'https://xlmlrplyfizfhklhaicc.supabase.co';
-export const supabaseAnonKey =
-  import.meta.env.VITE_SUPABASE_ANON_KEY ||
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhsbWxycGx5Zml6ZmhrbGhhaWNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE4NTkxODQsImV4cCI6MjA4NzQzNTE4NH0.YOe0zHWSm5L2ltucf97doTg-mrZGwD8bMTpHe4S047Y';
+const rawUrl = import.meta.env.VITE_SUPABASE_URL?.trim() ?? '';
+const rawAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim() ?? '';
+
+if (!rawUrl || !rawAnonKey) {
+  throw new Error(
+    '[SAPAS] Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY. Copy .env.example to .env and set both values from Supabase → Project Settings → API.',
+  );
+}
+
+/** Project URL (no trailing secrets in source — use `.env`). */
+export const supabaseUrl = rawUrl;
+/** Anon key from env only. */
+export const supabaseAnonKey = rawAnonKey;
 
 /** Align JWT storage with remember-me (local vs session). */
 export function setAuthStoragePreference(rememberMe: boolean): void {

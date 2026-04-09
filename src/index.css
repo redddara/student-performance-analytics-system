@@ -175,6 +175,21 @@ input[type="file"]::file-selector-button {
   color: rgb(252 165 165) !important; /* red-300 */
 }
 
+/* Keep modal typography/actions in maroon when modal is rendered inside maroon glass pages */
+.glass-card-content [data-sapas-modal] [class*='800000'],
+.glass-card-content [data-sapas-modal] [class*='text-maroon-600'],
+.glass-card-content [data-sapas-modal] [class*='text-maroon-700'],
+.glass-card-content [data-sapas-modal] [class*='text-maroon-800'] {
+  color: #800000 !important;
+}
+
+.glass-card-content [data-sapas-modal] button,
+.glass-card-content [data-sapas-modal] label,
+.glass-card-content [data-sapas-modal] p,
+.glass-card-content [data-sapas-modal] span {
+  color: inherit;
+}
+
 /* Native <select> inside maroon cards: glass-card-content forces light text; keep dark text on white field + options */
 .glass-card-content select {
   color: #111827 !important;

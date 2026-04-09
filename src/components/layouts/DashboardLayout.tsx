@@ -8,7 +8,6 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
-  Upload,
   UserPen,
   Users,
   UserRound,
@@ -40,7 +39,6 @@ const menuItems: Record<
     { id: 'grades', label: 'Grades', Icon: UserPen },
     { id: 'students', label: 'Students', Icon: UserRound },
     { id: 'analytics', label: 'Analytics', Icon: BarChart3 },
-    { id: 'upload', label: 'Upload Grades', Icon: Upload },
   ],
   student: [
     { id: 'dashboard', label: 'Dashboard', Icon: LayoutDashboard },

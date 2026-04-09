@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { BookUser, GraduationCap, ListFilter, RefreshCw, Search, UserRound } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { PageIntro } from '../../components/layouts/PageIntro';
-import { GlassCard, Spinner, Badge, Table, Button, Input, Select } from '../../components/ui';
+import { GlassCard, Spinner, Badge, Table, Button, Select } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase } from '../../lib/supabase';
 import { SCHOOL_SECTION_SELECT_OPTIONS, normalizeSchoolSection } from '../../constants/schoolSections';

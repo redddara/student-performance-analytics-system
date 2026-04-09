@@ -187,6 +187,7 @@ export default function AdminUsersPage() {
 
   const handleEditUser = async (userId: string, updatedData: any, role?: string) => {
     try {
+      const previousUser = users.find((u) => u.id === userId);
       const payload: Record<string, unknown> = {
         first_name: updatedData.first_name,
         last_name: updatedData.last_name,
@@ -200,10 +201,44 @@ export default function AdminUsersPage() {
       await supabase.from('users').update(payload).eq('id', userId);
 
       if (role === 'student') {
+        const { data: studentRow } = await supabase
+          .from('students')
+          .select('id')
+          .eq('user_id', userId)
+          .maybeSingle();
+
         await supabase
           .from('students')
-          .update({ section: updatedData.section })
+          .update({
+            section: updatedData.section,
+            course_id: updatedData.course_id || null,
+            grade_level: updatedData.year_level || null,
+          })
           .eq('user_id', userId);
+
+        const courseChanged = (previousUser?.course_id || '') !== (updatedData.course_id || '');
+        const yearChanged = (previousUser?.year_level || '') !== (updatedData.year_level || '');
+        if (studentRow?.id && (courseChanged || yearChanged)) {
+          await supabase.from('student_subjects').delete().eq('student_id', studentRow.id);
+
+          if (updatedData.course_id && updatedData.year_level) {
+            const { data: newSubjects } = await supabase
+              .from('subjects')
+              .select('id')
+              .eq('course_id', updatedData.course_id)
+              .eq('year_level', updatedData.year_level);
+
+            if (newSubjects && newSubjects.length > 0) {
+              const newEnrollments = newSubjects.map((sub) => ({
+                student_id: studentRow.id,
+                subject_id: sub.id,
+              }));
+              await supabase
+                .from('student_subjects')
+                .upsert(newEnrollments, { onConflict: 'student_id,subject_id', ignoreDuplicates: true });
+            }
+          }
+        }
       }
 
       loadData();
@@ -907,13 +942,30 @@ function EditUserModal({ user, courses, onSave }: EditUserModalProps) {
       >
         <Pencil className="h-[1.15rem] w-[1.15rem] shrink-0" strokeWidth={2} aria-hidden />
       </button>
-      <Modal isOpen={isOpen} onClose={() => setIsOpen(false)} title="Edit User">
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Input label="First Name" value={formData.first_name} onChange={e => setFormData({ ...formData, first_name: e.target.value })} required />
-            <Input label="Last Name" value={formData.last_name} onChange={e => setFormData({ ...formData, last_name: e.target.value })} required />
-          </div>
-          <Input label="Email" type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} required />
+      <Modal isOpen={isOpen} onClose={() => setIsOpen(false)} title="Edit User" size="md">
+        <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
+          <Input
+            label="First Name"
+            value={formData.first_name}
+            onChange={e => setFormData({ ...formData, first_name: e.target.value })}
+            required
+            autoComplete="off"
+          />
+          <Input
+            label="Last Name"
+            value={formData.last_name}
+            onChange={e => setFormData({ ...formData, last_name: e.target.value })}
+            required
+            autoComplete="off"
+          />
+          <Input
+            label="Email"
+            type="email"
+            value={formData.email}
+            onChange={e => setFormData({ ...formData, email: e.target.value })}
+            required
+            autoComplete="off"
+          />
           {(user.role === 'student' || user.role === 'teacher') && (
             <>
               <Select
@@ -927,23 +979,30 @@ function EditUserModal({ user, courses, onSave }: EditUserModalProps) {
                 }
                 required={user.role === 'student'}
               />
-              <div
-                className={`grid grid-cols-1 gap-4 ${user.role === 'student' ? 'sm:grid-cols-2' : ''}`}
-              >
-                <Select label="Year Level" value={formData.year_level} onChange={e => setFormData({ ...formData, year_level: e.target.value })} options={[{ value: '1st', label: '1st Year' }, { value: '2nd', label: '2nd Year' }, { value: '3rd', label: '3rd Year' }, { value: '4th', label: '4th Year' }]} />
-                {user.role === 'student' ? (
-                  <Select
-                    label="Section"
-                    value={formData.section}
-                    onChange={e => setFormData({ ...formData, section: e.target.value })}
-                    options={studentSectionOptions}
-                  />
-                ) : null}
-              </div>
+              <Select
+                label="Year Level"
+                value={formData.year_level}
+                onChange={e => setFormData({ ...formData, year_level: e.target.value })}
+                options={[{ value: '1st', label: '1st Year' }, { value: '2nd', label: '2nd Year' }, { value: '3rd', label: '3rd Year' }, { value: '4th', label: '4th Year' }]}
+              />
+              {user.role === 'student' ? (
+                <Select
+                  label="Section"
+                  value={formData.section}
+                  onChange={e => setFormData({ ...formData, section: e.target.value })}
+                  options={studentSectionOptions}
+                  required
+                />
+              ) : null}
             </>
           )}
           <div className="flex gap-4 pt-4">
-            <Button type="button" variant="secondary" className="flex-1" onClick={() => setIsOpen(false)}>
+            <Button
+              type="button"
+              variant="secondary"
+              className="flex-1 border-maroon-300 text-[#800000] hover:bg-maroon-50"
+              onClick={() => setIsOpen(false)}
+            >
               <XCircle className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
               Cancel
             </Button>

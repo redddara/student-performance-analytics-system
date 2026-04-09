@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { AlertTriangle, Lightbulb, Star } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
-import { PageIntro } from '../../components/layouts/PageIntro';
 import { GlassCard, Spinner } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase, isPassing, calculateGWA } from '../../lib/supabase';
@@ -145,10 +144,7 @@ export default function StudentAnalyticsPage() {
 
   return (
     <DashboardLayout title="My Analytics">
-      <PageIntro
-        title="Your performance trends"
-        subtitle="GWA, pass rate, and charts built from your recorded grades."
-      />
+    
       {/* Summary Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-8">
         <GlassCard className="p-4 sm:p-6 text-center">

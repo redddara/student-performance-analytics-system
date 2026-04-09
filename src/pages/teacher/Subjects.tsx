@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ListFilter, RefreshCw } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
-import { PageIntro } from '../../components/layouts/PageIntro';
 import { GlassCard, Button, Input, Select, Spinner } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase } from '../../lib/supabase';
@@ -67,10 +66,7 @@ export default function TeacherSubjectsPage() {
 
   return (
     <DashboardLayout title="My Subjects">
-      <PageIntro
-        title="Subjects assigned to you"
-        subtitle="This page shows only your assigned subjects. Grade entry and grade upload are in the Grades page."
-      />
+      
 
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <button

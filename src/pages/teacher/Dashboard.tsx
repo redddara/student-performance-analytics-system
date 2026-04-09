@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { CheckCircle2, GraduationCap, UserPen, UserRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
-import { PageIntro } from '../../components/layouts/PageIntro';
 import { GlassCard, Button, Spinner } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase, isPassing, calculateGWA } from '../../lib/supabase';
@@ -77,10 +76,7 @@ export default function TeacherDashboard() {
 
   return (
     <DashboardLayout title="Teacher Dashboard">
-      <PageIntro
-        title="Your teaching overview"
-        subtitle="Quick stats for the subjects assigned to you and shortcuts to grade entry."
-      />
+      
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <GlassCard className="p-4 sm:p-6">

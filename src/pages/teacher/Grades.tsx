@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Download, ListFilter, RefreshCw, Search } from 'lucide-react';
+import { AlertTriangle, Download, ListFilter, RefreshCw, Search, Star } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { PageIntro } from '../../components/layouts/PageIntro';
@@ -18,6 +19,7 @@ interface GradeRecord {
 
 export default function TeacherGradesPage() {
   const { user } = useAuthStore();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [mySubjects, setMySubjects] = useState<any[]>([]);
   const [grades, setGrades] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
@@ -51,9 +53,14 @@ export default function TeacherGradesPage() {
       const teacherSubjects = subjectsData || [];
       setMySubjects(teacherSubjects);
       if (teacherSubjects.length) {
-        const firstSubjectId = teacherSubjects[0].id;
-        setSelectedSubject(firstSubjectId);
-        await loadEnrolledBySubject(firstSubjectId);
+        const requestedSubjectId = searchParams.get('subject');
+        const hasRequestedSubject = requestedSubjectId && teacherSubjects.some((s) => s.id === requestedSubjectId);
+        const initialSubjectId = hasRequestedSubject ? (requestedSubjectId as string) : teacherSubjects[0].id;
+        setSelectedSubject(initialSubjectId);
+        if (!hasRequestedSubject && initialSubjectId) {
+          setSearchParams({ subject: initialSubjectId }, { replace: true });
+        }
+        await loadEnrolledBySubject(initialSubjectId);
       }
 
       const subjectIds = teacherSubjects.map((s) => s.id);
@@ -266,6 +273,54 @@ export default function TeacherGradesPage() {
 
   const hasActiveFilters = Boolean(filterSearch.trim()) || Boolean(filterSection);
 
+  const studentPerformanceInsights = useMemo(() => {
+    const summary = new Map<
+      string,
+      {
+        studentName: string;
+        gradeLevel: string;
+        section: string;
+        total: number;
+        count: number;
+        failingCount: number;
+      }
+    >();
+
+    filteredGrades.forEach((grade) => {
+      const st = students.find((s) => s.id === grade.student_id);
+      const studentName = st ? `${st.first_name} ${st.last_name}` : 'Unknown';
+      const current = summary.get(grade.student_id) || {
+        studentName,
+        gradeLevel: st?.grade_level || '-',
+        section: st?.section || '-',
+        total: 0,
+        count: 0,
+        failingCount: 0,
+      };
+      current.total += Number(grade.grade) || 0;
+      current.count += 1;
+      if (!isPassing(grade.grade)) current.failingCount += 1;
+      summary.set(grade.student_id, current);
+    });
+
+    const rows = Array.from(summary.values()).map((entry) => ({
+      ...entry,
+      average: entry.count ? entry.total / entry.count : 0,
+      key: `${entry.studentName}-${entry.gradeLevel}-${entry.section}`,
+    }));
+
+    return {
+      topPerformers: rows
+        .filter((entry) => entry.average >= 85 && entry.failingCount === 0)
+        .sort((a, b) => b.average - a.average)
+        .slice(0, 5),
+      atRiskStudents: rows
+        .filter((entry) => entry.average < 75 || entry.failingCount > 0)
+        .sort((a, b) => b.failingCount - a.failingCount || a.average - b.average)
+        .slice(0, 5),
+    };
+  }, [filteredGrades, students]);
+
   const clearFilters = () => {
     setFilterSearch('');
     setFilterSection('');
@@ -368,6 +423,7 @@ export default function TeacherGradesPage() {
               value={`${selectedSubject}`}
               onChange={(e) => {
                 setSelectedSubject(e.target.value);
+                setSearchParams({ subject: e.target.value }, { replace: true });
                 void loadEnrolledBySubject(e.target.value);
               }}
               options={
@@ -499,22 +555,86 @@ export default function TeacherGradesPage() {
         )}
       </GlassCard>
 
+      <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <GlassCard variant="plain" className="p-4 sm:p-6">
+          <h3 className="mb-4 flex items-center gap-2 text-base font-semibold text-green-800 sm:text-lg">
+            <Star className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+            Top performers in current view
+          </h3>
+          {studentPerformanceInsights.topPerformers.length === 0 ? (
+            <p className="text-sm text-gray-600">No top performers yet for this filtered view.</p>
+          ) : (
+            <ul className="space-y-2">
+              {studentPerformanceInsights.topPerformers.map((student) => (
+                <li
+                  key={student.key}
+                  className="rounded-xl border border-green-300 bg-green-50 px-3 py-2 text-sm text-green-900"
+                >
+                  <span className="font-semibold">{student.studentName}</span>
+                  <span className="ml-2">({student.gradeLevel} • {student.section})</span>
+                  <span className="ml-2 font-semibold">Avg {student.average.toFixed(2)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </GlassCard>
+
+        <GlassCard variant="plain" className="p-4 sm:p-6">
+          <h3 className="mb-4 flex items-center gap-2 text-base font-semibold text-red-800 sm:text-lg">
+            <AlertTriangle className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+            At-risk / failing in current view
+          </h3>
+          {studentPerformanceInsights.atRiskStudents.length === 0 ? (
+            <p className="text-sm text-gray-600">No at-risk students in this filtered view.</p>
+          ) : (
+            <ul className="space-y-2">
+              {studentPerformanceInsights.atRiskStudents.map((student) => (
+                <li
+                  key={student.key}
+                  className="rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-900"
+                >
+                  <span className="font-semibold">{student.studentName}</span>
+                  <span className="ml-2">({student.gradeLevel} • {student.section})</span>
+                  <span className="ml-2 font-semibold">Avg {student.average.toFixed(2)}</span>
+                  {student.failingCount > 0 && (
+                    <span className="ml-2 font-semibold">{student.failingCount} failing grade{student.failingCount > 1 ? 's' : ''}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </GlassCard>
+      </div>
+
       <GlassCard className="p-4 sm:p-6">
+        <p className="mb-3 text-xs text-gold-100/90 sm:text-sm">
+          Row highlight guide: <span className="font-semibold text-green-200">green</span> = excellent (90+),{' '}
+          <span className="font-semibold text-red-200">red</span> = failing (&lt;75).
+        </p>
         <Table headers={['Student', 'Subject', 'Semester', 'Quarter', 'Grade', 'Remarks', 'Status']}>
           {filteredGrades.map((grade) => {
             const failing = !isPassing(grade.grade);
+            const excellent = Number(grade.grade) >= 90;
+            const rowClassName = failing
+              ? 'border-l-4 border-red-600 bg-red-200/95 hover:bg-red-200'
+              : excellent
+                ? 'border-l-4 border-green-600 bg-green-200/90 hover:bg-green-200'
+                : 'hover:bg-white/20';
             return (
-            <tr key={grade.id} className={failing ? 'bg-red-50/80 hover:bg-red-100/80' : 'hover:bg-white/20'}>
-              <td className="px-4 py-3 font-medium text-gray-800">{getStudentName(grade.student_id)}</td>
-              <td className="px-4 py-3 text-gray-600">{getSubjectName(grade.subject_id)}</td>
-              <td className="px-4 py-3 text-gray-600">{grade.semester === 1 ? '1st Sem' : '2nd Sem'}</td>
-              <td className="px-4 py-3 text-gray-600">
+            <tr key={grade.id} className={rowClassName}>
+              <td className={`px-4 py-3 font-semibold ${failing ? 'text-red-950' : excellent ? 'text-green-950' : 'text-gray-800'}`}>{getStudentName(grade.student_id)}</td>
+              <td className={`px-4 py-3 ${failing ? 'text-red-900' : excellent ? 'text-green-900' : 'text-gray-600'}`}>{getSubjectName(grade.subject_id)}</td>
+              <td className={`px-4 py-3 ${failing ? 'text-red-900' : excellent ? 'text-green-900' : 'text-gray-600'}`}>{grade.semester === 1 ? '1st Sem' : '2nd Sem'}</td>
+              <td className={`px-4 py-3 ${failing ? 'text-red-900' : excellent ? 'text-green-900' : 'text-gray-600'}`}>
                 {['', 'Prelim', 'Midterm', 'Pre-Finals', 'Finals'][grade.quarter]}
               </td>
-              <td className="px-4 py-3 font-medium text-gray-800">{grade.grade}</td>
-              <td className="px-4 py-3 text-gray-600">{grade.remarks || '—'}</td>
+              <td className={`px-4 py-3 text-base font-bold ${failing ? 'text-red-950' : excellent ? 'text-green-950' : 'text-gray-800'}`}>{grade.grade}</td>
+              <td className={`px-4 py-3 ${failing ? 'text-red-900' : excellent ? 'text-green-900' : 'text-gray-600'}`}>{grade.remarks || '—'}</td>
               <td className="px-4 py-3">
-                <Badge variant={isPassing(grade.grade) ? 'success' : 'danger'}>
+                <Badge
+                  variant={isPassing(grade.grade) ? 'success' : 'danger'}
+                  className={isPassing(grade.grade) ? '!bg-green-600 !text-white !border-green-700' : '!bg-red-600 !text-white !border-red-700'}
+                >
                   {isPassing(grade.grade) ? 'Passing' : 'Failing'}
                 </Badge>
               </td>

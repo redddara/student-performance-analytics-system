@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Search } from 'lucide-react';
+import { ListFilter, RefreshCw, Search } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { PageIntro } from '../../components/layouts/PageIntro';
-import { GlassCard, Select, Table, Spinner } from '../../components/ui';
+import { GlassCard, Select, Table, Spinner, Button } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase, calculateGWA } from '../../lib/supabase';
 
@@ -14,6 +14,7 @@ export default function StudentGradesPage() {
   const [selectedSemester, setSelectedSemester] = useState(1);
   const [selectedQuarter, setSelectedQuarter] = useState('');
   const [filterSearch, setFilterSearch] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -82,6 +83,15 @@ export default function StudentGradesPage() {
     });
   }, [semesterSubjects, filterSearch]);
 
+  const hasActiveFilters =
+    Boolean(filterSearch.trim()) || selectedSemester !== 1 || selectedQuarter !== '';
+
+  const clearFilters = () => {
+    setFilterSearch('');
+    setSelectedSemester(1);
+    setSelectedQuarter('');
+  };
+
   if (loading) {
     return <DashboardLayout title="My Grades"><Spinner size="lg" /></DashboardLayout>;
   }
@@ -112,34 +122,68 @@ export default function StudentGradesPage() {
         </div>
       </div>
 
-      <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:flex-wrap sm:p-5">
-        <div className="w-full sm:min-w-[150px] sm:w-auto">
-          <Select
-            label="Semester"
-            value={`${selectedSemester}`}
-            onChange={e => setSelectedSemester(parseInt(e.target.value))}
-            options={[{ value: "1", label: '1st Semester' }, { value: "2", label: '2nd Semester' }]}
-          />
-        </div>
-        <div className="w-full sm:min-w-[160px] sm:w-auto">
-          <Select 
-            label="Quarter" 
-            value={selectedQuarter} 
-            onChange={e => setSelectedQuarter(e.target.value)} 
-            options={[
-              { value: "", label: 'All Quarters' },
-              { value: "1", label: 'Prelim' },
-              { value: "2", label: 'Midterm' },
-              { value: "3", label: 'Pre-Finals' },
-              { value: "4", label: 'Finals' }
-            ]} 
-          />
-        </div>
-        <p className="w-full text-sm text-gray-600 sm:pl-1">
-          Showing <span className="font-semibold text-[#800000]">{filteredSemesterSubjects.length}</span> /{' '}
-          {semesterSubjects.length} subject{semesterSubjects.length !== 1 ? 's' : ''} this semester
-        </p>
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => setFiltersOpen((o) => !o)}
+          className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-maroon-200 bg-white text-[#800000] shadow-sm transition-colors hover:bg-maroon-50 touch-manipulation"
+          aria-expanded={filtersOpen}
+          aria-label={filtersOpen ? 'Hide grade filters' : 'Show grade filters'}
+          title="Filters"
+        >
+          <ListFilter className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+          {hasActiveFilters && (
+            <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-[#d4af37] ring-2 ring-white" aria-hidden />
+          )}
+        </button>
+        {!filtersOpen && (
+          <span className="text-sm text-gray-600">
+            Showing <span className="font-semibold text-[#800000]">{filteredSemesterSubjects.length}</span> /{' '}
+            {semesterSubjects.length} subject{semesterSubjects.length !== 1 ? 's' : ''} this semester
+          </span>
+        )}
       </div>
+
+      {filtersOpen && (
+        <div className="mb-6 overflow-hidden rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6 animate-fade-in">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-lg font-semibold text-[#800000]">Filter grades</h2>
+            {hasActiveFilters && (
+              <Button type="button" variant="secondary" className="w-full shrink-0 sm:w-auto" onClick={clearFilters}>
+                <RefreshCw className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+                Clear filters
+              </Button>
+            )}
+          </div>
+          <p className="mb-4 text-sm leading-relaxed text-gray-600">
+            Use the search bar above to filter subjects by name or course. Adjust semester and quarter here.
+          </p>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Select
+              label="Semester"
+              value={`${selectedSemester}`}
+              onChange={(e) => setSelectedSemester(parseInt(e.target.value, 10))}
+              options={[{ value: '1', label: '1st Semester' }, { value: '2', label: '2nd Semester' }]}
+            />
+            <Select
+              label="Quarter"
+              value={selectedQuarter}
+              onChange={(e) => setSelectedQuarter(e.target.value)}
+              options={[
+                { value: '', label: 'All Quarters' },
+                { value: '1', label: 'Prelim' },
+                { value: '2', label: 'Midterm' },
+                { value: '3', label: 'Pre-Finals' },
+                { value: '4', label: 'Finals' },
+              ]}
+            />
+          </div>
+          <p className="mt-4 text-sm text-gray-600">
+            Showing <span className="font-semibold text-[#800000]">{filteredSemesterSubjects.length}</span> /{' '}
+            {semesterSubjects.length} subject{semesterSubjects.length !== 1 ? 's' : ''} this semester
+          </p>
+        </div>
+      )}
 
       <GlassCard className="p-4 sm:p-6">
         <h2 className="text-xl font-semibold text-[#800000] mb-4">

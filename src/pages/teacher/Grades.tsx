@@ -38,11 +38,41 @@ export default function TeacherGradesPage() {
 
   const [filterSearch, setFilterSearch] = useState('');
   const [filterSection, setFilterSection] = useState('');
-  const [filtersOpen, setFiltersOpen] = useState(true);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   useEffect(() => {
     loadData();
   }, []);
+
+  const refreshEnrolledStudents = async (subjectId: string, allSubjectIds: string[]) => {
+    if (!allSubjectIds.length) {
+      setEnrolledStudents([]);
+      setSelectedStudentForEntry('');
+      return;
+    }
+    if (subjectId) {
+      const { data } = await supabase
+        .from('student_subjects')
+        .select('student:students(*, user:users(*))')
+        .eq('subject_id', subjectId);
+      const list = (data || []).map((r: any) => r.student).filter(Boolean);
+      setEnrolledStudents(list);
+      setSelectedStudentForEntry((prev) => (list.some((s: any) => s.id === prev) ? prev : list[0]?.id ?? ''));
+      return;
+    }
+    const { data } = await supabase
+      .from('student_subjects')
+      .select('student:students(*, user:users(*))')
+      .in('subject_id', allSubjectIds);
+    const byId = new Map<string, any>();
+    (data || []).forEach((r: any) => {
+      const st = r.student;
+      if (st?.id && !byId.has(st.id)) byId.set(st.id, st);
+    });
+    const list = Array.from(byId.values());
+    setEnrolledStudents(list);
+    setSelectedStudentForEntry((prev) => (list.some((s: any) => s.id === prev) ? prev : list[0]?.id ?? ''));
+  };
 
   const loadData = async () => {
     try {
@@ -52,21 +82,26 @@ export default function TeacherGradesPage() {
         .eq('teacher_id', user?.id);
       const teacherSubjects = subjectsData || [];
       setMySubjects(teacherSubjects);
+      const subjectIds = teacherSubjects.map((s) => s.id);
       if (teacherSubjects.length) {
         const requestedSubjectId = searchParams.get('subject');
-        const hasRequestedSubject = requestedSubjectId && teacherSubjects.some((s) => s.id === requestedSubjectId);
-        const initialSubjectId = hasRequestedSubject ? (requestedSubjectId as string) : teacherSubjects[0].id;
+        const hasRequestedSubject =
+          requestedSubjectId && requestedSubjectId !== 'all' && teacherSubjects.some((s) => s.id === requestedSubjectId);
+        const initialSubjectId = hasRequestedSubject ? (requestedSubjectId as string) : '';
         setSelectedSubject(initialSubjectId);
-        if (!hasRequestedSubject && initialSubjectId) {
+        if (initialSubjectId) {
           setSearchParams({ subject: initialSubjectId }, { replace: true });
+        } else {
+          setSearchParams({ subject: 'all' }, { replace: true });
         }
-        await loadEnrolledBySubject(initialSubjectId);
+        await refreshEnrolledStudents(initialSubjectId, subjectIds);
       }
 
-      const subjectIds = teacherSubjects.map((s) => s.id);
       if (subjectIds.length === 0) {
         setGrades([]);
         setStudents([]);
+        setSelectedSubject('');
+        setEnrolledStudents([]);
         return;
       }
 
@@ -89,22 +124,6 @@ export default function TeacherGradesPage() {
       setStudents(studentsData || []);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadEnrolledBySubject = async (subjectId: string) => {
-    if (!subjectId) {
-      setEnrolledStudents([]);
-      return;
-    }
-    const { data } = await supabase
-      .from('student_subjects')
-      .select('student:students(*, user:users(*))')
-      .eq('subject_id', subjectId);
-    const list = (data || []).map((r: any) => r.student).filter(Boolean);
-    setEnrolledStudents(list);
-    if (list.length > 0 && !selectedStudentForEntry) {
-      setSelectedStudentForEntry(list[0].id);
     }
   };
 
@@ -140,7 +159,7 @@ export default function TeacherGradesPage() {
     }
     setEntryGrade('');
     await loadData();
-    await loadEnrolledBySubject(selectedSubject);
+    await refreshEnrolledStudents(selectedSubject, mySubjects.map((s) => s.id));
     setAppMessage({ title: 'Grade saved', message: 'Grade entry recorded successfully.', variant: 'success' });
   };
 
@@ -233,7 +252,7 @@ export default function TeacherGradesPage() {
 
       setUploadResults({ success, failed, errors: errors.slice(0, 10) });
       await loadData();
-      await loadEnrolledBySubject(selectedSubject);
+      await refreshEnrolledStudents(selectedSubject, mySubjects.map((s) => s.id));
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -241,14 +260,16 @@ export default function TeacherGradesPage() {
   };
 
   const baseGrades = useMemo(() => {
-    if (!selectedSubject) return [];
+    const subjectIds = mySubjects.map((s) => s.id);
+    const matchesSubject = (g: any) =>
+      selectedSubject ? g.subject_id === selectedSubject : subjectIds.includes(g.subject_id);
     return grades.filter(
       (g) =>
-        g.subject_id === selectedSubject &&
+        matchesSubject(g) &&
         g.semester === selectedSemester &&
         (!selectedQuarter || g.quarter.toString() === selectedQuarter)
     );
-  }, [grades, selectedSubject, selectedSemester, selectedQuarter]);
+  }, [grades, selectedSubject, selectedSemester, selectedQuarter, mySubjects]);
 
   const filteredGrades = useMemo(() => {
     const q = filterSearch.trim().toLowerCase();
@@ -271,7 +292,12 @@ export default function TeacherGradesPage() {
     });
   }, [enrolledStudents, entryStudentSearch, filterSection]);
 
-  const hasActiveFilters = Boolean(filterSearch.trim()) || Boolean(filterSection);
+  const hasActiveFilters =
+    Boolean(filterSearch.trim()) ||
+    Boolean(filterSection) ||
+    selectedSemester !== 1 ||
+    selectedQuarter !== '' ||
+    Boolean(selectedSubject);
 
   const studentPerformanceInsights = useMemo(() => {
     const summary = new Map<
@@ -324,6 +350,11 @@ export default function TeacherGradesPage() {
   const clearFilters = () => {
     setFilterSearch('');
     setFilterSection('');
+    setSelectedSemester(1);
+    setSelectedQuarter('');
+    setSelectedSubject('');
+    setSearchParams({ subject: 'all' }, { replace: true });
+    void refreshEnrolledStudents('', mySubjects.map((s) => s.id));
   };
 
   const getStudentName = (id: string) => {
@@ -348,11 +379,13 @@ export default function TeacherGradesPage() {
       />
 
       <div className="mb-4 text-sm text-gray-600">
-        {selectedSubject ? (
+        {mySubjects.length === 0 ? (
+          <span className="text-gray-500">No subjects assigned.</span>
+        ) : (
           <>
             Viewing{' '}
             <span className="font-semibold text-[#800000]">
-              {mySubjects.find((s) => s.id === selectedSubject)?.name || 'Subject'}
+              {selectedSubject ? mySubjects.find((s) => s.id === selectedSubject)?.name || 'Subject' : 'All subjects'}
             </span>
             {' · '}
             {selectedSemester === 1 ? '1st' : '2nd'} semester
@@ -361,8 +394,6 @@ export default function TeacherGradesPage() {
               ? 'All quarters'
               : ['', 'Prelim', 'Midterm', 'Pre-Finals', 'Finals'][Number(selectedQuarter)] || 'Quarter'}
           </>
-        ) : (
-          <span className="text-gray-500">Select a subject in filters to load grades.</span>
         )}
       </div>
 
@@ -400,10 +431,12 @@ export default function TeacherGradesPage() {
             <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-[#d4af37] ring-2 ring-white" aria-hidden />
           )}
         </button>
-        <span className="text-sm text-gray-600">
-          Showing <span className="font-semibold text-[#800000]">{filteredGrades.length}</span> / {baseGrades.length}{' '}
-          grade{baseGrades.length !== 1 ? 's' : ''}
-        </span>
+        {!filtersOpen && (
+          <span className="text-sm text-gray-600">
+            Showing <span className="font-semibold text-[#800000]">{filteredGrades.length}</span> / {baseGrades.length}{' '}
+            grade{baseGrades.length !== 1 ? 's' : ''}
+          </span>
+        )}
       </div>
 
       {filtersOpen && (
@@ -413,7 +446,7 @@ export default function TeacherGradesPage() {
             {hasActiveFilters && (
               <Button type="button" variant="secondary" className="w-full shrink-0 sm:w-auto" onClick={clearFilters}>
                 <RefreshCw className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
-                Clear search & section
+                Clear filters
               </Button>
             )}
           </div>
@@ -422,13 +455,18 @@ export default function TeacherGradesPage() {
               label="Subject"
               value={`${selectedSubject}`}
               onChange={(e) => {
-                setSelectedSubject(e.target.value);
-                setSearchParams({ subject: e.target.value }, { replace: true });
-                void loadEnrolledBySubject(e.target.value);
+                const v = e.target.value;
+                setSelectedSubject(v);
+                if (v) setSearchParams({ subject: v }, { replace: true });
+                else setSearchParams({ subject: 'all' }, { replace: true });
+                void refreshEnrolledStudents(v, mySubjects.map((s) => s.id));
               }}
               options={
                 mySubjects.length
-                  ? mySubjects.map((s) => ({ value: `${s.id}`, label: `${s.name} — ${s.course?.name || ''}` }))
+                  ? [
+                      { value: '', label: 'All subjects' },
+                      ...mySubjects.map((s) => ({ value: `${s.id}`, label: `${s.name} — ${s.course?.name || ''}` })),
+                    ]
                   : [{ value: '', label: 'No subjects assigned' }]
               }
             />
@@ -465,6 +503,11 @@ export default function TeacherGradesPage() {
 
       <GlassCard variant="plain" className="mb-6 p-4 sm:p-6">
         <h2 className="mb-3 text-lg font-semibold text-[#800000]">Quick grade entry</h2>
+        {!selectedSubject && mySubjects.length > 0 && (
+          <p className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+            Open the filter panel (filter icon) and choose a specific subject to enter or update a grade for one student.
+          </p>
+        )}
         <div className="mb-4 w-full md:max-w-sm">
           <label htmlFor="grade-entry-student-search" className="sr-only">Search student for entry</label>
           <input
@@ -520,7 +563,9 @@ export default function TeacherGradesPage() {
           </div>
         </div>
         <div className="mt-4">
-          <Button type="button" onClick={() => void saveGradeEntry()}>Save grade entry</Button>
+          <Button type="button" disabled={!selectedSubject} onClick={() => void saveGradeEntry()}>
+            Save grade entry
+          </Button>
         </div>
       </GlassCard>
 

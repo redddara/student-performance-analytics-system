@@ -36,7 +36,6 @@ import TeacherSubjectsPage from './pages/teacher/Subjects';
 import TeacherGradesPage from './pages/teacher/Grades';
 import TeacherStudentsPage from './pages/teacher/Students';
 import TeacherAnalyticsPage from './pages/teacher/Analytics';
-import TeacherUploadPage from './pages/teacher/Upload';
 
 // Student Pages
 import StudentDashboard from './pages/student/Dashboard';
@@ -255,7 +254,6 @@ export default function App() {
                   <Route path="grades" element={<TeacherGradesPage />} />
                   <Route path="students" element={<TeacherStudentsPage />} />
                   <Route path="analytics" element={<TeacherAnalyticsPage />} />
-                  <Route path="upload" element={<TeacherUploadPage />} />
                   <Route path="*" element={<Navigate to="dashboard" replace />} />
                 </Routes>
               </ProtectedRoute>

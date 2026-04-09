@@ -92,8 +92,29 @@ export default function AdminSubjectsPage() {
         if (error) throw error;
         setAppMessage({ title: 'Subject updated', message: `"${formData.name}" has been saved.`, variant: 'success' });
       } else {
-        const { error } = await supabase.from('subjects').insert(data);
+        const { data: insertedSubject, error } = await supabase.from('subjects').insert(data).select('id').single();
         if (error) throw error;
+        if (insertedSubject?.id) {
+          const { data: matchingStudents, error: studentFetchError } = await supabase
+            .from('students')
+            .select('id')
+            .eq('course_id', courseId)
+            .eq('grade_level', formData.year_level);
+          if (studentFetchError) throw studentFetchError;
+
+          const studentIds = (matchingStudents || []).map((s) => s.id).filter(Boolean);
+          if (studentIds.length > 0) {
+            const enrollments = studentIds.map((sid) => ({
+              student_id: sid,
+              subject_id: insertedSubject.id,
+            }));
+
+            const { error: enrollmentError } = await supabase
+              .from('student_subjects')
+              .upsert(enrollments, { onConflict: 'student_id,subject_id', ignoreDuplicates: true });
+            if (enrollmentError) throw enrollmentError;
+          }
+        }
         setAppMessage({ title: 'Subject added', message: `"${formData.name}" is now in the catalog.`, variant: 'success' });
       }
 

@@ -10,18 +10,9 @@ export default defineConfig({
       output: {
         manualChunks(id: string) {
           if (id.includes('node_modules')) {
-            // Heavy libs first
-            if (id.includes('three') || id.includes('cannon-es') || id.includes('matter-js')) return 'three';
             if (id.includes('recharts')) return 'charts';
-            if (id.includes('framer-motion') || id.includes('gsap')) return 'animations';
-            if (id.includes('ai') || id.includes('@ai-sdk')) return 'ai';
-            
-            // Core
             if (id.includes('react') || id.includes('react-router-dom') || id.includes('zustand')) return 'vendor';
-            
-            // UI
-            if (id.includes('lucide-react') || id.includes('clsx') || id.includes('tailwind') || 
-                id.includes('@headlessui') || id.includes('react-use')) {
+            if (id.includes('lucide-react') || id.includes('clsx') || id.includes('tailwind') || id.includes('xlsx')) {
               return 'ui-vendor';
             }
           }

@@ -29,6 +29,7 @@ import type { Course } from '../../types';
 import {
   DEFAULT_SCHOOL_SECTION,
   SCHOOL_SECTION_SELECT_OPTIONS,
+  type SchoolSectionCode,
 } from '../../constants/schoolSections';
 
 export default function AdminDashboard() {
@@ -677,7 +678,9 @@ function CreateUserModal({ isOpen, onClose, type, courses, onFeedback }: CreateU
               <Select
                 label="Section"
                 value={formData.section}
-                onChange={e => setFormData({ ...formData, section: e.target.value })}
+                onChange={e =>
+                  setFormData({ ...formData, section: e.target.value as SchoolSectionCode })
+                }
                 options={SCHOOL_SECTION_SELECT_OPTIONS}
                 required
               />

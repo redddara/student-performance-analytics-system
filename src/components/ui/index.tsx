@@ -212,15 +212,15 @@ export function Input({ label, error, className, ...props }: InputProps) {
   return (
     <div className="space-y-1">
       {label && (
-        <label className="block text-sm font-medium text-gray-700 ml-1">
+        <label className="ml-1 block text-sm font-medium text-gray-700">
           {label}
         </label>
       )}
       <input
         className={clsx(
-          'w-full px-4 py-2.5 rounded-xl border border-gray-300/70 dark:border-gray-600/70 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md',
-          'text-base text-gray-800',
-          'focus:outline-none focus:ring-2 focus:ring-maroon-500/50 focus:border-maroon-500 hover:border-gray-400/80 dark:hover:border-gray-500/80',
+          'w-full rounded-xl border border-gray-300/70 bg-white px-4 py-2.5 backdrop-blur-md',
+          'text-base text-gray-900',
+          'focus:border-maroon-500 focus:outline-none focus:ring-2 focus:ring-maroon-500/50 hover:border-gray-400/80',
           'placeholder:text-gray-400',
           error && 'border-red-500 focus:ring-red-500/50 bg-red-50/50',
           className
@@ -241,15 +241,15 @@ export function Select({ label, options, className, ...props }: SelectProps) {
   return (
     <div className="space-y-1">
       {label && (
-        <label className="block text-sm font-medium text-gray-700 ml-1">
+        <label className="ml-1 block text-sm font-medium text-gray-700">
           {label}
         </label>
       )}
       <select
         className={clsx(
-          'w-full px-4 py-2.5 rounded-xl border border-gray-300/70 dark:border-gray-600/70 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md',
-          'text-base text-gray-800',
-          'focus:outline-none focus:ring-2 focus:ring-maroon-500/50 focus:border-maroon-500 hover:border-gray-400/80 dark:hover:border-gray-500/80',
+          'w-full rounded-xl border border-gray-300/70 bg-white px-4 py-2.5 backdrop-blur-md',
+          'text-base text-gray-900',
+          'focus:border-maroon-500 focus:outline-none focus:ring-2 focus:ring-maroon-500/50 hover:border-gray-400/80',
           className
         )}
         {...props}
@@ -349,13 +349,14 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
+        data-sapas-modal
         className={clsx(
-          'relative flex max-h-[min(92dvh,100vh-1rem)] w-full flex-col bg-white/60 backdrop-blur-2xl shadow-2xl border border-white/50',
+          'relative flex max-h-[min(92dvh,100vh-1rem)] w-full flex-col border border-gray-200/90 bg-white shadow-2xl',
           'rounded-t-2xl sm:rounded-2xl',
           sizes[size]
         )}
       >
-        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/40 bg-white/20 p-4 backdrop-blur-sm sm:p-5">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200/90 bg-white p-4 sm:p-5">
           <h2 id="modal-title" className="text-lg font-semibold text-[#800000] sm:text-xl pr-2 break-words">
             {title}
           </h2>
@@ -368,7 +369,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
             <X className="h-6 w-6 shrink-0" strokeWidth={2} aria-hidden />
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-4">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain bg-white p-4 sm:p-5">{children}</div>
       </div>
     </div>
   );

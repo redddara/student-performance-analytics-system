@@ -1,21 +1,38 @@
-import { useState, useEffect, useMemo } from 'react';
-import { ListFilter, RefreshCw, Search } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { Download, ListFilter, RefreshCw, Search } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { PageIntro } from '../../components/layouts/PageIntro';
-import { GlassCard, Select, Table, Spinner, Badge, Button } from '../../components/ui';
+import { GlassCard, Select, Table, Spinner, Badge, Button, MessageModal, type AppMessagePayload } from '../../components/ui';
 import { useAuthStore } from '../../store';
-import { supabase, isPassing } from '../../lib/supabase';
+import { supabase, getGradeRemarks, isPassing } from '../../lib/supabase';
 import { SCHOOL_SECTION_SELECT_OPTIONS, normalizeSchoolSection } from '../../constants/schoolSections';
+
+interface GradeRecord {
+  student_name?: string;
+  student_id?: string;
+  semester?: number;
+  quarter?: number;
+  grade?: number;
+}
 
 export default function TeacherGradesPage() {
   const { user } = useAuthStore();
   const [mySubjects, setMySubjects] = useState<any[]>([]);
   const [grades, setGrades] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
+  const [enrolledStudents, setEnrolledStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
   const [selectedSubject, setSelectedSubject] = useState('');
   const [selectedSemester, setSelectedSemester] = useState(1);
   const [selectedQuarter, setSelectedQuarter] = useState('');
+  const [entryGrade, setEntryGrade] = useState('');
+  const [selectedStudentForEntry, setSelectedStudentForEntry] = useState('');
+  const [entryStudentSearch, setEntryStudentSearch] = useState('');
+  const [uploadResults, setUploadResults] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [appMessage, setAppMessage] = useState<AppMessagePayload | null>(null);
 
   const [filterSearch, setFilterSearch] = useState('');
   const [filterSection, setFilterSection] = useState('');
@@ -26,16 +43,194 @@ export default function TeacherGradesPage() {
   }, []);
 
   const loadData = async () => {
-    const [subjectsRes, gradesRes, studentsRes] = await Promise.all([
-      supabase.from('subjects').select('*, course:courses(*)').eq('teacher_id', user?.id),
-      supabase.from('grades').select('*'),
-      supabase.from('students').select('*, user:users(*)'),
-    ]);
-    setMySubjects(subjectsRes.data || []);
-    setGrades(gradesRes.data || []);
-    setStudents(studentsRes.data || []);
-    if (subjectsRes.data?.length) setSelectedSubject(subjectsRes.data[0].id);
-    setLoading(false);
+    try {
+      const { data: subjectsData } = await supabase
+        .from('subjects')
+        .select('*, course:courses(*)')
+        .eq('teacher_id', user?.id);
+      const teacherSubjects = subjectsData || [];
+      setMySubjects(teacherSubjects);
+      if (teacherSubjects.length) {
+        const firstSubjectId = teacherSubjects[0].id;
+        setSelectedSubject(firstSubjectId);
+        await loadEnrolledBySubject(firstSubjectId);
+      }
+
+      const subjectIds = teacherSubjects.map((s) => s.id);
+      if (subjectIds.length === 0) {
+        setGrades([]);
+        setStudents([]);
+        return;
+      }
+
+      const [studentSubjectsRes, gradesRes] = await Promise.all([
+        supabase.from('student_subjects').select('student_id').in('subject_id', subjectIds),
+        supabase.from('grades').select('*').in('subject_id', subjectIds),
+      ]);
+
+      setGrades(gradesRes.data || []);
+
+      const studentIds = Array.from(new Set((studentSubjectsRes.data || []).map((r) => r.student_id)));
+      if (studentIds.length === 0) {
+        setStudents([]);
+        return;
+      }
+      const { data: studentsData } = await supabase
+        .from('students')
+        .select('*, user:users(*)')
+        .in('id', studentIds);
+      setStudents(studentsData || []);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadEnrolledBySubject = async (subjectId: string) => {
+    if (!subjectId) {
+      setEnrolledStudents([]);
+      return;
+    }
+    const { data } = await supabase
+      .from('student_subjects')
+      .select('student:students(*, user:users(*))')
+      .eq('subject_id', subjectId);
+    const list = (data || []).map((r: any) => r.student).filter(Boolean);
+    setEnrolledStudents(list);
+    if (list.length > 0 && !selectedStudentForEntry) {
+      setSelectedStudentForEntry(list[0].id);
+    }
+  };
+
+  const saveGradeEntry = async () => {
+    if (!selectedSubject || !selectedStudentForEntry) return;
+    const value = parseFloat(entryGrade);
+    if (Number.isNaN(value) || value < 0 || value > 100) {
+      setAppMessage({ title: 'Invalid grade', message: 'Enter a number between 0 and 100.', variant: 'warning' });
+      return;
+    }
+    const existing = grades.find(
+      (g) =>
+        g.student_id === selectedStudentForEntry &&
+        g.subject_id === selectedSubject &&
+        g.semester === selectedSemester &&
+        g.quarter.toString() === (selectedQuarter || '1')
+    );
+    const quarterValue = selectedQuarter ? parseInt(selectedQuarter, 10) : 1;
+    if (existing) {
+      await supabase
+        .from('grades')
+        .update({ grade: value, remarks: getGradeRemarks(value) })
+        .eq('id', existing.id);
+    } else {
+      await supabase.from('grades').insert({
+        student_id: selectedStudentForEntry,
+        subject_id: selectedSubject,
+        semester: selectedSemester,
+        quarter: quarterValue,
+        grade: value,
+        remarks: getGradeRemarks(value),
+      });
+    }
+    setEntryGrade('');
+    await loadData();
+    await loadEnrolledBySubject(selectedSubject);
+    setAppMessage({ title: 'Grade saved', message: 'Grade entry recorded successfully.', variant: 'success' });
+  };
+
+  const downloadTemplate = () => {
+    const template = [
+      { student_name: 'Juan Dela Cruz', semester: selectedSemester, quarter: selectedQuarter || 1, grade: 85 },
+      { student_name: 'Juan Dela Cruz', semester: selectedSemester, quarter: selectedQuarter || 2, grade: 88 },
+    ];
+    const ws = XLSX.utils.json_to_sheet(template);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Grades');
+    XLSX.writeFile(wb, 'grade_template.xlsx');
+  };
+
+  const processFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedSubject) {
+      setAppMessage({ title: 'Select a subject', message: 'Choose a subject before uploading.', variant: 'warning' });
+      return;
+    }
+    setUploading(true);
+    setUploadResults(null);
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json<GradeRecord>(sheet);
+
+      const { data: studentSubjects } = await supabase
+        .from('student_subjects')
+        .select('*, student:students(*)')
+        .eq('subject_id', selectedSubject);
+      const subjectStudents = studentSubjects?.map((ss: any) => ss.student) || [];
+
+      let success = 0;
+      let failed = 0;
+      const errors: string[] = [];
+      for (const row of rows) {
+        try {
+          let sid = row.student_id;
+          if (!sid && row.student_name) {
+            const n = row.student_name.trim().toLowerCase();
+            const match = subjectStudents.find(
+              (s: any) => `${s.first_name || ''} ${s.last_name || ''}`.trim().toLowerCase() === n
+            );
+            sid = match?.id;
+          }
+          if (!sid) {
+            failed++;
+            errors.push(`Student not found: ${row.student_name || row.student_id}`);
+            continue;
+          }
+          const semester = Number(row.semester) || selectedSemester;
+          const quarter = Number(row.quarter) || Number(selectedQuarter || '1');
+          const grade = Number(row.grade);
+          if (Number.isNaN(grade) || grade < 0 || grade > 100) {
+            failed++;
+            errors.push(`Invalid grade for ${row.student_name || row.student_id}`);
+            continue;
+          }
+          const { data: existing } = await supabase
+            .from('grades')
+            .select('id')
+            .eq('student_id', sid)
+            .eq('subject_id', selectedSubject)
+            .eq('semester', semester)
+            .eq('quarter', quarter)
+            .limit(1);
+          if (existing && existing.length > 0) {
+            await supabase
+              .from('grades')
+              .update({ grade, remarks: getGradeRemarks(grade) })
+              .eq('id', existing[0].id);
+          } else {
+            await supabase.from('grades').insert({
+              student_id: sid,
+              subject_id: selectedSubject,
+              semester,
+              quarter,
+              grade,
+              remarks: getGradeRemarks(grade),
+            });
+          }
+          success++;
+        } catch (err: any) {
+          failed++;
+          errors.push(err.message || 'Row processing failed');
+        }
+      }
+
+      setUploadResults({ success, failed, errors: errors.slice(0, 10) });
+      await loadData();
+      await loadEnrolledBySubject(selectedSubject);
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   const baseGrades = useMemo(() => {
@@ -58,6 +253,16 @@ export default function TeacherGradesPage() {
       return true;
     });
   }, [baseGrades, filterSearch, filterSection, students]);
+
+  const filteredEntryStudents = useMemo(() => {
+    const q = entryStudentSearch.trim().toLowerCase();
+    return enrolledStudents.filter((s: any) => {
+      const name = `${s.first_name || ''} ${s.last_name || ''}`.trim().toLowerCase();
+      if (q && !name.includes(q)) return false;
+      if (filterSection && normalizeSchoolSection(s.section) !== filterSection) return false;
+      return true;
+    });
+  }, [enrolledStudents, entryStudentSearch, filterSection]);
 
   const hasActiveFilters = Boolean(filterSearch.trim()) || Boolean(filterSection);
 
@@ -84,7 +289,7 @@ export default function TeacherGradesPage() {
     <DashboardLayout title="Grade Management">
       <PageIntro
         title="Grade book"
-        subtitle="Use filters for subject, term, and section. Search narrows the list below."
+        subtitle="Grade entry, grade uploads, and grade history are all in this page."
       />
 
       <div className="mb-4 text-sm text-gray-600">
@@ -161,7 +366,10 @@ export default function TeacherGradesPage() {
             <Select
               label="Subject"
               value={`${selectedSubject}`}
-              onChange={(e) => setSelectedSubject(e.target.value)}
+              onChange={(e) => {
+                setSelectedSubject(e.target.value);
+                void loadEnrolledBySubject(e.target.value);
+              }}
               options={
                 mySubjects.length
                   ? mySubjects.map((s) => ({ value: `${s.id}`, label: `${s.name} — ${s.course?.name || ''}` }))
@@ -199,10 +407,104 @@ export default function TeacherGradesPage() {
         </div>
       )}
 
+      <GlassCard variant="plain" className="mb-6 p-4 sm:p-6">
+        <h2 className="mb-3 text-lg font-semibold text-[#800000]">Quick grade entry</h2>
+        <div className="mb-4 w-full md:max-w-sm">
+          <label htmlFor="grade-entry-student-search" className="sr-only">Search student for entry</label>
+          <input
+            id="grade-entry-student-search"
+            type="search"
+            placeholder="Filter students for entry..."
+            value={entryStudentSearch}
+            onChange={(e) => setEntryStudentSearch(e.target.value)}
+            className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900"
+          />
+        </div>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+          <Select
+            label="Student"
+            value={selectedStudentForEntry}
+            onChange={(e) => setSelectedStudentForEntry(e.target.value)}
+            options={[
+              { value: '', label: filteredEntryStudents.length ? 'Select student' : 'No matching students' },
+              ...filteredEntryStudents.map((s: any) => ({ value: s.id, label: `${s.first_name} ${s.last_name}` })),
+            ]}
+          />
+          <Select
+            label="Semester"
+            value={`${selectedSemester}`}
+            onChange={(e) => setSelectedSemester(parseInt(e.target.value, 10))}
+            options={[
+              { value: '1', label: '1st Semester' },
+              { value: '2', label: '2nd Semester' },
+            ]}
+          />
+          <Select
+            label="Quarter"
+            value={selectedQuarter || '1'}
+            onChange={(e) => setSelectedQuarter(e.target.value)}
+            options={[
+              { value: '1', label: 'Prelim' },
+              { value: '2', label: 'Midterm' },
+              { value: '3', label: 'Pre-Finals' },
+              { value: '4', label: 'Finals' },
+            ]}
+          />
+          <div>
+            <label className="ml-1 block text-sm font-medium text-gray-700">Grade (0-100)</label>
+            <input
+              type="number"
+              min={0}
+              max={100}
+              step={0.01}
+              value={entryGrade}
+              onChange={(e) => setEntryGrade(e.target.value)}
+              className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-base text-gray-900"
+            />
+          </div>
+        </div>
+        <div className="mt-4">
+          <Button type="button" onClick={() => void saveGradeEntry()}>Save grade entry</Button>
+        </div>
+      </GlassCard>
+
+      <GlassCard variant="plain" className="mb-6 p-4 sm:p-6">
+        <h2 className="mb-2 text-lg font-semibold text-[#800000]">Upload grades (Excel/CSV)</h2>
+        <p className="mb-4 text-sm text-gray-600">Columns: `student_name`, `semester`, `quarter`, `grade`.</p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            onChange={processFile}
+            className="w-full min-w-0 text-sm file:mr-4 file:rounded-xl file:border-0 file:bg-[#800000] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-[#600000]"
+          />
+          <Button type="button" variant="secondary" onClick={downloadTemplate}>
+            <Download className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+            Download template
+          </Button>
+        </div>
+        {uploading && <div className="mt-4"><Spinner size="sm" /></div>}
+        {uploadResults && (
+          <div className="mt-4 grid grid-cols-2 gap-4">
+            <div className="rounded-xl border border-green-200 bg-green-50 p-3 text-center">
+              <p className="text-xl font-bold text-green-600">{uploadResults.success}</p>
+              <p className="text-sm text-green-700">Updated</p>
+            </div>
+            <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-center">
+              <p className="text-xl font-bold text-red-600">{uploadResults.failed}</p>
+              <p className="text-sm text-red-700">Failed</p>
+            </div>
+          </div>
+        )}
+      </GlassCard>
+
       <GlassCard className="p-4 sm:p-6">
         <Table headers={['Student', 'Subject', 'Semester', 'Quarter', 'Grade', 'Remarks', 'Status']}>
-          {filteredGrades.map((grade) => (
-            <tr key={grade.id} className="hover:bg-white/20">
+          {filteredGrades.map((grade) => {
+            const failing = !isPassing(grade.grade);
+            return (
+            <tr key={grade.id} className={failing ? 'bg-red-50/80 hover:bg-red-100/80' : 'hover:bg-white/20'}>
               <td className="px-4 py-3 font-medium text-gray-800">{getStudentName(grade.student_id)}</td>
               <td className="px-4 py-3 text-gray-600">{getSubjectName(grade.subject_id)}</td>
               <td className="px-4 py-3 text-gray-600">{grade.semester === 1 ? '1st Sem' : '2nd Sem'}</td>
@@ -217,7 +519,7 @@ export default function TeacherGradesPage() {
                 </Badge>
               </td>
             </tr>
-          ))}
+          )})}
         </Table>
         {baseGrades.length === 0 && (
           <p className="text-center text-gray-500 py-8">No grades match subject / semester / quarter.</p>
@@ -226,6 +528,16 @@ export default function TeacherGradesPage() {
           <p className="text-center text-gray-500 py-8">No rows match your search or section filter.</p>
         )}
       </GlassCard>
+
+      {appMessage && (
+        <MessageModal
+          isOpen
+          onClose={() => setAppMessage(null)}
+          title={appMessage.title}
+          message={appMessage.message}
+          variant={appMessage.variant}
+        />
+      )}
     </DashboardLayout>
   );
 }

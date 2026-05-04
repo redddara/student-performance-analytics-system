@@ -356,7 +356,7 @@ export default function TeacherStudentsPage() {
                           {rows.length === 0 ? (
                             <span className="text-xs text-gray-500">No quarter grades yet.</span>
                           ) : rows.map((g: any) => (
-                            <span key={g.id} className="rounded-md bg-gray-100 px-2 py-1 text-xs text-gray-700">
+                            <span key={g.id} className="rounded-md border border-gray-300 bg-white/95 px-2 py-1 text-xs font-medium text-gray-900 shadow-sm">
                               S{g.semester} {quarterLabel(g.quarter)}: {g.grade_status === 'inc' ? 'INC' : g.grade}
                             </span>
                           ))}

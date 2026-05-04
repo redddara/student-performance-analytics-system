@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { PageIntro } from '../../components/layouts/PageIntro';
-import { GlassCard, Select, Spinner } from '../../components/ui';
+import { GlassCard, Select, Spinner, Button } from '../../components/ui';
 import { useDataStore } from '../../store';
 import { supabase, isPassing, calculateGWA } from '../../lib/supabase';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, Legend, AreaChart, Area, ComposedChart
 } from 'recharts';
-import { Users, BarChart3, TrendingUp, GraduationCap, BookOpen, CheckCircle2, ChartLine } from 'lucide-react';
+import { Users, BarChart3, TrendingUp, GraduationCap, BookOpen, CheckCircle2, ChartLine, Trophy, RefreshCw, ListFilter } from 'lucide-react';
 import { chartAxis, chartGrid, chartLegend, chartTooltip } from '../../lib/chartTheme';
 
 export default function AdminAnalyticsPage() {
@@ -16,6 +16,7 @@ export default function AdminAnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [selectedCourse, setSelectedCourse] = useState('all');
   const [animated, setAnimated] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -51,10 +52,12 @@ export default function AdminAnalyticsPage() {
   }
 
   const filteredStudents = selectedCourse === 'all' ? students : students.filter(s => s.course_id === selectedCourse);
+  const filteredStudentIds = new Set(filteredStudents.map((s) => s.id));
+  const filteredGrades = grades.filter((g) => filteredStudentIds.has(g.student_id));
 
   // Grade Distribution
   const gradeDistribution = [0, 0, 0, 0, 0];
-  grades.forEach(g => {
+  filteredGrades.forEach(g => {
     if (g.grade >= 90) gradeDistribution[0]++;
     else if (g.grade >= 85) gradeDistribution[1]++;
     else if (g.grade >= 80) gradeDistribution[2]++;
@@ -71,78 +74,163 @@ export default function AdminAnalyticsPage() {
   ].filter(d => d.value > 0);
 
   // Pass/Fail Rate
-  const passingCount = grades.filter(g => isPassing(g.grade)).length;
+  const studentPassRows = filteredStudents.map((student) => {
+    const studentGrades = filteredGrades.filter((g) => g.student_id === student.id);
+    return {
+      studentId: student.id,
+      gwa: studentGrades.length > 0 ? calculateGWA(studentGrades) : 0,
+      count: studentGrades.length,
+    };
+  }).filter((row) => row.count > 0);
+  const passingCount = studentPassRows.filter((row) => isPassing(row.gwa)).length;
   const passFailData = [
     { name: 'Passing', value: passingCount, color: '#4CAF50' },
-    { name: 'Failing', value: grades.length - passingCount, color: '#f44336' },
+    { name: 'Failing', value: studentPassRows.length - passingCount, color: '#f44336' },
   ];
 
   // Subject Performance
   const subjectPerformance = subjects.map(sub => {
-    const subjectGrades = grades.filter(g => g.subject_id === sub.id);
+    const subjectGrades = filteredGrades.filter(g => g.subject_id === sub.id);
     const avg = subjectGrades.length > 0 ? Math.round(subjectGrades.reduce((sum, g) => sum + g.grade, 0) / subjectGrades.length * 100) / 100 : 0;
     return { name: sub.name.length > 15 ? sub.name.substring(0, 15) + '...' : sub.name, average: avg, students: subjectGrades.length };
   }).filter(s => s.students > 0).slice(0, 10);
 
   // Quarterly Trends
   const quarterlyData = [1, 2, 3, 4].map(q => {
-    const qGrades = grades.filter(g => g.quarter === q);
-    return { quarter: `Q${q}`, average: qGrades.length > 0 ? Math.round(qGrades.reduce((sum, g) => sum + g.grade, 0) / qGrades.length * 100) / 100 : 0, passing: qGrades.filter(g => isPassing(g.grade)).length, total: qGrades.length };
+    const qGrades = filteredGrades.filter(g => g.quarter === q);
+    const byStudent = new Map<string, number[]>();
+    qGrades.forEach((grade) => {
+      const list = byStudent.get(grade.student_id) || [];
+      list.push(grade.grade);
+      byStudent.set(grade.student_id, list);
+    });
+    const passingStudents = Array.from(byStudent.values()).filter((list) => isPassing(list.reduce((sum, value) => sum + value, 0) / list.length)).length;
+    return { quarter: `Q${q}`, average: qGrades.length > 0 ? Math.round(qGrades.reduce((sum, g) => sum + g.grade, 0) / qGrades.length * 100) / 100 : 0, passing: passingStudents, total: byStudent.size };
   });
 
   // Year Level Performance
   const yearLevelData = ['1st', '2nd', '3rd', '4th'].map(year => {
     const yearSubjects = subjects.filter(s => s.year_level === year);
-    const yearGrades = grades.filter(g => yearSubjects.find(s => s.id === g.subject_id));
+    const yearGrades = filteredGrades.filter(g => yearSubjects.find(s => s.id === g.subject_id));
     return { year: `${year} Year`, average: yearGrades.length > 0 ? Math.round(yearGrades.reduce((sum, g) => sum + g.grade, 0) / yearGrades.length * 100) / 100 : 0, count: yearGrades.length };
   });
 
   // Course Comparison
   const courseComparison = courses.map(course => {
     const courseSubjects = subjects.filter(s => s.course_id === course.id);
-    const courseGrades = grades.filter(g => courseSubjects.find(s => s.id === g.subject_id));
+    const courseGrades = filteredGrades.filter(g => courseSubjects.find(s => s.id === g.subject_id));
     return { name: course.name.substring(0, 12), average: courseGrades.length > 0 ? Math.round(courseGrades.reduce((sum, g) => sum + g.grade, 0) / courseGrades.length * 100) / 100 : 0 };
   });
 
   // Top Performers
   const topPerformers = filteredStudents.map(student => {
-    const studentGrades = grades.filter(g => g.student_id === student.id);
-    return { name: `${student.first_name} ${student.last_name}`.substring(0, 15), gwa: calculateGWA(studentGrades), grades: studentGrades.length };
+    const studentGrades = filteredGrades.filter(g => g.student_id === student.id);
+    const subjectCount = new Set(studentGrades.map((g) => g.subject_id)).size;
+    return {
+      name: `${student.first_name} ${student.last_name}`.substring(0, 15),
+      gwa: calculateGWA(studentGrades),
+      subjectCount,
+      grades: studentGrades.length,
+    };
   }).filter(s => s.grades > 0).sort((a, b) => b.gwa - a.gwa).slice(0, 5);
 
   // Grade Heatmap Data (by quarter and subject)
   const quarterSubjectData = [1, 2, 3, 4].map(q => {
-    const qGrades = grades.filter(g => g.quarter === q);
+    const qGrades = filteredGrades.filter(g => g.quarter === q);
     return { quarter: `Q${q}`, high: qGrades.filter(g => g.grade >= 85).length, mid: qGrades.filter(g => g.grade >= 75 && g.grade < 85).length, low: qGrades.filter(g => g.grade < 75).length };
   });
 
-  const overallAverage = grades.length > 0 ? Math.round(grades.reduce((sum, g) => sum + g.grade, 0) / grades.length * 100) / 100 : 0;
-  const passRate = grades.length > 0 ? Math.round((passingCount / grades.length) * 100) : 0;
+  const subjectPassFailData = subjects.map((sub) => {
+    const subjectGrades = grades.filter((g) => g.subject_id === sub.id);
+    const byStudent = new Map<string, number[]>();
+    subjectGrades.forEach((grade) => {
+      const numericGrade = Number(grade.grade);
+      if (!Number.isFinite(numericGrade)) return;
+      const list = byStudent.get(grade.student_id) || [];
+      list.push(numericGrade);
+      byStudent.set(grade.student_id, list);
+    });
+    const studentAverages = Array.from(byStudent.values()).map((list) => list.reduce((sum, value) => sum + value, 0) / list.length);
+    const passing = studentAverages.filter((avg) => isPassing(avg)).length;
+    const failing = studentAverages.filter((avg) => !isPassing(avg)).length;
+    return {
+      name: (sub.name || 'Subject').substring(0, 16),
+      Passing: passing,
+      Failing: failing,
+      total: passing + failing,
+    };
+  }).filter((row) => row.total > 0).slice(0, 20);
+
+  const overallAverage = filteredGrades.length > 0 ? Math.round(filteredGrades.reduce((sum, g) => sum + g.grade, 0) / filteredGrades.length * 100) / 100 : 0;
+  const passRate = studentPassRows.length > 0 ? Math.round((passingCount / studentPassRows.length) * 100) : 0;
+
+  const hasActiveCourseFilter = selectedCourse !== 'all';
+  const clearFilters = () => {
+    setSelectedCourse('all');
+    setAnimated(false);
+    setTimeout(() => setAnimated(true), 100);
+  };
 
   return (
     <DashboardLayout title="Analytics & Reports">
       <PageIntro
         title="System-wide analytics" 
       />
-      <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:p-5">
-        <Select
-          label="Filter by Course"
-          value={selectedCourse}
-          onChange={e => { setSelectedCourse(e.target.value); setAnimated(false); setTimeout(() => setAnimated(true), 100); }}
-          options={[{ value: 'all', label: 'All Courses' }, ...courses.map(c => ({ value: c.id, label: c.name }))]}
-          className="w-full sm:max-w-xs"
-        />
-        <div className="text-xs text-gray-500 sm:text-sm shrink-0">
-          Total Records: {grades.length} grades • {filteredStudents.length} students
-        </div>
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => setFiltersOpen((o) => !o)}
+          className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-maroon-200 bg-white text-[#800000] shadow-sm transition-colors hover:bg-maroon-50 touch-manipulation"
+          aria-expanded={filtersOpen}
+          aria-label={filtersOpen ? 'Hide analytics filters' : 'Show analytics filters'}
+          title="Filters"
+        >
+          <ListFilter className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+          {hasActiveCourseFilter && (
+            <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-[#d4af37] ring-2 ring-white" aria-hidden />
+          )}
+        </button>
+        {!filtersOpen && (
+          <span className="text-xs text-gray-500 sm:text-sm">
+            Total Records: {filteredGrades.length} grades • {filteredStudents.length} students
+          </span>
+        )}
       </div>
+
+      {filtersOpen && (
+        <div className="mb-6 overflow-hidden rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6 animate-fade-in">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-lg font-semibold text-[#800000]">Filter analytics</h2>
+            {hasActiveCourseFilter && (
+              <Button type="button" variant="secondary" className="w-full shrink-0 sm:w-auto" onClick={clearFilters}>
+                <RefreshCw className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+                Clear filters
+              </Button>
+            )}
+          </div>
+          <Select
+            label="Filter by Course"
+            value={selectedCourse}
+            onChange={(e) => {
+              setSelectedCourse(e.target.value);
+              setAnimated(false);
+              setTimeout(() => setAnimated(true), 100);
+            }}
+            options={[{ value: 'all', label: 'All Courses' }, ...courses.map((c) => ({ value: c.id, label: c.name }))]}
+            className="w-full sm:max-w-xs"
+          />
+          <p className="mt-4 text-xs text-gray-500 sm:text-sm">
+            Total Records: {filteredGrades.length} grades • {filteredStudents.length} students
+          </p>
+        </div>
+      )}
 
       {/* Animated Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8">
         {[
           { label: 'Total Students', value: filteredStudents.length, Icon: Users, color: '#800000' },
           { label: 'Total Subjects', value: subjects.length, Icon: BookOpen, color: '#d4af37' },
-          { label: 'Overall Pass Rate', value: `${passRate}%`, Icon: CheckCircle2, color: '#4CAF50' },
+          { label: 'Overall Pass Rate (Student GWA)', value: `${passRate}%`, Icon: CheckCircle2, color: '#4CAF50' },
           { label: 'Average Grade', value: overallAverage, Icon: ChartLine, color: '#2196F3' },
         ].map((stat, i) => (
           <GlassCard key={i} className={`p-3 sm:p-4 text-center animate-delay-${i * 100} animate-in fade-in slide-in-from-bottom duration-500 opacity-100`}>
@@ -287,11 +375,34 @@ export default function AdminAnalyticsPage() {
         </GlassCard>
       </div>
 
+      <GlassCard className={`mb-8 p-4 sm:p-6 ${animated ? 'animate-in fade-in duration-500' : 'opacity-0'}`} style={{ animationDelay: '850ms' }}>
+        <h3 className="text-lg font-semibold text-[#800000] mb-4 flex items-center gap-2">
+          <CheckCircle2 size={20} />
+          Pass/Fail by Subject (All Subjects)
+        </h3>
+        {subjectPassFailData.length === 0 ? (
+          <p className="text-gray-500">No subject pass/fail data available yet.</p>
+        ) : (
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart data={subjectPassFailData}>
+              <CartesianGrid {...chartGrid} />
+              <XAxis dataKey="name" {...chartAxis} />
+              <YAxis allowDecimals={false} {...chartAxis} />
+              <Tooltip {...chartTooltip} />
+              <Legend {...chartLegend} />
+              <Bar dataKey="Passing" stackId="a" fill="#4CAF50" />
+              <Bar dataKey="Failing" stackId="a" fill="#f44336" />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </GlassCard>
+
       {/* Top Performers */}
       {topPerformers.length > 0 && (
         <GlassCard className={`p-4 sm:p-6 ${animated ? 'animate-in fade-in duration-500' : 'opacity-0'}`} style={{ animationDelay: '900ms' }}>
           <h3 className="text-lg font-semibold text-[#800000] mb-4 flex items-center gap-2">
-            <span>🏆</span> Top Performers
+            <Trophy size={20} />
+            Top Performers
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             {topPerformers.map((student, i) => (
@@ -299,7 +410,7 @@ export default function AdminAnalyticsPage() {
                 {i === 0 ? <GraduationCap className="h-8 w-8 mx-auto text-yellow-500" /> : i === 1 ? <TrendingUp className="h-7 w-7 mx-auto text-yellow-400" /> : i === 2 ? <BarChart3 className="h-6 w-6 mx-auto text-yellow-300" /> : <Users className="h-6 w-6 mx-auto text-yellow-400" />}
                 <p className="font-semibold text-gray-800 text-sm">{student.name}</p>
                 <p className="text-xl font-bold text-[#800000]">{student.gwa.toFixed(2)}</p>
-                <p className="text-xs text-gray-500">{student.grades} subjects</p>
+                <p className="text-xs text-gray-500">{student.subjectCount} subject{student.subjectCount !== 1 ? 's' : ''}</p>
               </div>
             ))}
           </div>

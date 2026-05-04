@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { BookUser, GraduationCap, ListFilter, RefreshCw, Search, UserRound } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
-import { PageIntro } from '../../components/layouts/PageIntro';
 import { GlassCard, Spinner, Badge, Table, Button, Select } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase, getGradeStatus } from '../../lib/supabase';
@@ -139,10 +138,6 @@ export default function TeacherStudentsPage() {
 
   return (
     <DashboardLayout title="My Students">
-      <PageIntro
-        title="Learners in your subjects"
-        subtitle="Search and filter by course, year, section, or subject you teach. Use this list to cross-check rosters before entering grades."
-      />
 
       <div className="mb-5 w-full max-w-2xl">
         <label htmlFor="teacher-student-search" className="sr-only">

@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { ListFilter, RefreshCw, Search } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
-import { PageIntro } from '../../components/layouts/PageIntro';
 import { GlassCard, Spinner, Select, Button, Input } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase } from '../../lib/supabase';
@@ -80,10 +79,7 @@ export default function StudentSubjectsPage() {
 
   return (
     <DashboardLayout title="My Subjects">
-      <PageIntro
-        title="Enrolled subjects"
-        subtitle="Subjects assigned to your student record."
-      />
+      
 
       <div className="mb-5 w-full max-w-2xl">
         <label htmlFor="student-subject-search" className="sr-only">
@@ -119,10 +115,12 @@ export default function StudentSubjectsPage() {
             <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-[#d4af37] ring-2 ring-white" aria-hidden />
           )}
         </button>
-        <span className="text-sm text-gray-600">
-          Showing <span className="font-semibold text-[#800000]">{filteredSubjects.length}</span> / {mySubjects.length}{' '}
-          subject{mySubjects.length !== 1 ? 's' : ''}
-        </span>
+        {!filtersOpen && (
+          <span className="text-sm text-gray-600">
+            Showing <span className="font-semibold text-[#800000]">{filteredSubjects.length}</span> / {mySubjects.length}{' '}
+            subject{mySubjects.length !== 1 ? 's' : ''}
+          </span>
+        )}
       </div>
 
       {filtersOpen && (

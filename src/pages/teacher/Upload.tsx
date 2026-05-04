@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Download } from 'lucide-react';
+import { Download, ListFilter, RefreshCw } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { PageIntro } from '../../components/layouts/PageIntro';
@@ -27,6 +27,7 @@ export default function TeacherUploadPage() {
   const [results, setResults] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [appMessage, setAppMessage] = useState<AppMessagePayload | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const loadSubjects = async () => {
     const { data } = await supabase.from('subjects').select('*, course:courses(*)').eq('teacher_id', user?.id);
@@ -156,6 +157,17 @@ export default function TeacherUploadPage() {
     }
   };
 
+  const defaultSubjectId = mySubjects[0]?.id ?? '';
+  const hasActiveUploadFilters =
+    Boolean(mySubjects.length) &&
+    (selectedSemester !== 1 || selectedQuarter !== 1 || (defaultSubjectId && selectedSubject !== defaultSubjectId));
+
+  const clearUploadFilters = () => {
+    if (mySubjects[0]) setSelectedSubject(mySubjects[0].id);
+    setSelectedSemester(1);
+    setSelectedQuarter(1);
+  };
+
   const downloadTemplate = () => {
     const template = [
       { student_name: 'Juan Dela Cruz', semester: 1, quarter: 1, grade: 85 },
@@ -176,53 +188,89 @@ export default function TeacherUploadPage() {
       <GlassCard variant="plain" className="p-4 sm:p-6 mb-6">
         <h2 className="text-xl font-semibold text-[#800000] mb-1">Upload Excel file</h2>
         <p className="mb-4 text-sm leading-relaxed text-gray-600">
-          Columns: student_name, semester (1 or 2), quarter (1–4), grade (0–100).
+          Columns: student_name, semester (1 or 2), quarter (1–4), grade (0–100). Use the filter icon to choose subject,
+          semester, and quarter for this upload.
         </p>
-        
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <Select
-              label="Select Subject"
-              value={selectedSubject}
-              onChange={e => setSelectedSubject(e.target.value)}
-              options={mySubjects.map(s => ({ value: s.id, label: `${s.name} - ${s.course?.name}` }))}
-            />
-            <Select
-              label="Semester"
-              value={`${selectedSemester}`}
-              onChange={e => setSelectedSemester(parseInt(e.target.value))}
-              options={[
-                { value: "1", label: '1st Semester' },
-                { value: "2", label: '2nd Semester' }
-              ]}
-            />
-            <Select
-              label="Quarter"
-              value={`${selectedQuarter}`}
-              onChange={e => setSelectedQuarter(parseInt(e.target.value))}
-              options={[
-                { value: "1", label: 'Prelim' },
-                { value: "2", label: 'Midterm' },
-                { value: "3", label: 'Pre-Finals' },
-                { value: "4", label: 'Finals' }
-              ]}
-            />
-          </div>
 
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".xlsx, .xls, .csv"
-              onChange={processFile}
-              className="w-full min-w-0 text-sm file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-[#800000] file:text-white hover:file:bg-[#600000]"
-            />
-            <Button variant="primary" className="w-full shrink-0 sm:w-auto" onClick={downloadTemplate}>
-              <Download className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
-              Download Template
-            </Button>
-          </div>
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setFiltersOpen((o) => !o)}
+            className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-maroon-200 bg-white text-[#800000] shadow-sm transition-colors hover:bg-maroon-50 touch-manipulation"
+            aria-expanded={filtersOpen}
+            aria-label={filtersOpen ? 'Hide upload filters' : 'Show upload filters'}
+            title="Filters"
+          >
+            <ListFilter className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+            {hasActiveUploadFilters && (
+              <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-[#d4af37] ring-2 ring-white" aria-hidden />
+            )}
+          </button>
+          {!filtersOpen && mySubjects.length > 0 && (
+            <span className="text-sm text-gray-600">
+              <span className="font-semibold text-[#800000]">
+                {mySubjects.find((s) => s.id === selectedSubject)?.name || 'Subject'}
+              </span>
+              {' · '}
+              {selectedSemester === 1 ? '1st' : '2nd'} semester · Q{selectedQuarter}
+            </span>
+          )}
+        </div>
 
+        {filtersOpen && (
+          <div className="mb-6 overflow-hidden rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6 animate-fade-in">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="text-lg font-semibold text-[#800000]">Filter upload</h2>
+              {hasActiveUploadFilters && (
+                <Button type="button" variant="secondary" className="w-full shrink-0 sm:w-auto" onClick={clearUploadFilters}>
+                  <RefreshCw className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+                  Clear filters
+                </Button>
+              )}
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <Select
+                label="Select Subject"
+                value={selectedSubject}
+                onChange={(e) => setSelectedSubject(e.target.value)}
+                options={mySubjects.map((s) => ({ value: s.id, label: `${s.name} - ${s.course?.name}` }))}
+              />
+              <Select
+                label="Semester"
+                value={`${selectedSemester}`}
+                onChange={(e) => setSelectedSemester(parseInt(e.target.value, 10))}
+                options={[
+                  { value: '1', label: '1st Semester' },
+                  { value: '2', label: '2nd Semester' },
+                ]}
+              />
+              <Select
+                label="Quarter"
+                value={`${selectedQuarter}`}
+                onChange={(e) => setSelectedQuarter(parseInt(e.target.value, 10))}
+                options={[
+                  { value: '1', label: 'Prelim' },
+                  { value: '2', label: 'Midterm' },
+                  { value: '3', label: 'Pre-Finals' },
+                  { value: '4', label: 'Finals' },
+                ]}
+              />
+            </div>
+          </div>
+        )}
+
+        <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx, .xls, .csv"
+            onChange={processFile}
+            className="w-full min-w-0 text-sm file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-[#800000] file:text-white hover:file:bg-[#600000]"
+          />
+          <Button variant="primary" className="w-full shrink-0 sm:w-auto" onClick={downloadTemplate}>
+            <Download className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+            Download Template
+          </Button>
         </div>
       </GlassCard>
 

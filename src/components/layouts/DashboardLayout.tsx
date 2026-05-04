@@ -92,7 +92,7 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
             />
             <div className="min-w-0">
               <h1 className="text-lg font-bold leading-tight text-maroon-100">PHILTECH</h1>
-              <p className="text-xs leading-snug text-maroon-200/95">Student Performance Analytics</p>
+              <p className="text-xs leading-snug text-maroon-200/95">Student Performance Analytics System</p>
             </div>
           </div>
         </div>

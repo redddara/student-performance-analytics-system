@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ListFilter, RefreshCw } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
-import { PageIntro } from '../../components/layouts/PageIntro';
 import { GlassCard, Button, Input, Select, Spinner } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase } from '../../lib/supabase';
@@ -67,10 +66,7 @@ export default function TeacherSubjectsPage() {
 
   return (
     <DashboardLayout title="My Subjects">
-      <PageIntro
-        title="Subjects assigned to you"
-        subtitle="This page shows only your assigned subjects. Grade entry and grade upload are in the Grades page."
-      />
+      
 
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <button
@@ -86,9 +82,12 @@ export default function TeacherSubjectsPage() {
             <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-[#d4af37] ring-2 ring-white" aria-hidden />
           )}
         </button>
-        <span className="text-sm text-gray-600">
-          Showing <span className="font-semibold text-[#800000]">{filteredSubjects.length}</span> / {mySubjects.length} subject{mySubjects.length !== 1 ? 's' : ''}
-        </span>
+        {!filtersOpen && (
+          <span className="text-sm text-gray-600">
+            Showing <span className="font-semibold text-[#800000]">{filteredSubjects.length}</span> / {mySubjects.length}{' '}
+            subject{mySubjects.length !== 1 ? 's' : ''}
+          </span>
+        )}
       </div>
 
       {filtersOpen && (

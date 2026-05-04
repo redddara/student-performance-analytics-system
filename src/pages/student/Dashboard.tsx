@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BookOpen, CheckCircle2, Pencil, Target } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
-import { PageIntro } from '../../components/layouts/PageIntro';
 import { GlassCard, Spinner } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase, isPassing, calculateGWA } from '../../lib/supabase';
@@ -64,9 +63,7 @@ export default function StudentDashboard() {
 
   return (
     <DashboardLayout title="Student Dashboard">
-      <PageIntro
-        title="Your academic snapshot"
-      />
+      
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <GlassCard className="p-4 sm:p-6">

@@ -60,6 +60,7 @@ export interface Grade {
   quarter: number;
   grade: number;
   remarks?: string;
+  grade_status?: 'passed' | 'failed' | 'inc';
   created_at?: string;
   student?: Student;
   subject?: Subject;

@@ -29,6 +29,7 @@ import AdminUsersPage from './pages/admin/Users';
 import AdminCoursesPage from './pages/admin/Courses';
 import AdminSubjectsPage from './pages/admin/Subjects';
 import AdminAnalyticsPage from './pages/admin/Analytics';
+import AdminGradesPage from './pages/admin/Grades';
 
 // Teacher Pages
 import TeacherDashboard from './pages/teacher/Dashboard';
@@ -73,6 +74,16 @@ function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode;
   return <>{children}</>;
 }
 
+function RootRedirect() {
+  const { user, isLoading } = useAuthStore();
+  if (isLoading) return <LoadingScreen />;
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.role === 'admin') return <Navigate to="/admin/dashboard" replace />;
+  if (user.role === 'teacher') return <Navigate to="/teacher/dashboard" replace />;
+  if (user.role === 'student') return <Navigate to="/student/dashboard" replace />;
+  return <Navigate to="/login" replace />;
+}
+
 function AppInitializer({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const { setUser, setLoading, logout } = useAuthStore();
@@ -94,6 +105,13 @@ function AppInitializer({ children }: { children: React.ReactNode }) {
           }
           if (profile) {
             setUser(profile);
+            const last = readLastActivity();
+            if (Date.now() - last > INACTIVITY_MS) {
+              await logout({ voluntary: true });
+              clearActivityMarkers();
+              navigate('/login', { replace: true, state: { sessionExpired: true, reason: 'inactivity' } });
+              return;
+            }
             touchLastActivity();
           } else {
             await supabase.auth.signOut();
@@ -103,8 +121,14 @@ function AppInitializer({ children }: { children: React.ReactNode }) {
           if (raw) {
             try {
               const parsed = JSON.parse(raw) as User;
-              setUser({ ...parsed, password_hash: parsed.password_hash ?? '' });
-              touchLastActivity();
+              const last = readLastActivity();
+              if (Date.now() - last > INACTIVITY_MS) {
+                clearUserProfileEverywhere();
+                clearActivityMarkers();
+              } else {
+                setUser({ ...parsed, password_hash: parsed.password_hash ?? '' });
+                touchLastActivity();
+              }
             } catch {
               clearUserProfileEverywhere();
             }
@@ -234,6 +258,7 @@ export default function App() {
               <ProtectedRoute allowedRoles={['admin']}>
                 <Routes>
                   <Route path="dashboard" element={<AdminDashboard />} />
+                  <Route path="grades" element={<AdminGradesPage />} />
                   <Route path="users" element={<AdminUsersPage />} />
                   <Route path="courses" element={<AdminCoursesPage />} />
                   <Route path="subjects" element={<AdminSubjectsPage />} />
@@ -275,7 +300,7 @@ export default function App() {
             }
           />
 
-          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/" element={<RootRedirect />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </AppInitializer>

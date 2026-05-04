@@ -5,7 +5,7 @@ import * as XLSX from 'xlsx';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { GlassCard, Select, Table, Spinner, Badge, Button, MessageModal, type AppMessagePayload } from '../../components/ui';
 import { useAuthStore } from '../../store';
-import { supabase, getGradeRemarks, isPassing } from '../../lib/supabase';
+import { supabase, getGradeRemarks, getGradeStatus, isPassing } from '../../lib/supabase';
 import { SCHOOL_SECTION_SELECT_OPTIONS, normalizeSchoolSection } from '../../constants/schoolSections';
 
 interface GradeRecord {
@@ -29,6 +29,7 @@ export default function TeacherGradesPage() {
   const [selectedSemester, setSelectedSemester] = useState(1);
   const [selectedQuarter, setSelectedQuarter] = useState('');
   const [entryGrade, setEntryGrade] = useState('');
+  const [entryStatus, setEntryStatus] = useState<'passed' | 'failed' | 'inc'>('passed');
   const [selectedStudentForEntry, setSelectedStudentForEntry] = useState('');
   const [entryStudentSearch, setEntryStudentSearch] = useState('');
   const [uploadResults, setUploadResults] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
@@ -129,7 +130,7 @@ export default function TeacherGradesPage() {
   const saveGradeEntry = async () => {
     if (!selectedSubject || !selectedStudentForEntry) return;
     const value = parseFloat(entryGrade);
-    if (Number.isNaN(value) || value < 0 || value > 100) {
+    if (entryStatus !== 'inc' && (Number.isNaN(value) || value < 0 || value > 100)) {
       setAppMessage({ title: 'Invalid grade', message: 'Enter a number between 0 and 100.', variant: 'warning' });
       return;
     }
@@ -141,25 +142,47 @@ export default function TeacherGradesPage() {
         g.quarter.toString() === (selectedQuarter || '1')
     );
     const quarterValue = selectedQuarter ? parseInt(selectedQuarter, 10) : 1;
-    if (existing) {
-      await supabase
-        .from('grades')
-        .update({ grade: value, remarks: getGradeRemarks(value) })
-        .eq('id', existing.id);
-    } else {
-      await supabase.from('grades').insert({
-        student_id: selectedStudentForEntry,
-        subject_id: selectedSubject,
-        semester: selectedSemester,
-        quarter: quarterValue,
-        grade: value,
-        remarks: getGradeRemarks(value),
+    if (existing?.grade_status === 'inc') {
+      setAppMessage({
+        title: 'Restricted grade update',
+        message: 'This grade is marked INC. Ask an admin to update INC records.',
+        variant: 'warning',
+      });
+      return;
+    }
+    const payload =
+      entryStatus === 'inc'
+        ? { grade: 0, remarks: 'INC', grade_status: 'inc' as const }
+        : { grade: value, remarks: getGradeRemarks(value), grade_status: getGradeStatus(value) };
+    try {
+      if (existing) {
+        const { error } = await supabase
+          .from('grades')
+          .update(payload)
+          .eq('id', existing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('grades').insert({
+          student_id: selectedStudentForEntry,
+          subject_id: selectedSubject,
+          semester: selectedSemester,
+          quarter: quarterValue,
+          ...payload,
+        });
+        if (error) throw error;
+      }
+      setEntryGrade('');
+      setEntryStatus('passed');
+      await loadData();
+      await refreshEnrolledStudents(selectedSubject, mySubjects.map((s) => s.id));
+      setAppMessage({ title: 'Grade saved', message: 'Grade entry recorded successfully.', variant: 'success' });
+    } catch (err: any) {
+      setAppMessage({
+        title: 'Save failed',
+        message: err?.message || 'Grade could not be saved. Please try again.',
+        variant: 'error',
       });
     }
-    setEntryGrade('');
-    await loadData();
-    await refreshEnrolledStudents(selectedSubject, mySubjects.map((s) => s.id));
-    setAppMessage({ title: 'Grade saved', message: 'Grade entry recorded successfully.', variant: 'success' });
   };
 
   const downloadTemplate = () => {
@@ -228,19 +251,28 @@ export default function TeacherGradesPage() {
             .eq('quarter', quarter)
             .limit(1);
           if (existing && existing.length > 0) {
-            await supabase
+            const existingGrade = grades.find((g) => g.id === existing[0].id);
+            if (existingGrade?.grade_status === 'inc') {
+              failed++;
+              errors.push(`INC grade cannot be updated by teacher: ${row.student_name || row.student_id}`);
+              continue;
+            }
+            const { error: updateError } = await supabase
               .from('grades')
-              .update({ grade, remarks: getGradeRemarks(grade) })
+              .update({ grade, remarks: getGradeRemarks(grade), grade_status: getGradeStatus(grade) })
               .eq('id', existing[0].id);
+            if (updateError) throw updateError;
           } else {
-            await supabase.from('grades').insert({
+            const { error: insertError } = await supabase.from('grades').insert({
               student_id: sid,
               subject_id: selectedSubject,
               semester,
               quarter,
               grade,
               remarks: getGradeRemarks(grade),
+              grade_status: getGradeStatus(grade),
             });
+            if (insertError) throw insertError;
           }
           success++;
         } catch (err: any) {
@@ -545,7 +577,23 @@ export default function TeacherGradesPage() {
             ]}
           />
           <div>
-            <label className="ml-1 block text-sm font-medium text-gray-700">Grade (0-100)</label>
+            <label className="ml-1 block text-sm font-medium text-gray-700">Grade entry</label>
+            <div className="mb-2 flex gap-2">
+              <button
+                type="button"
+                className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${entryStatus !== 'inc' ? 'bg-[#800000] text-white' : 'bg-gray-100 text-gray-700'}`}
+                onClick={() => setEntryStatus('passed')}
+              >
+                Numeric
+              </button>
+              <button
+                type="button"
+                className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${entryStatus === 'inc' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+                onClick={() => setEntryStatus('inc')}
+              >
+                INC
+              </button>
+            </div>
             <input
               type="number"
               min={0}
@@ -553,9 +601,26 @@ export default function TeacherGradesPage() {
               step={0.01}
               value={entryGrade}
               onChange={(e) => setEntryGrade(e.target.value)}
+              disabled={entryStatus === 'inc'}
+              placeholder={entryStatus === 'inc' ? 'Will be saved as INC' : '0 - 100'}
               className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-base text-gray-900"
             />
           </div>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-600">
+          {[75, 80, 85, 90, 95].map((preset) => (
+            <button
+              key={preset}
+              type="button"
+              className="rounded-lg border border-gray-300 px-2.5 py-1 hover:bg-gray-50"
+              onClick={() => {
+                setEntryStatus('passed');
+                setEntryGrade(String(preset));
+              }}
+            >
+              {preset}
+            </button>
+          ))}
         </div>
         <div className="mt-4">
           <Button type="button" disabled={!selectedSubject} onClick={() => void saveGradeEntry()}>
@@ -668,14 +733,26 @@ export default function TeacherGradesPage() {
               <td className={`px-4 py-3 ${failing ? 'text-red-900' : excellent ? 'text-green-900' : 'text-gray-600'}`}>
                 {['', 'Prelim', 'Midterm', 'Pre-Finals', 'Finals'][grade.quarter]}
               </td>
-              <td className={`px-4 py-3 text-base font-bold ${failing ? 'text-red-950' : excellent ? 'text-green-950' : 'text-gray-800'}`}>{grade.grade}</td>
+              <td className="px-4 py-3 font-medium text-gray-800">{grade.grade_status === 'inc' ? 'INC' : grade.grade}</td>
               <td className={`px-4 py-3 ${failing ? 'text-red-900' : excellent ? 'text-green-900' : 'text-gray-600'}`}>{grade.remarks || '—'}</td>
               <td className="px-4 py-3">
                 <Badge
-                  variant={isPassing(grade.grade) ? 'success' : 'danger'}
-                  className={isPassing(grade.grade) ? '!bg-green-600 !text-white !border-green-700' : '!bg-red-600 !text-white !border-red-700'}
+                  variant={
+                    grade.grade_status === 'inc'
+                      ? 'warning'
+                      : grade.grade_status === 'passed' || isPassing(grade.grade)
+                        ? 'success'
+                        : 'danger'
+                  }
+                  className={
+                    grade.grade_status === 'inc'
+                      ? '!bg-amber-600 !text-white !border-amber-700'
+                      : grade.grade_status === 'passed' || isPassing(grade.grade)
+                        ? '!bg-green-600 !text-white !border-green-700'
+                        : '!bg-red-600 !text-white !border-red-700'
+                  }
                 >
-                  {isPassing(grade.grade) ? 'Passing' : 'Failing'}
+                  {grade.grade_status === 'inc' ? 'INC' : grade.grade_status === 'passed' ? 'PASSED' : 'FAILED'}
                 </Badge>
               </td>
             </tr>

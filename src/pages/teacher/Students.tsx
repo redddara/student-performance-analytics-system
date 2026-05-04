@@ -3,13 +3,14 @@ import { BookUser, GraduationCap, ListFilter, RefreshCw, Search, UserRound } fro
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { GlassCard, Spinner, Badge, Table, Button, Select } from '../../components/ui';
 import { useAuthStore } from '../../store';
-import { supabase } from '../../lib/supabase';
+import { supabase, getGradeStatus } from '../../lib/supabase';
 import { SCHOOL_SECTION_SELECT_OPTIONS, normalizeSchoolSection } from '../../constants/schoolSections';
 
 export default function TeacherStudentsPage() {
   const { user } = useAuthStore();
   const [mySubjects, setMySubjects] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
+  const [studentGrades, setStudentGrades] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [filterSearch, setFilterSearch] = useState('');
@@ -55,7 +56,23 @@ export default function TeacherStudentsPage() {
           }
         });
 
-        setStudents(Array.from(uniqueStudents.values()));
+        const studentList = Array.from(uniqueStudents.values()) as any[];
+        setStudents(studentList);
+
+        const studentIds = studentList.map((s) => s.id);
+        if (studentIds.length > 0) {
+          const { data: gradesData } = await supabase
+            .from('grades')
+            .select('*')
+            .in('student_id', studentIds)
+            .in('subject_id', subjectIds);
+          setStudentGrades(gradesData || []);
+        } else {
+          setStudentGrades([]);
+        }
+      } else {
+        setStudents([]);
+        setStudentGrades([]);
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -98,6 +115,21 @@ export default function TeacherStudentsPage() {
     setFilterYear('');
     setFilterSection('');
     setFilterSubjectId('');
+  };
+
+  const quarterLabel = (q: number) => ['', 'Prelim', 'Midterm', 'Pre-Finals', 'Finals'][q] || `Q${q}`;
+
+  const getStudentSubjectGradeCards = (student: any) => {
+    return (student.subjects || []).map((subject: any) => {
+      const rows = studentGrades
+        .filter((g) => g.student_id === student.id && g.subject_id === subject.id)
+        .sort((a, b) => (a.semester - b.semester) || (a.quarter - b.quarter));
+      const numeric = rows.filter((g) => g.grade_status !== 'inc').map((g) => Number(g.grade));
+      const hasInc = rows.some((g) => g.grade_status === 'inc');
+      const avg = numeric.length ? Math.round((numeric.reduce((s, n) => s + n, 0) / numeric.length) * 100) / 100 : null;
+      const status = hasInc ? 'inc' : getGradeStatus(avg ?? 0);
+      return { subject, rows, avg, status };
+    });
   };
 
   if (loading) {
@@ -286,6 +318,61 @@ export default function TeacherStudentsPage() {
           </Table>
         )}
       </GlassCard>
+
+      <div className="mt-8">
+        <h2 className="mb-4 text-xl font-semibold text-[#800000]">Student grade cards</h2>
+        {filteredStudents.length === 0 ? (
+          <GlassCard className="p-6">
+            <p className="text-center text-gray-500">No students match your current filters.</p>
+          </GlassCard>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {filteredStudents.map((student: any) => {
+              const subjectCards = getStudentSubjectGradeCards(student);
+              return (
+                <GlassCard key={`card-${student.id}`} className="p-4 sm:p-5">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-base font-semibold text-gray-800">{student.first_name} {student.last_name}</p>
+                      <p className="text-xs text-gray-500">
+                        {student.course?.name || '-'} · {student.grade_level || '-'} · {student.section || '-'}
+                      </p>
+                    </div>
+                    <Badge variant="info">{subjectCards.length} subject{subjectCards.length !== 1 ? 's' : ''}</Badge>
+                  </div>
+
+                  <div className="space-y-3">
+                    {subjectCards.length === 0 ? (
+                      <p className="text-sm text-gray-500">No grades yet for this student.</p>
+                    ) : subjectCards.map(({ subject, rows, avg, status }) => (
+                      <div key={`${student.id}-${subject.id}`} className="rounded-xl border border-gray-200 p-3">
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <p className="text-sm font-semibold text-[#800000]">{subject.name}</p>
+                          <Badge variant={status === 'inc' ? 'warning' : status === 'passed' ? 'success' : 'danger'}>
+                            {status.toUpperCase()}
+                          </Badge>
+                        </div>
+                        <div className="mb-2 flex flex-wrap gap-1.5">
+                          {rows.length === 0 ? (
+                            <span className="text-xs text-gray-500">No quarter grades yet.</span>
+                          ) : rows.map((g: any) => (
+                            <span key={g.id} className="rounded-md border border-gray-300 bg-white/95 px-2 py-1 text-xs font-medium text-gray-900 shadow-sm">
+                              S{g.semester} {quarterLabel(g.quarter)}: {g.grade_status === 'inc' ? 'INC' : g.grade}
+                            </span>
+                          ))}
+                        </div>
+                        <p className="text-xs text-gray-600">
+                          Final average: <span className="font-semibold text-gray-800">{status === 'inc' ? 'INC' : avg ?? '—'}</span>
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </GlassCard>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </DashboardLayout>
   );
 }

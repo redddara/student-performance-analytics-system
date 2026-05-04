@@ -91,7 +91,7 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const { setUser } = useAuthStore();
+  const { user, setUser } = useAuthStore();
 
   const [showExpiredNotice] = useState(() =>
     Boolean((location.state as { sessionExpired?: boolean } | null)?.sessionExpired)
@@ -112,6 +112,13 @@ export default function LoginPage() {
     const tab = searchParams.get('tab');
     if (tab === 'signup') setAuthTab('signup');
   }, [searchParams]);
+
+  useEffect(() => {
+    if (!user) return;
+    if (user.role === 'admin') navigate('/admin/dashboard', { replace: true });
+    else if (user.role === 'teacher') navigate('/teacher/dashboard', { replace: true });
+    else if (user.role === 'student') navigate('/student/dashboard', { replace: true });
+  }, [user, navigate]);
 
   const showInvalidCredentials = (isEmail: boolean, extra?: string) => {
     const base = isEmail ? 'Invalid email or password.' : 'Invalid student ID or password.';

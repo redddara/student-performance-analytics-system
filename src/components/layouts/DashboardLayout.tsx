@@ -28,6 +28,7 @@ const menuItems: Record<
 > = {
   admin: [
     { id: 'dashboard', label: 'Dashboard', Icon: LayoutDashboard },
+    { id: 'grades', label: 'Grades', Icon: UserPen },
     { id: 'users', label: 'Users', Icon: Users },
     { id: 'courses', label: 'Courses', Icon: BookUser },
     { id: 'subjects', label: 'Subjects', Icon: GraduationCap },

@@ -12,7 +12,7 @@ export function isRememberMeEnabled(): boolean {
 
 /** Profile JSON lives in localStorage (remember me) or sessionStorage (session-only). */
 export function getProfileStorage(): Storage {
-  return isRememberMeEnabled() ? localStorage : sessionStorage;
+  return localStorage;
 }
 
 export function stripSensitiveUser(u: User): Omit<User, 'password_hash'> {

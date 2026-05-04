@@ -18,12 +18,12 @@ export const supabaseAnonKey = rawAnonKey;
 /** Align JWT storage with remember-me (local vs session). */
 export function setAuthStoragePreference(rememberMe: boolean): void {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(SAPAS_AUTH_STORAGE_PREF_KEY, rememberMe ? 'local' : 'session');
+  localStorage.setItem(SAPAS_AUTH_STORAGE_PREF_KEY, rememberMe ? 'local' : 'local');
 }
 
 function authTargetStorage(): Storage {
   if (typeof window === 'undefined') return localStorage;
-  return localStorage.getItem(SAPAS_AUTH_STORAGE_PREF_KEY) === 'session' ? sessionStorage : localStorage;
+  return localStorage;
 }
 
 const sapasAuthStorage: SupportedStorage = {
@@ -149,4 +149,8 @@ export function getGradeRemarks(grade: number): string {
   if (grade >= 75) return 'Passing';
   if (grade >= 70) return 'Conditional';
   return 'Failed';
+}
+
+export function getGradeStatus(grade: number): 'passed' | 'failed' {
+  return grade >= 75 ? 'passed' : 'failed';
 }

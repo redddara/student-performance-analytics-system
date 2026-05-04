@@ -5,7 +5,7 @@ import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { PageIntro } from '../../components/layouts/PageIntro';
 import { GlassCard, Button, Select, Spinner, MessageModal, type AppMessagePayload } from '../../components/ui';
 import { useAuthStore } from '../../store';
-import { supabase, getGradeRemarks } from '../../lib/supabase';
+import { supabase, getGradeRemarks, getGradeStatus } from '../../lib/supabase';
 
 interface GradeRecord {
   student_name?: string;
@@ -113,9 +113,16 @@ export default function TeacherUploadPage() {
             .limit(1);
 
           if (existing && existing.length > 0) {
+            const { data: existingRow } = await supabase.from('grades').select('grade_status').eq('id', existing[0].id).maybeSingle();
+            if (existingRow?.grade_status === 'inc') {
+              failed++;
+              errors.push(`INC grade cannot be updated by teacher: ${row.student_name || row.student_id}`);
+              continue;
+            }
             await supabase.from('grades').update({
               grade,
               remarks: getGradeRemarks(grade),
+              grade_status: getGradeStatus(grade),
             }).eq('id', existing[0].id);
           } else {
             await supabase.from('grades').insert({
@@ -125,6 +132,7 @@ export default function TeacherUploadPage() {
               quarter,
               grade,
               remarks: getGradeRemarks(grade),
+              grade_status: getGradeStatus(grade),
             });
           }
 

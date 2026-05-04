@@ -51,11 +51,12 @@ export default function StudentGradesPage() {
     const grade = getFilteredGrades().find(g => 
       g.subject_id === subjectId.toString() && g.quarter === quarter
     );
-    return grade?.grade?.toString() || '-';
+    if (!grade) return '-';
+    return grade.grade_status === 'inc' ? 'INC' : grade.grade?.toString() || '-';
   };
 
   const getSubjectAverage = (subjectId: string) => {
-    const subjectGrades = getFilteredGrades().filter(g => g.subject_id === subjectId);
+    const subjectGrades = getFilteredGrades().filter(g => g.subject_id === subjectId && g.grade_status !== 'inc');
     if (subjectGrades.length === 0) return '-';
     const avg = calculateGWA(subjectGrades);
     return avg.toFixed(2).toString();

@@ -39,6 +39,8 @@ export default function TeacherGradesPage() {
   const [filterSearch, setFilterSearch] = useState('');
   const [filterSection, setFilterSection] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [gradeTablePage, setGradeTablePage] = useState(1);
+  const [gradeTablePageSize, setGradeTablePageSize] = useState(10);
 
   useEffect(() => {
     loadData();
@@ -322,6 +324,24 @@ export default function TeacherGradesPage() {
       return true;
     });
   }, [enrolledStudents, entryStudentSearch, filterSection]);
+
+  const totalGradePages = useMemo(
+    () => Math.max(1, Math.ceil(filteredGrades.length / gradeTablePageSize)),
+    [filteredGrades.length, gradeTablePageSize]
+  );
+
+  const paginatedGrades = useMemo(() => {
+    const start = (gradeTablePage - 1) * gradeTablePageSize;
+    return filteredGrades.slice(start, start + gradeTablePageSize);
+  }, [filteredGrades, gradeTablePage, gradeTablePageSize]);
+
+  useEffect(() => {
+    setGradeTablePage(1);
+  }, [filterSearch, filterSection, selectedSubject, selectedSemester, selectedQuarter, gradeTablePageSize]);
+
+  useEffect(() => {
+    setGradeTablePage((prev) => Math.min(prev, totalGradePages));
+  }, [totalGradePages]);
 
   const hasActiveFilters =
     Boolean(filterSearch.trim()) ||
@@ -717,7 +737,7 @@ export default function TeacherGradesPage() {
           <span className="font-semibold text-red-200">red</span> = failing (&lt;75).
         </p>
         <Table headers={['Student', 'Subject', 'Semester', 'Quarter', 'Grade', 'Remarks', 'Status']}>
-          {filteredGrades.map((grade) => {
+          {paginatedGrades.map((grade) => {
             const failing = !isPassing(grade.grade);
             const excellent = Number(grade.grade) >= 90;
             const rowClassName = failing
@@ -758,6 +778,53 @@ export default function TeacherGradesPage() {
             </tr>
           )})}
         </Table>
+        {filteredGrades.length > 0 && (
+          <div className="mt-4 flex flex-col gap-3 border-t border-white/20 pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3 text-sm text-gray-100">
+              <span>
+                Showing{' '}
+                <span className="font-semibold">
+                  {(gradeTablePage - 1) * gradeTablePageSize + 1}
+                </span>{' '}
+                -{' '}
+                <span className="font-semibold">
+                  {Math.min(gradeTablePage * gradeTablePageSize, filteredGrades.length)}
+                </span>{' '}
+                of <span className="font-semibold">{filteredGrades.length}</span>
+              </span>
+              <Select
+                label=""
+                value={`${gradeTablePageSize}`}
+                onChange={(e) => setGradeTablePageSize(parseInt(e.target.value, 10))}
+                options={[
+                  { value: '10', label: '10 / page' },
+                  { value: '25', label: '25 / page' },
+                  { value: '50', label: '50 / page' },
+                ]}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                disabled={gradeTablePage <= 1}
+                onClick={() => setGradeTablePage((prev) => Math.max(1, prev - 1))}
+              >
+                Previous
+              </Button>
+              <span className="px-2 text-sm text-gray-100">
+                Page <span className="font-semibold">{gradeTablePage}</span> of{' '}
+                <span className="font-semibold">{totalGradePages}</span>
+              </span>
+              <Button
+                type="button"
+                disabled={gradeTablePage >= totalGradePages}
+                onClick={() => setGradeTablePage((prev) => Math.min(totalGradePages, prev + 1))}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        )}
         {baseGrades.length === 0 && (
           <p className="text-center text-gray-500 py-8">No grades match subject / semester / quarter.</p>
         )}

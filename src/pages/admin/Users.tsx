@@ -56,6 +56,8 @@ export default function AdminUsersPage() {
   const [filterTempStatus, setFilterTempStatus] = useState('');
   const [filterSection, setFilterSection] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [usersTablePage, setUsersTablePage] = useState(1);
+  const [usersTablePageSize, setUsersTablePageSize] = useState(10);
 
   // Confirmation modal states
   const [confirmModal, setConfirmModal] = useState<{
@@ -284,6 +286,32 @@ export default function AdminUsersPage() {
     Boolean(filterTempStatus) ||
     Boolean(filterSection);
 
+  const totalUserPages = useMemo(
+    () => Math.max(1, Math.ceil(filteredUsers.length / usersTablePageSize)),
+    [filteredUsers.length, usersTablePageSize]
+  );
+
+  const paginatedUsers = useMemo(() => {
+    const start = (usersTablePage - 1) * usersTablePageSize;
+    return filteredUsers.slice(start, start + usersTablePageSize);
+  }, [filteredUsers, usersTablePage, usersTablePageSize]);
+
+  useEffect(() => {
+    setUsersTablePage(1);
+  }, [
+    filterSearch,
+    filterRole,
+    filterCourseId,
+    filterYearLevel,
+    filterTempStatus,
+    filterSection,
+    usersTablePageSize,
+  ]);
+
+  useEffect(() => {
+    setUsersTablePage((prev) => Math.min(prev, totalUserPages));
+  }, [totalUserPages]);
+
   const clearFilters = () => {
     setFilterSearch('');
     setFilterRole('');
@@ -467,7 +495,7 @@ export default function AdminUsersPage() {
       <GlassCard className="p-4 sm:p-6">
         <h2 className="text-xl font-semibold text-[#800000] mb-4">All Users</h2>
         <Table headers={['Name', 'Username', 'Role', 'Email', 'Status', 'Actions']}>
-          {filteredUsers.map((user) => (
+          {paginatedUsers.map((user) => (
             <tr key={user.id} className="hover:bg-white/20 transition-colors">
               <td className="px-4 py-3">
                 <div className="flex items-center gap-3">
@@ -530,6 +558,53 @@ export default function AdminUsersPage() {
             </tr>
           ))}
         </Table>
+        {filteredUsers.length > 0 && (
+          <div className="mt-4 flex flex-col gap-3 border-t border-white/20 pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3 text-sm text-gray-100">
+              <span>
+                Showing{' '}
+                <span className="font-semibold">
+                  {(usersTablePage - 1) * usersTablePageSize + 1}
+                </span>{' '}
+                -{' '}
+                <span className="font-semibold">
+                  {Math.min(usersTablePage * usersTablePageSize, filteredUsers.length)}
+                </span>{' '}
+                of <span className="font-semibold">{filteredUsers.length}</span>
+              </span>
+              <Select
+                label=""
+                value={`${usersTablePageSize}`}
+                onChange={(e) => setUsersTablePageSize(parseInt(e.target.value, 10))}
+                options={[
+                  { value: '10', label: '10 / page' },
+                  { value: '25', label: '25 / page' },
+                  { value: '50', label: '50 / page' },
+                ]}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                disabled={usersTablePage <= 1}
+                onClick={() => setUsersTablePage((prev) => Math.max(1, prev - 1))}
+              >
+                Previous
+              </Button>
+              <span className="px-2 text-sm text-gray-100">
+                Page <span className="font-semibold">{usersTablePage}</span> of{' '}
+                <span className="font-semibold">{totalUserPages}</span>
+              </span>
+              <Button
+                type="button"
+                disabled={usersTablePage >= totalUserPages}
+                onClick={() => setUsersTablePage((prev) => Math.min(totalUserPages, prev + 1))}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        )}
         {users.length === 0 && <p className="text-center text-gray-500 py-8">No users found</p>}
         {users.length > 0 && filteredUsers.length === 0 && (
           <p className="text-center text-gray-500 py-8">No users match your filters. Try adjusting or clear filters.</p>

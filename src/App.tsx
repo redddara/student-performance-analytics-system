@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useAuthStore } from './store';
 import { supabase } from './lib/supabase';
@@ -18,6 +18,7 @@ import {
 } from './lib/sessionConstants';
 import type { TabSyncPayload } from './lib/sessionConstants';
 import type { User } from './types';
+import { ConfirmModal } from './components/ui';
 
 // Auth Pages
 import LoginPage from './pages/auth/Login';
@@ -87,6 +88,8 @@ function RootRedirect() {
 function AppInitializer({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const { setUser, setLoading, logout } = useAuthStore();
+  const [warningOpen, setWarningOpen] = useState(false);
+  const [warningRemainingMs, setWarningRemainingMs] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -206,25 +209,42 @@ function AppInitializer({ children }: { children: React.ReactNode }) {
 
     window.addEventListener('storage', onStorage);
 
+    const WARNING_BEFORE_MS = 5 * 60 * 1000;
     const checkInactivity = () => {
       const path = window.location.pathname;
       if (path === '/login' || path === '/change-password') return;
       const u = useAuthStore.getState().user;
       if (!u) return;
       const last = readLastActivity();
-      if (Date.now() - last > INACTIVITY_MS) {
+      const elapsed = Date.now() - last;
+      const remaining = Math.max(0, INACTIVITY_MS - elapsed);
+      if (elapsed > INACTIVITY_MS) {
         void (async () => {
           await logout({ voluntary: true });
           clearActivityMarkers();
           navigate('/login', { replace: true, state: { sessionExpired: true, reason: 'inactivity' } });
         })();
+        setWarningOpen(false);
+        setWarningRemainingMs(0);
+        return;
+      }
+      if (remaining <= WARNING_BEFORE_MS) {
+        setWarningOpen(true);
+        setWarningRemainingMs(remaining);
+      } else {
+        setWarningOpen(false);
+        setWarningRemainingMs(0);
       }
     };
 
-    const interval = window.setInterval(checkInactivity, 60_000);
+    const interval = window.setInterval(checkInactivity, 1_000);
 
     const bumpActivity = () => {
-      if (useAuthStore.getState().user) touchLastActivity();
+      if (useAuthStore.getState().user) {
+        touchLastActivity();
+        setWarningOpen(false);
+        setWarningRemainingMs(0);
+      }
     };
     window.addEventListener('mousedown', bumpActivity);
     window.addEventListener('keydown', bumpActivity);
@@ -241,7 +261,28 @@ function AppInitializer({ children }: { children: React.ReactNode }) {
     };
   }, [navigate, setUser, setLoading, logout]);
 
-  return <>{children}</>;
+  const remainingMinutes = Math.floor(warningRemainingMs / 60_000);
+  const remainingSeconds = Math.floor((warningRemainingMs % 60_000) / 1_000);
+
+  return (
+    <>
+      {children}
+      <ConfirmModal
+        isOpen={warningOpen}
+        onClose={() => setWarningOpen(false)}
+        onConfirm={() => {
+          touchLastActivity();
+          setWarningOpen(false);
+          setWarningRemainingMs(0);
+        }}
+        title="Session timeout warning"
+        message={`Your session will expire due to inactivity in ${remainingMinutes}:${String(remainingSeconds).padStart(2, '0')}. Select "Stay signed in" to continue your session.`}
+        confirmText="Stay signed in"
+        cancelText="Dismiss"
+        variant="warning"
+      />
+    </>
+  );
 }
 
 export default function App() {

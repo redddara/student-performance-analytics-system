@@ -8,9 +8,12 @@ import {
   Search,
   Trash2,
   UserPlus,
+  Upload,
+  Download,
   XCircle,
   CheckCircle2,
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { PageIntro } from '../../components/layouts/PageIntro';
 import {
@@ -42,6 +45,7 @@ export default function AdminUsersPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showBulkCreateModal, setShowBulkCreateModal] = useState(false);
   const [createType, setCreateType] = useState<'student' | 'teacher' | 'admin'>('student');
   const [courses, setCourses] = useState<any[]>([]);
 
@@ -361,6 +365,14 @@ export default function AdminUsersPage() {
           <UserPlus className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
           Add Admin
         </Button>
+        <Button
+          variant="secondary"
+          className="w-full sm:w-auto"
+          onClick={() => setShowBulkCreateModal(true)}
+        >
+          <Upload className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+          Bulk Add Students
+        </Button>
         <button
           type="button"
           onClick={() => setFiltersOpen((o) => !o)}
@@ -528,6 +540,13 @@ export default function AdminUsersPage() {
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         type={createType}
+        courses={courses}
+        onSuccess={loadData}
+        onFeedback={showMessage}
+      />
+      <BulkCreateStudentsModal
+        isOpen={showBulkCreateModal}
+        onClose={() => setShowBulkCreateModal(false)}
         courses={courses}
         onSuccess={loadData}
         onFeedback={showMessage}
@@ -890,6 +909,300 @@ interface EditUserModalProps {
   user: any;
   courses: any[];
   onSave: (userId: string, data: any, role?: string) => void;
+}
+
+interface BulkCreateStudentsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  courses: any[];
+  onSuccess: () => void;
+  onFeedback: (payload: AppMessagePayload) => void;
+}
+
+interface BulkStudentRow {
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+  course_name?: string;
+  year_level?: string;
+  section?: string;
+  semester?: string;
+}
+
+function BulkCreateStudentsModal({
+  isOpen,
+  onClose,
+  courses,
+  onSuccess,
+  onFeedback,
+}: BulkCreateStudentsModalProps) {
+  const [loading, setLoading] = useState(false);
+  const [uploadResults, setUploadResults] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setUploadResults(null);
+    }
+  }, [isOpen]);
+
+  const downloadTemplate = () => {
+    const template = [
+      {
+        first_name: 'Juan',
+        last_name: 'Dela Cruz',
+        email: 'juan.delacruz@example.com',
+        course_name: courses[0]?.name || 'BSCS',
+        year_level: '1st',
+        section: 'A',
+        semester: '1st Sem',
+      },
+      {
+        first_name: 'Maria',
+        last_name: 'Santos',
+        email: 'maria.santos@example.com',
+        course_name: courses[0]?.name || 'BSCS',
+        year_level: '1st',
+        section: 'A',
+        semester: '1st Sem',
+      },
+    ];
+    const ws = XLSX.utils.json_to_sheet(template);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Students');
+    XLSX.writeFile(wb, 'bulk_students_template.xlsx');
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setLoading(true);
+    setUploadResults(null);
+    try {
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer);
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json<BulkStudentRow>(sheet);
+
+      if (!rows.length) {
+        onFeedback({
+          title: 'No data found',
+          message: 'The uploaded file is empty. Add rows and try again.',
+          variant: 'warning',
+        });
+        return;
+      }
+
+      const { data: existingUsers } = await supabase.from('users').select('username,email').like('username', 'STUD-%');
+      const existingUsernameSet = new Set((existingUsers || []).map((u: any) => String(u.username || '').toUpperCase()));
+      const existingEmailSet = new Set(
+        (existingUsers || []).map((u: any) => String(u.email || '').trim().toLowerCase()).filter(Boolean)
+      );
+      const generatedEmailSet = new Set<string>();
+
+      let highestStudentNumber = 1000;
+      (existingUsers || []).forEach((u: any) => {
+        const raw = String(u.username || '');
+        const parts = raw.split('-');
+        const n = parseInt(parts[2] || '0', 10);
+        if (Number.isFinite(n) && n > highestStudentNumber) highestStudentNumber = n;
+      });
+
+      let success = 0;
+      let failed = 0;
+      const errors: string[] = [];
+
+      for (let i = 0; i < rows.length; i += 1) {
+        const row = rows[i];
+        const rowNo = i + 2;
+        try {
+          const firstName = String(row.first_name || '').trim();
+          const lastName = String(row.last_name || '').trim();
+          const email = String(row.email || '').trim().toLowerCase();
+          const courseName = String(row.course_name || '').trim().toLowerCase();
+          const yearLevel = String(row.year_level || '').trim() || '1st';
+          const section = normalizeSchoolSection(row.section) || DEFAULT_SCHOOL_SECTION;
+          const semester = String(row.semester || '').trim() || '1st Sem';
+
+          if (!firstName || !lastName || !email || !courseName) {
+            failed += 1;
+            errors.push(`Row ${rowNo}: first_name, last_name, email, and course_name are required.`);
+            continue;
+          }
+
+          const matchedCourse = courses.find((c) => String(c.name || '').trim().toLowerCase() === courseName);
+          if (!matchedCourse?.id) {
+            failed += 1;
+            errors.push(`Row ${rowNo}: course "${row.course_name}" not found.`);
+            continue;
+          }
+
+          if (existingEmailSet.has(email) || generatedEmailSet.has(email)) {
+            failed += 1;
+            errors.push(`Row ${rowNo}: email "${email}" already exists in this import or database.`);
+            continue;
+          }
+
+          let username = '';
+          while (!username) {
+            highestStudentNumber += 1;
+            const candidate = generateStudentUsername(matchedCourse.name, highestStudentNumber);
+            if (!existingUsernameSet.has(candidate.toUpperCase())) {
+              username = candidate;
+              existingUsernameSet.add(candidate.toUpperCase());
+            }
+          }
+
+          const tempPassword = generateTempPassword();
+          const passwordHash = await hashPassword(tempPassword);
+
+          const { data: userData, error: userError } = await supabase
+            .from('users')
+            .insert({
+              email,
+              password_hash: passwordHash,
+              role: 'student',
+              username,
+              is_temp_password: true,
+              temp_password_visible: tempPassword,
+              first_name: firstName,
+              last_name: lastName,
+              course_id: matchedCourse.id,
+              year_level: yearLevel,
+              section,
+            })
+            .select()
+            .single();
+
+          if (userError || !userData?.id) {
+            failed += 1;
+            errors.push(`Row ${rowNo}: could not create user (${userError?.message || 'unknown error'}).`);
+            continue;
+          }
+
+          const { data: studentData, error: studentError } = await supabase
+            .from('students')
+            .insert({
+              first_name: firstName,
+              last_name: lastName,
+              grade_level: yearLevel,
+              section,
+              course_id: matchedCourse.id,
+              user_id: userData.id,
+            })
+            .select()
+            .single();
+
+          if (studentError || !studentData?.id) {
+            failed += 1;
+            errors.push(`Row ${rowNo}: student profile not created (${studentError?.message || 'unknown error'}).`);
+            continue;
+          }
+
+          const { data: matchingSubjects } = await supabase
+            .from('subjects')
+            .select('id')
+            .eq('course_id', matchedCourse.id)
+            .eq('year_level', yearLevel)
+            .eq('semester', semester);
+
+          if (matchingSubjects && matchingSubjects.length > 0) {
+            const enrollments = matchingSubjects.map((s: any) => ({
+              student_id: studentData.id,
+              subject_id: s.id,
+            }));
+            await supabase.from('student_subjects').upsert(enrollments, {
+              onConflict: 'student_id,subject_id',
+              ignoreDuplicates: true,
+            });
+          }
+
+          const emailData = generateStudentCredentialEmail(firstName, username, tempPassword, 'student');
+          const sent = await sendEmail(email, emailData.subject, emailData.html);
+          if (!sent.success) {
+            errors.push(`Row ${rowNo}: created, but credential email failed (${sent.error || 'unknown error'}).`);
+          }
+
+          existingEmailSet.add(email);
+          generatedEmailSet.add(email);
+          success += 1;
+        } catch (err: any) {
+          failed += 1;
+          errors.push(`Row ${rowNo}: ${err?.message || 'processing failed'}`);
+        }
+      }
+
+      setUploadResults({ success, failed, errors: errors.slice(0, 12) });
+      onFeedback({
+        title: 'Bulk import finished',
+        message: `Created ${success} student account(s). Failed: ${failed}.`,
+        variant: failed > 0 ? 'warning' : 'success',
+      });
+      onSuccess();
+    } finally {
+      setLoading(false);
+      e.target.value = '';
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Bulk Add Students" size="md">
+      <div className="space-y-4">
+        <p className="text-sm text-gray-600">
+          Upload a CSV/XLSX file to add many students at once (e.g., an entire section).
+          Required columns: <code>first_name</code>, <code>last_name</code>, <code>email</code>, <code>course_name</code>.
+        </p>
+        <p className="text-sm text-gray-600">
+          Optional columns: <code>year_level</code> (default: 1st), <code>section</code> (default: A),
+          <code>semester</code> (default: 1st Sem).
+        </p>
+
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <Button type="button" variant="secondary" onClick={downloadTemplate}>
+            <Download className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+            Download template
+          </Button>
+          <input
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            onChange={handleFileUpload}
+            className="w-full min-w-0 text-sm file:mr-4 file:rounded-xl file:border-0 file:bg-[#800000] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-[#600000]"
+          />
+        </div>
+
+        {loading && (
+          <div className="pt-2">
+            <Spinner size="sm" />
+          </div>
+        )}
+
+        {uploadResults && (
+          <div className="space-y-3 pt-1">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-xl border border-green-200 bg-green-50 p-3 text-center">
+                <p className="text-xl font-bold text-green-700">{uploadResults.success}</p>
+                <p className="text-sm text-green-800">Created</p>
+              </div>
+              <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-center">
+                <p className="text-xl font-bold text-red-700">{uploadResults.failed}</p>
+                <p className="text-sm text-red-800">Failed</p>
+              </div>
+            </div>
+            {uploadResults.errors.length > 0 && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                <p className="mb-2 text-sm font-semibold text-amber-900">Import notes</p>
+                <ul className="space-y-1 text-xs text-amber-900">
+                  {uploadResults.errors.map((err, idx) => (
+                    <li key={`${idx}-${err}`}>- {err}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
 }
 
 function EditUserModal({ user, courses, onSave }: EditUserModalProps) {

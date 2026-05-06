@@ -23,6 +23,8 @@ import { ConfirmModal } from './components/ui';
 // Auth Pages
 import LoginPage from './pages/auth/Login';
 import ChangePasswordPage from './pages/auth/ChangePassword';
+import ForgotPasswordPage from './pages/auth/ForgotPassword';
+import ResetPasswordPage from './pages/auth/ResetPassword';
 
 // Admin Pages
 import AdminDashboard from './pages/admin/Dashboard';
@@ -154,7 +156,7 @@ function AppInitializer({ children }: { children: React.ReactNode }) {
         clearActivityMarkers();
         useAuthStore.setState({ user: null });
         const path = window.location.pathname;
-        if (path === '/login' || path === '/change-password') return;
+        if (path === '/login' || path === '/change-password' || path === '/forgot-password' || path === '/reset-password') return;
         if (consumeVoluntaryLogoutFlag()) return;
         navigate('/login', { replace: true, state: { sessionExpired: true, reason: 'auth' } });
         return;
@@ -186,7 +188,7 @@ function AppInitializer({ children }: { children: React.ReactNode }) {
             clearActivityMarkers();
             useAuthStore.setState({ user: null });
             const path = window.location.pathname;
-            if (path !== '/login' && path !== '/change-password') {
+            if (path !== '/login' && path !== '/change-password' && path !== '/forgot-password' && path !== '/reset-password') {
               window.location.assign(`${window.location.origin}/login`);
             }
           }
@@ -201,7 +203,7 @@ function AppInitializer({ children }: { children: React.ReactNode }) {
         clearActivityMarkers();
         useAuthStore.setState({ user: null });
         const path = window.location.pathname;
-        if (path !== '/login' && path !== '/change-password') {
+        if (path !== '/login' && path !== '/change-password' && path !== '/forgot-password' && path !== '/reset-password') {
           window.location.assign(`${window.location.origin}/login`);
         }
       }
@@ -212,7 +214,7 @@ function AppInitializer({ children }: { children: React.ReactNode }) {
     const WARNING_BEFORE_MS = 5 * 60 * 1000;
     const checkInactivity = () => {
       const path = window.location.pathname;
-      if (path === '/login' || path === '/change-password') return;
+      if (path === '/login' || path === '/change-password' || path === '/forgot-password' || path === '/reset-password') return;
       const u = useAuthStore.getState().user;
       if (!u) return;
       const last = readLastActivity();
@@ -292,6 +294,8 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/change-password" element={<ChangePasswordPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
 
           <Route
             path="/admin/*"

@@ -178,7 +178,10 @@ function AppInitializer({ children }: { children: React.ReactNode }) {
 
       if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
         touchLastActivity();
-        if (event === 'SIGNED_IN') {
+        const current = useAuthStore.getState().user;
+        const sessionUserSwitched =
+          event === 'TOKEN_REFRESHED' && (!current || current.id !== session.user.id);
+        if (event === 'SIGNED_IN' || sessionUserSwitched) {
           let profile = await fetchUserProfileByAuthId(session.user.id);
           if (!profile && session.user.email) {
             profile = await fetchUserProfileByEmail(session.user.email);
@@ -212,13 +215,43 @@ function AppInitializer({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      if (e.key === SAPAS_USER_KEY && e.newValue === null) {
-        void supabase.auth.signOut();
-        clearActivityMarkers();
-        useAuthStore.setState({ user: null });
-        const path = window.location.pathname;
-        if (path !== '/login' && path !== '/change-password' && path !== '/forgot-password' && path !== '/reset-password') {
-          window.location.assign(`${window.location.origin}/login`);
+      if (e.key === SAPAS_USER_KEY) {
+        if (e.newValue === null) {
+          void supabase.auth.signOut();
+          clearActivityMarkers();
+          useAuthStore.setState({ user: null });
+          const path = window.location.pathname;
+          if (path !== '/login' && path !== '/change-password' && path !== '/forgot-password' && path !== '/reset-password') {
+            window.location.assign(`${window.location.origin}/login`);
+          }
+          return;
+        }
+
+        try {
+          const parsed = JSON.parse(e.newValue) as User;
+          const nextUser = { ...parsed, password_hash: parsed.password_hash ?? '' };
+          setUser(nextUser);
+          touchLastActivity();
+          const path = window.location.pathname;
+          const onAuthScreen =
+            path === '/login' ||
+            path === '/change-password' ||
+            path === '/forgot-password' ||
+            path === '/reset-password';
+          if (onAuthScreen) return;
+          const home =
+            nextUser.role === 'admin'
+              ? '/admin/dashboard'
+              : nextUser.role === 'teacher'
+                ? '/teacher/dashboard'
+                : nextUser.role === 'student'
+                  ? '/student/dashboard'
+                  : '/login';
+          if (home !== '/login' && !path.startsWith(`/${nextUser.role}`)) {
+            navigate(home, { replace: true });
+          }
+        } catch {
+          /* ignore malformed payload */
         }
       }
     };

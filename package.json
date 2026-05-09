@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "node node_modules/vite/bin/vite.js build",
+    "start": "node server.js",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"
   },
@@ -13,6 +14,7 @@
     "@supabase/supabase-js": "^2.99.2",
     "@types/xlsx": "^0.0.35",
     "clsx": "^2.1.0",
+    "express": "^5.1.0",
     "lucide-react": "^0.533.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

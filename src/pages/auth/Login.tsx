@@ -98,6 +98,20 @@ export default function LoginPage() {
   );
 
   useEffect(() => {
+    const clearCredentials = () => {
+      setUsername('');
+      setPassword('');
+    };
+
+    clearCredentials();
+    window.addEventListener('pageshow', clearCredentials);
+
+    return () => {
+      window.removeEventListener('pageshow', clearCredentials);
+    };
+  }, []);
+
+  useEffect(() => {
     if (showExpiredNotice) {
       setLoginModal({
         title: 'Session expired',
@@ -335,15 +349,22 @@ export default function LoginPage() {
                   </Button>
                 </div>
               ) : (
-                <form onSubmit={handleSubmit} className="mx-auto w-full max-w-md space-y-5 lg:max-w-xl lg:space-y-6">
+                <form
+                  onSubmit={handleSubmit}
+                  className="mx-auto w-full max-w-md space-y-5 lg:max-w-xl lg:space-y-6"
+                  autoComplete="off"
+                >
                   <PillField
                     label="Username"
                     type="text"
                     name="username"
-                    autoComplete="username"
+                    autoComplete="off"
                     placeholder={username.includes('@') ? 'name@school.edu' : 'e.g. STUD-CS-0001'}
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                     required
                     aria-label="Email or student ID"
                   />
@@ -353,7 +374,7 @@ export default function LoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    autoComplete="current-password"
+                    autoComplete="new-password"
                     required
                     id="login-password"
                   />

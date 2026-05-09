@@ -19,6 +19,15 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      if (window.top !== window.self) {
+        try {
+          window.top.location = window.self.location;
+        } catch {
+          window.self.location = window.self.location;
+        }
+      }
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

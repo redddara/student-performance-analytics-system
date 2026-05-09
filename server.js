@@ -8,10 +8,21 @@ const distDir = path.resolve(process.cwd(), "dist");
 
 app.disable("x-powered-by");
 
+const FRAME_ANCESTORS_RULE = "frame-ancestors 'none'";
+
+function withFrameAncestorsNone(existingCsp) {
+  if (!existingCsp) return FRAME_ANCESTORS_RULE;
+  if (existingCsp.includes("frame-ancestors")) return existingCsp;
+  return `${existingCsp}; ${FRAME_ANCESTORS_RULE}`;
+}
+
 // Prevent the site from being embedded in <iframe>.
 app.use((req, res, next) => {
   res.setHeader("X-Frame-Options", "DENY");
-  res.setHeader("Content-Security-Policy", "frame-ancestors 'none'");
+  res.setHeader(
+    "Content-Security-Policy",
+    withFrameAncestorsNone(res.getHeader("Content-Security-Policy")?.toString()),
+  );
   next();
 });
 

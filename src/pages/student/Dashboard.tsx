@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { BookOpen, CheckCircle2, Pencil, Target } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
-import { GlassCard, Spinner } from '../../components/ui';
+import { GlassCard, PageSkeletonLoader } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase, isPassing, calculateGWA } from '../../lib/supabase';
 
@@ -52,7 +52,7 @@ export default function StudentDashboard() {
   };
 
   if (loading) {
-    return <DashboardLayout title="Dashboard"><Spinner size="lg" /></DashboardLayout>;
+    return <DashboardLayout title="Dashboard"><PageSkeletonLoader /></DashboardLayout>;
   }
 
   // Calculate GWA

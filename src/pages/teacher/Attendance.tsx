@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Check, Save, Search, Users } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
-import { GlassCard, Select, Spinner, Button, MessageModal, type AppMessagePayload } from '../../components/ui';
+import { GlassCard, Select, Button, MessageModal, PageSkeletonLoader, type AppMessagePayload } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase } from '../../lib/supabase';
 import { SCHOOL_SECTION_SELECT_OPTIONS, normalizeSchoolSection } from '../../constants/schoolSections';
@@ -204,7 +204,7 @@ export default function TeacherAttendancePage() {
   if (loading) {
     return (
       <DashboardLayout title="Attendance">
-        <Spinner size="lg" />
+        <PageSkeletonLoader rows={5} />
       </DashboardLayout>
     );
   }

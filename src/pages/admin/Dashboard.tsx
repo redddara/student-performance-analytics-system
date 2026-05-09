@@ -18,6 +18,7 @@ import {
   Select,
   Modal,
   Spinner,
+  PageSkeletonLoader,
   Badge,
   MessageModal,
   type AppMessagePayload,
@@ -136,9 +137,7 @@ export default function AdminDashboard() {
   if (loading) {
     return (
       <DashboardLayout title="Dashboard">
-        <div className="flex items-center justify-center h-64">
-          <Spinner size="lg" />
-        </div>
+        <PageSkeletonLoader rows={5} />
       </DashboardLayout>
     );
   }

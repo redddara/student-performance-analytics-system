@@ -50,10 +50,23 @@ import StudentAnalyticsPage from './pages/student/Analytics';
 
 function LoadingScreen() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#f5f5f5] via-[#e8e8e8] to-[#d4d4d4]">
-      <div className="text-center">
-        <div className="w-16 h-16 mx-auto mb-4 rounded-full border-4 border-[#800000]/30 border-t-[#800000] animate-spin" />
-        <p className="text-gray-600">Loading...</p>
+    <div className="min-h-screen bg-gradient-to-br from-[#f5f5f5] via-[#e8e8e8] to-[#d4d4d4] px-6 py-10">
+      <div
+        className="mx-auto w-full max-w-lg space-y-4 pt-[12vh]"
+        aria-busy="true"
+        aria-label="Loading application"
+      >
+        <div className="h-10 animate-pulse rounded-xl bg-gray-300/65" />
+        <div className="h-36 animate-pulse rounded-2xl border border-gray-300/40 bg-gray-200/70" />
+        <div className="space-y-2.5 rounded-2xl border border-gray-300/35 bg-gray-100/75 p-4">
+          <div className="h-3 animate-pulse rounded bg-gray-200/85" />
+          <div className="h-3 w-[88%] animate-pulse rounded bg-gray-200/85" />
+          <div className="h-3 w-[72%] animate-pulse rounded bg-gray-200/85" />
+        </div>
+        <div className="flex gap-3">
+          <div className="h-11 flex-1 animate-pulse rounded-xl bg-gray-200/70" />
+          <div className="h-11 w-24 animate-pulse rounded-xl bg-gray-200/60" />
+        </div>
       </div>
     </div>
   );

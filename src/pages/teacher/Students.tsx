@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { BookUser, GraduationCap, ListFilter, RefreshCw, Search, UserRound } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
-import { GlassCard, Spinner, Badge, Table, Button, Select } from '../../components/ui';
+import { GlassCard, Badge, Table, Button, Select, PageSkeletonLoader } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase, getGradeStatus } from '../../lib/supabase';
 import { SCHOOL_SECTION_SELECT_OPTIONS, normalizeSchoolSection } from '../../constants/schoolSections';
@@ -133,7 +133,7 @@ export default function TeacherStudentsPage() {
   };
 
   if (loading) {
-    return <DashboardLayout title="Students"><Spinner size="lg" /></DashboardLayout>;
+    return <DashboardLayout title="Students"><PageSkeletonLoader rows={5} /></DashboardLayout>;
   }
 
   return (

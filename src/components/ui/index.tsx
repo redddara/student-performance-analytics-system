@@ -415,6 +415,49 @@ export function Spinner({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
   );
 }
 
+interface PageSkeletonLoaderProps {
+  rows?: number;
+}
+
+/** Full-page placeholders only (no spinner) — mimics dashboard cards + panels while data loads. */
+export function PageSkeletonLoader({ rows = 6 }: PageSkeletonLoaderProps) {
+  return (
+    <div className="space-y-6" aria-busy="true" aria-label="Loading page content">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, idx) => (
+          <div
+            key={`skeleton-stat-${idx}`}
+            className="h-28 animate-pulse rounded-2xl border border-gray-200/70 bg-gray-100/90"
+          />
+        ))}
+      </div>
+      <div className="space-y-3 rounded-2xl border border-gray-200/80 bg-gray-50/90 p-5 sm:p-6">
+        {Array.from({ length: rows }).map((_, idx) => (
+          <div
+            key={`skeleton-line-${idx}`}
+            className={clsx(
+              'h-4 animate-pulse rounded-lg bg-gray-200/80',
+              idx % 3 === 1 && 'w-[92%]',
+              idx % 3 === 2 && 'w-[78%]'
+            )}
+          />
+        ))}
+      </div>
+      <div className="rounded-3xl border border-gray-200/80 bg-gray-50/90 p-5 sm:p-6">
+        <div className="mb-4 h-7 w-40 max-w-[60%] animate-pulse rounded-lg bg-gray-200/80" />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, idx) => (
+            <div
+              key={`skeleton-tile-${idx}`}
+              className="h-24 animate-pulse rounded-xl border border-gray-200/60 bg-gray-100/80"
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 interface EmptyStateProps {
   icon?: string;
   title: string;

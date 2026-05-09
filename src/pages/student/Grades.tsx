@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { ListFilter, RefreshCw, Search } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
-import { GlassCard, Select, Table, Spinner, Button } from '../../components/ui';
+import { GlassCard, Select, Table, Button, PageSkeletonLoader } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase, calculateGWA } from '../../lib/supabase';
 
@@ -93,7 +93,7 @@ export default function StudentGradesPage() {
   };
 
   if (loading) {
-    return <DashboardLayout title="My Grades"><Spinner size="lg" /></DashboardLayout>;
+    return <DashboardLayout title="My Grades"><PageSkeletonLoader rows={4} /></DashboardLayout>;
   }
 
   return (

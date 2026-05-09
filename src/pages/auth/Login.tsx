@@ -161,6 +161,17 @@ export default function LoginPage() {
 
       const user = users[0] as (typeof users)[0];
 
+      if (user.role === 'student' && user.is_dropout) {
+        setLoginModal({
+          title: 'Account locked',
+          message:
+            'Your account is marked as dropout and is currently locked. Please contact an administrator for assistance.',
+          variant: 'error',
+        });
+        setLoading(false);
+        return;
+      }
+
       if (isLoginLocked(user)) {
         const until = user.login_locked_until ? formatLockUntil(user.login_locked_until) : 'later';
         setLoginModal({

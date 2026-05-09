@@ -19,6 +19,8 @@ export interface User {
   login_failed_attempts?: number;
   /** If set and in the future, login is blocked until this time or admin unlock. */
   login_locked_until?: string | null;
+  /** When true for students, account access is disabled (dropout). */
+  is_dropout?: boolean;
 }
 
 export interface Course {

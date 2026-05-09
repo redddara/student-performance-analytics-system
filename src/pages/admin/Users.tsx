@@ -7,7 +7,9 @@ import {
   RefreshCw,
   Search,
   Trash2,
+  UserCheck,
   UserPlus,
+  UserX,
   Upload,
   Download,
   XCircle,
@@ -55,6 +57,7 @@ export default function AdminUsersPage() {
   const [filterCourseId, setFilterCourseId] = useState('');
   const [filterYearLevel, setFilterYearLevel] = useState('');
   const [filterTempStatus, setFilterTempStatus] = useState('');
+  const [filterAccountStatus, setFilterAccountStatus] = useState('');
   const [filterSection, setFilterSection] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [usersTablePage, setUsersTablePage] = useState(1);
@@ -107,6 +110,36 @@ export default function AdminUsersPage() {
     showMessage({
       title: 'Login unlocked',
       message: 'This user can sign in again. Failed attempt count was reset.',
+      variant: 'success',
+    });
+    loadData();
+  };
+
+  const handleToggleDropout = async (userId: string, makeDropout: boolean) => {
+    const { error } = await supabase
+      .from('users')
+      .update({
+        is_dropout: makeDropout,
+        login_failed_attempts: 0,
+        login_locked_until: null,
+      })
+      .eq('id', userId)
+      .eq('role', 'student');
+
+    if (error) {
+      showMessage({
+        title: 'Could not update account status',
+        message: error.message || 'Check your connection and try again.',
+        variant: 'error',
+      });
+      return;
+    }
+
+    showMessage({
+      title: makeDropout ? 'Student marked as dropout' : 'Student reactivated',
+      message: makeDropout
+        ? 'This student account is now locked from signing in.'
+        : 'This student account can sign in again.',
       variant: 'success',
     });
     loadData();
@@ -204,6 +237,7 @@ export default function AdminUsersPage() {
       };
       if (role === 'student') {
         payload.section = updatedData.section;
+        payload.is_dropout = Boolean(updatedData.is_dropout);
       }
       await supabase.from('users').update(payload).eq('id', userId);
 
@@ -271,13 +305,15 @@ export default function AdminUsersPage() {
       if (filterYearLevel && (u.year_level || '') !== filterYearLevel) return false;
       if (filterTempStatus === 'temp' && !u.is_temp_password) return false;
       if (filterTempStatus === 'active' && u.is_temp_password) return false;
+      if (filterAccountStatus === 'dropout' && !u.is_dropout) return false;
+      if (filterAccountStatus === 'active' && (u.role !== 'student' || u.is_dropout)) return false;
       if (filterSection) {
         if (u.role !== 'student') return false;
         if (normalizeSchoolSection(u.section) !== filterSection) return false;
       }
       return true;
     });
-  }, [users, filterSearch, filterRole, filterCourseId, filterYearLevel, filterTempStatus, filterSection]);
+  }, [users, filterSearch, filterRole, filterCourseId, filterYearLevel, filterTempStatus, filterAccountStatus, filterSection]);
 
   const hasActiveFilters =
     Boolean(filterSearch.trim()) ||
@@ -285,6 +321,7 @@ export default function AdminUsersPage() {
     Boolean(filterCourseId) ||
     Boolean(filterYearLevel) ||
     Boolean(filterTempStatus) ||
+    Boolean(filterAccountStatus) ||
     Boolean(filterSection);
 
   const totalUserPages = useMemo(
@@ -305,6 +342,7 @@ export default function AdminUsersPage() {
     filterCourseId,
     filterYearLevel,
     filterTempStatus,
+    filterAccountStatus,
     filterSection,
     usersTablePageSize,
   ]);
@@ -319,6 +357,7 @@ export default function AdminUsersPage() {
     setFilterCourseId('');
     setFilterYearLevel('');
     setFilterTempStatus('');
+    setFilterAccountStatus('');
     setFilterSection('');
   };
 
@@ -483,6 +522,16 @@ export default function AdminUsersPage() {
                 { value: 'active', label: 'Active (password changed)' },
               ]}
             />
+            <Select
+              label="Student account"
+              value={filterAccountStatus}
+              onChange={(e) => setFilterAccountStatus(e.target.value)}
+              options={[
+                { value: '', label: 'All students' },
+                { value: 'active', label: 'Active students' },
+                { value: 'dropout', label: 'Dropout (locked)' },
+              ]}
+            />
           </div>
           <p className="mt-4 text-sm text-gray-600">
             Showing <span className="font-semibold text-[#800000]">{filteredUsers.length}</span> of {users.length} user
@@ -516,14 +565,34 @@ export default function AdminUsersPage() {
               <td className="px-4 py-3">
                 <div className="flex flex-wrap items-center gap-1.5">
                   {user.is_temp_password && <Badge variant="warning">Temp</Badge>}
+                  {user.role === 'student' && user.is_dropout && <Badge variant="danger">Dropout</Badge>}
                   {isLoginLocked(user) && <Badge variant="danger">Login locked</Badge>}
-                  {!user.is_temp_password && !isLoginLocked(user) && (
+                  {!user.is_temp_password && !isLoginLocked(user) && !user.is_dropout && (
                     <span className="text-xs text-gray-500">—</span>
                   )}
                 </div>
               </td>
               <td className="px-4 py-3">
                 <div className="flex flex-wrap gap-2">
+                  {user.role === 'student' && (
+                    <button
+                      type="button"
+                      className={`p-2 rounded-lg glass-hover ${user.is_dropout ? 'text-green-700' : 'text-amber-700'}`}
+                      onClick={() => handleToggleDropout(user.id, !user.is_dropout)}
+                      title={user.is_dropout ? 'Reactivate student account' : 'Mark as dropout (lock account)'}
+                      aria-label={
+                        user.is_dropout
+                          ? `Reactivate ${user.name || user.first_name || 'student'}`
+                          : `Mark ${user.name || user.first_name || 'student'} as dropout`
+                      }
+                    >
+                      {user.is_dropout ? (
+                        <UserCheck className="h-[1.15rem] w-[1.15rem] shrink-0" strokeWidth={2} aria-hidden />
+                      ) : (
+                        <UserX className="h-[1.15rem] w-[1.15rem] shrink-0" strokeWidth={2} aria-hidden />
+                      )}
+                    </button>
+                  )}
                   {isLoginLocked(user) && (
                     <button
                       type="button"
@@ -793,6 +862,7 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess, onFeedback
           username,
           is_temp_password: true,
           temp_password_visible: tempPassword,
+          is_dropout: false,
           first_name: formData.first_name,
           last_name: formData.last_name,
           course_id: type === 'admin' ? null : formData.course_id || null,
@@ -1139,6 +1209,7 @@ function BulkCreateStudentsModal({
               username,
               is_temp_password: true,
               temp_password_visible: tempPassword,
+              is_dropout: false,
               first_name: firstName,
               last_name: lastName,
               course_id: matchedCourse.id,
@@ -1289,6 +1360,7 @@ function EditUserModal({ user, courses, onSave }: EditUserModalProps) {
     year_level: user.year_level || '',
     section: user.role === 'student' ? sectionFromUserRecord(user.section) : '',
     course_id: user.course_id || '',
+    is_dropout: Boolean(user.is_dropout),
   });
 
   useEffect(() => {
@@ -1299,6 +1371,7 @@ function EditUserModal({ user, courses, onSave }: EditUserModalProps) {
       year_level: user.year_level || '',
       section: user.role === 'student' ? sectionFromUserRecord(user.section) : '',
       course_id: user.course_id || '',
+      is_dropout: Boolean(user.is_dropout),
     });
   }, [user]);
 
@@ -1373,13 +1446,24 @@ function EditUserModal({ user, courses, onSave }: EditUserModalProps) {
                 options={[{ value: '1st', label: '1st Year' }, { value: '2nd', label: '2nd Year' }, { value: '3rd', label: '3rd Year' }, { value: '4th', label: '4th Year' }]}
               />
               {user.role === 'student' ? (
-                <Select
-                  label="Section"
-                  value={formData.section}
-                  onChange={e => setFormData({ ...formData, section: e.target.value })}
-                  options={studentSectionOptions}
-                  required
-                />
+                <>
+                  <Select
+                    label="Section"
+                    value={formData.section}
+                    onChange={e => setFormData({ ...formData, section: e.target.value })}
+                    options={studentSectionOptions}
+                    required
+                  />
+                  <Select
+                    label="Student status"
+                    value={formData.is_dropout ? 'dropout' : 'active'}
+                    onChange={e => setFormData({ ...formData, is_dropout: e.target.value === 'dropout' })}
+                    options={[
+                      { value: 'active', label: 'Active' },
+                      { value: 'dropout', label: 'Dropout (locked)' },
+                    ]}
+                  />
+                </>
               ) : null}
             </>
           )}

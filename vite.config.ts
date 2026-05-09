@@ -2,9 +2,21 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 
+/** Prevent clickjacking: block embedding this app in third-party iframes (HTTP headers are the reliable fix). */
+const antiClickjackingHeaders = {
+  'X-Frame-Options': 'DENY',
+  'Content-Security-Policy': "frame-ancestors 'none'",
+} as const;
+
 export default defineConfig({
    base: '/',
   plugins: [react()],
+  server: {
+    headers: antiClickjackingHeaders,
+  },
+  preview: {
+    headers: antiClickjackingHeaders,
+  },
   build: {
     rollupOptions: {
       output: {

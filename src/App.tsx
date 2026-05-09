@@ -23,6 +23,8 @@ import { ConfirmModal } from './components/ui';
 // Auth Pages
 import LoginPage from './pages/auth/Login';
 import ChangePasswordPage from './pages/auth/ChangePassword';
+import ForgotPasswordPage from './pages/auth/ForgotPassword';
+import ResetPasswordPage from './pages/auth/ResetPassword';
 
 // Admin Pages
 import AdminDashboard from './pages/admin/Dashboard';
@@ -38,6 +40,7 @@ import TeacherSubjectsPage from './pages/teacher/Subjects';
 import TeacherGradesPage from './pages/teacher/Grades';
 import TeacherStudentsPage from './pages/teacher/Students';
 import TeacherAnalyticsPage from './pages/teacher/Analytics';
+import TeacherAttendancePage from './pages/teacher/Attendance';
 
 // Student Pages
 import StudentDashboard from './pages/student/Dashboard';
@@ -47,10 +50,23 @@ import StudentAnalyticsPage from './pages/student/Analytics';
 
 function LoadingScreen() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#f5f5f5] via-[#e8e8e8] to-[#d4d4d4]">
-      <div className="text-center">
-        <div className="w-16 h-16 mx-auto mb-4 rounded-full border-4 border-[#800000]/30 border-t-[#800000] animate-spin" />
-        <p className="text-gray-600">Loading...</p>
+    <div className="min-h-screen bg-gradient-to-br from-[#f5f5f5] via-[#e8e8e8] to-[#d4d4d4] px-6 py-10">
+      <div
+        className="mx-auto w-full max-w-lg space-y-4 pt-[12vh]"
+        aria-busy="true"
+        aria-label="Loading application"
+      >
+        <div className="h-10 animate-pulse rounded-xl bg-gray-300/65" />
+        <div className="h-36 animate-pulse rounded-2xl border border-gray-300/40 bg-gray-200/70" />
+        <div className="space-y-2.5 rounded-2xl border border-gray-300/35 bg-gray-100/75 p-4">
+          <div className="h-3 animate-pulse rounded bg-gray-200/85" />
+          <div className="h-3 w-[88%] animate-pulse rounded bg-gray-200/85" />
+          <div className="h-3 w-[72%] animate-pulse rounded bg-gray-200/85" />
+        </div>
+        <div className="flex gap-3">
+          <div className="h-11 flex-1 animate-pulse rounded-xl bg-gray-200/70" />
+          <div className="h-11 w-24 animate-pulse rounded-xl bg-gray-200/60" />
+        </div>
       </div>
     </div>
   );
@@ -154,7 +170,7 @@ function AppInitializer({ children }: { children: React.ReactNode }) {
         clearActivityMarkers();
         useAuthStore.setState({ user: null });
         const path = window.location.pathname;
-        if (path === '/login' || path === '/change-password') return;
+        if (path === '/login' || path === '/change-password' || path === '/forgot-password' || path === '/reset-password') return;
         if (consumeVoluntaryLogoutFlag()) return;
         navigate('/login', { replace: true, state: { sessionExpired: true, reason: 'auth' } });
         return;
@@ -162,7 +178,10 @@ function AppInitializer({ children }: { children: React.ReactNode }) {
 
       if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
         touchLastActivity();
-        if (event === 'SIGNED_IN') {
+        const current = useAuthStore.getState().user;
+        const sessionUserSwitched =
+          event === 'TOKEN_REFRESHED' && (!current || current.id !== session.user.id);
+        if (event === 'SIGNED_IN' || sessionUserSwitched) {
           let profile = await fetchUserProfileByAuthId(session.user.id);
           if (!profile && session.user.email) {
             profile = await fetchUserProfileByEmail(session.user.email);
@@ -186,7 +205,7 @@ function AppInitializer({ children }: { children: React.ReactNode }) {
             clearActivityMarkers();
             useAuthStore.setState({ user: null });
             const path = window.location.pathname;
-            if (path !== '/login' && path !== '/change-password') {
+            if (path !== '/login' && path !== '/change-password' && path !== '/forgot-password' && path !== '/reset-password') {
               window.location.assign(`${window.location.origin}/login`);
             }
           }
@@ -196,13 +215,43 @@ function AppInitializer({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      if (e.key === SAPAS_USER_KEY && e.newValue === null) {
-        void supabase.auth.signOut();
-        clearActivityMarkers();
-        useAuthStore.setState({ user: null });
-        const path = window.location.pathname;
-        if (path !== '/login' && path !== '/change-password') {
-          window.location.assign(`${window.location.origin}/login`);
+      if (e.key === SAPAS_USER_KEY) {
+        if (e.newValue === null) {
+          void supabase.auth.signOut();
+          clearActivityMarkers();
+          useAuthStore.setState({ user: null });
+          const path = window.location.pathname;
+          if (path !== '/login' && path !== '/change-password' && path !== '/forgot-password' && path !== '/reset-password') {
+            window.location.assign(`${window.location.origin}/login`);
+          }
+          return;
+        }
+
+        try {
+          const parsed = JSON.parse(e.newValue) as User;
+          const nextUser = { ...parsed, password_hash: parsed.password_hash ?? '' };
+          setUser(nextUser);
+          touchLastActivity();
+          const path = window.location.pathname;
+          const onAuthScreen =
+            path === '/login' ||
+            path === '/change-password' ||
+            path === '/forgot-password' ||
+            path === '/reset-password';
+          if (onAuthScreen) return;
+          const home =
+            nextUser.role === 'admin'
+              ? '/admin/dashboard'
+              : nextUser.role === 'teacher'
+                ? '/teacher/dashboard'
+                : nextUser.role === 'student'
+                  ? '/student/dashboard'
+                  : '/login';
+          if (home !== '/login' && !path.startsWith(`/${nextUser.role}`)) {
+            navigate(home, { replace: true });
+          }
+        } catch {
+          /* ignore malformed payload */
         }
       }
     };
@@ -212,7 +261,7 @@ function AppInitializer({ children }: { children: React.ReactNode }) {
     const WARNING_BEFORE_MS = 5 * 60 * 1000;
     const checkInactivity = () => {
       const path = window.location.pathname;
-      if (path === '/login' || path === '/change-password') return;
+      if (path === '/login' || path === '/change-password' || path === '/forgot-password' || path === '/reset-password') return;
       const u = useAuthStore.getState().user;
       if (!u) return;
       const last = readLastActivity();
@@ -292,6 +341,8 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/change-password" element={<ChangePasswordPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
 
           <Route
             path="/admin/*"
@@ -319,6 +370,7 @@ export default function App() {
                   <Route path="subjects" element={<TeacherSubjectsPage />} />
                   <Route path="grades" element={<TeacherGradesPage />} />
                   <Route path="students" element={<TeacherStudentsPage />} />
+                  <Route path="attendance" element={<TeacherAttendancePage />} />
                   <Route path="analytics" element={<TeacherAnalyticsPage />} />
                   <Route path="*" element={<Navigate to="dashboard" replace />} />
                 </Routes>

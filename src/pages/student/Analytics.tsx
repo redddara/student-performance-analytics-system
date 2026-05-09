@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { AlertTriangle, Lightbulb, Star } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
-import { GlassCard, Spinner } from '../../components/ui';
+import { GlassCard, PageSkeletonLoader } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase, isPassing, calculateGWA } from '../../lib/supabase';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
@@ -108,7 +108,7 @@ export default function StudentAnalyticsPage() {
   };
 
   if (loading) {
-    return <DashboardLayout title="Analytics"><Spinner size="lg" /></DashboardLayout>;
+    return <DashboardLayout title="Analytics"><PageSkeletonLoader rows={5} /></DashboardLayout>;
   }
 
   // Prepare chart data

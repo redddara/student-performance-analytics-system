@@ -3,7 +3,7 @@ import { Download, ListFilter, RefreshCw } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { PageIntro } from '../../components/layouts/PageIntro';
-import { GlassCard, Button, Select, Spinner, MessageModal, type AppMessagePayload } from '../../components/ui';
+import { GlassCard, Button, Select, MessageModal, type AppMessagePayload } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase, getGradeRemarks, getGradeStatus } from '../../lib/supabase';
 
@@ -285,8 +285,12 @@ export default function TeacherUploadPage() {
       )}
 
       {loading && (
-        <div className="flex justify-center py-8">
-          <Spinner size="lg" />
+        <div className="space-y-4 py-8" aria-busy="true" aria-label="Loading upload preview">
+          <div className="h-44 animate-pulse rounded-2xl border border-gray-200/75 bg-gray-100/95" />
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
+            <div className="h-24 animate-pulse rounded-xl bg-gray-200/65" />
+            <div className="h-24 animate-pulse rounded-xl bg-gray-200/65" />
+          </div>
         </div>
       )}
 

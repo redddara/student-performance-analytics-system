@@ -1,0 +1,4 @@
+# Netlify / Cloudflare Pages: send on all HTML and assets
+/*
+  X-Frame-Options: DENY
+  Content-Security-Policy: frame-ancestors 'none'

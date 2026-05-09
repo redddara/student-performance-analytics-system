@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Download, Pencil } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { PageIntro } from '../../components/layouts/PageIntro';
-import { Button, GlassCard, Modal, Select, Spinner, Table } from '../../components/ui';
+import { Button, GlassCard, Modal, Select, Table, PageSkeletonLoader } from '../../components/ui';
 import { supabase, getGradeRemarks, getGradeStatus } from '../../lib/supabase';
 
 type FinalAverageRow = {
@@ -175,7 +175,7 @@ export default function AdminGradesPage() {
     await loadData();
   };
 
-  if (loading) return <DashboardLayout title="Grades"><Spinner size="lg" /></DashboardLayout>;
+  if (loading) return <DashboardLayout title="Grades"><PageSkeletonLoader rows={4} /></DashboardLayout>;
 
   return (
     <DashboardLayout title="Grades">

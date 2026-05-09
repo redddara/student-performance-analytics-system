@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { PageIntro } from '../../components/layouts/PageIntro';
-import { GlassCard, Select, Spinner, Button } from '../../components/ui';
+import { GlassCard, Select, Button, PageSkeletonLoader } from '../../components/ui';
 import { useDataStore } from '../../store';
 import { supabase, isPassing, calculateGWA } from '../../lib/supabase';
 import { 
@@ -48,7 +48,7 @@ export default function AdminAnalyticsPage() {
   };
 
   if (loading) {
-    return <DashboardLayout title="Analytics"><Spinner size="lg" /></DashboardLayout>;
+    return <DashboardLayout title="Analytics"><PageSkeletonLoader rows={5} /></DashboardLayout>;
   }
 
   const filteredStudents = selectedCourse === 'all' ? students : students.filter(s => s.course_id === selectedCourse);

@@ -39,6 +39,7 @@ const menuItems: Record<
     { id: 'subjects', label: 'My Subjects', Icon: GraduationCap },
     { id: 'grades', label: 'Grades', Icon: UserPen },
     { id: 'students', label: 'Students', Icon: UserRound },
+    { id: 'attendance', label: 'Attendance', Icon: Calendar },
     { id: 'analytics', label: 'Analytics', Icon: BarChart3 },
   ],
   student: [

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { CheckCircle2, GraduationCap, UserPen, UserRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
-import { GlassCard, Button, Spinner } from '../../components/ui';
+import { GlassCard, Button, PageSkeletonLoader } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase, isPassing, calculateGWA } from '../../lib/supabase';
 
@@ -56,7 +56,7 @@ export default function TeacherDashboard() {
   };
 
   if (loading) {
-    return <DashboardLayout title="Dashboard"><Spinner size="lg" /></DashboardLayout>;
+    return <DashboardLayout title="Dashboard"><PageSkeletonLoader /></DashboardLayout>;
   }
 
   // Calculate stats - only teacher's subjects grades

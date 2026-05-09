@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { ChevronRight, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Button, MessageModal, type AppMessagePayload } from '../../components/ui';
 import { useAuthStore } from '../../store';
@@ -358,6 +358,14 @@ export default function LoginPage() {
                       Remember Me
                     </span>
                   </label>
+                  <div className="text-right">
+                    <Link
+                      to="/forgot-password"
+                      className="text-sm font-medium text-maroon-700 transition-colors hover:text-maroon-900 hover:underline"
+                    >
+                      Forgot password?
+                    </Link>
+                  </div>
 
                   <button
                     type="submit"

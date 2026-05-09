@@ -23,6 +23,7 @@ import {
   Table,
   Modal,
   Spinner,
+  PageSkeletonLoader,
   Badge,
   Select,
   ConfirmModal,
@@ -324,9 +325,7 @@ export default function AdminUsersPage() {
   if (loading) {
     return (
       <DashboardLayout title="Users">
-        <div className="flex items-center justify-center h-64">
-          <Spinner size="lg" />
-        </div>
+        <PageSkeletonLoader rows={8} />
       </DashboardLayout>
     );
   }

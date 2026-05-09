@@ -3,7 +3,7 @@ import { AlertTriangle, Download, ListFilter, RefreshCw, Search, Star } from 'lu
 import { useSearchParams } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
-import { GlassCard, Select, Table, Spinner, Badge, Button, MessageModal, type AppMessagePayload } from '../../components/ui';
+import { GlassCard, Select, Table, Spinner, Badge, Button, MessageModal, PageSkeletonLoader, type AppMessagePayload } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase, getGradeRemarks, getGradeStatus, isPassing } from '../../lib/supabase';
 import { SCHOOL_SECTION_SELECT_OPTIONS, normalizeSchoolSection } from '../../constants/schoolSections';
@@ -419,7 +419,7 @@ export default function TeacherGradesPage() {
   };
 
   if (loading) {
-    return <DashboardLayout title="Grades"><Spinner size="lg" /></DashboardLayout>;
+    return <DashboardLayout title="Grades"><PageSkeletonLoader rows={6} /></DashboardLayout>;
   }
 
   return (

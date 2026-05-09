@@ -8,7 +8,7 @@ import {
   Input,
   Table,
   Modal,
-  Spinner,
+  PageSkeletonLoader,
   Select,
   ConfirmModal,
   MessageModal,
@@ -196,7 +196,7 @@ export default function AdminSubjectsPage() {
   };
 
   if (loading) {
-    return <DashboardLayout title="Subjects"><Spinner size="lg" /></DashboardLayout>;
+    return <DashboardLayout title="Subjects"><PageSkeletonLoader rows={4} /></DashboardLayout>;
   }
 
   return (

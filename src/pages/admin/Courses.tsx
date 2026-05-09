@@ -8,7 +8,7 @@ import {
   Input,
   Table,
   Modal,
-  Spinner,
+  PageSkeletonLoader,
   ConfirmModal,
   MessageModal,
   type AppMessagePayload,
@@ -91,7 +91,7 @@ export default function AdminCoursesPage() {
   };
 
   if (loading) {
-    return <DashboardLayout title="Courses"><Spinner size="lg" /></DashboardLayout>;
+    return <DashboardLayout title="Courses"><PageSkeletonLoader rows={4} /></DashboardLayout>;
   }
 
   return (

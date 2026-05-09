@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { ListFilter, RefreshCw, Search } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
-import { GlassCard, Spinner, Select, Button, Input } from '../../components/ui';
+import { GlassCard, Select, Button, Input, PageSkeletonLoader } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase } from '../../lib/supabase';
 
@@ -74,7 +74,7 @@ export default function StudentSubjectsPage() {
     .map(([value, label]) => ({ value: String(value), label: String(label) }));
 
   if (loading) {
-    return <DashboardLayout title="My Subjects"><Spinner size="lg" /></DashboardLayout>;
+    return <DashboardLayout title="My Subjects"><PageSkeletonLoader rows={4} /></DashboardLayout>;
   }
 
   return (

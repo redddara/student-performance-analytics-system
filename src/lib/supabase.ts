@@ -140,6 +140,12 @@ export function calculateGWA(grades: { grade: number }[]): number {
   return Math.round((total / grades.length) * 100) / 100;
 }
 
+/** Dean's List requires every recorded grade in the school year to be >= 85. */
+export function isDeanListEligible(grades: { grade: number }[]): boolean {
+  if (grades.length === 0) return false;
+  return grades.every((entry) => Number(entry.grade) >= 85);
+}
+
 export function getGradeRemarks(grade: number): string {
   if (grade >= 98) return 'Excellent';
   if (grade >= 95) return 'Very Good';

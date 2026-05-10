@@ -1,21 +1,20 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Download, ListFilter, RefreshCw } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { PageIntro } from '../../components/layouts/PageIntro';
-import { GlassCard, Button, Select, MessageModal, type AppMessagePayload } from '../../components/ui';
+import { GlassCard, Button, Select, MessageModal, Table, type AppMessagePayload } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase, getGradeRemarks, getGradeStatus } from '../../lib/supabase';
-
-interface GradeRecord {
-  student_name?: string;
-  student_id?: string;
-  subject_name?: string;
-  subject_id?: string;
-  semester?: number;
-  quarter?: number;
-  grade?: number;
-}
+import {
+  buildBulkGradePreview,
+  buildExistingGradesLookup,
+  quarterLabel,
+  type BulkGradePreviewRow,
+  type GradeSpreadsheetRow,
+  type ExistingGradeLite,
+  type EnrolledStudentLite,
+} from '../../lib/bulkGradeUploadPreview';
 
 export default function TeacherUploadPage() {
   const { user } = useAuthStore();
@@ -24,6 +23,9 @@ export default function TeacherUploadPage() {
   const [selectedSemester, setSelectedSemester] = useState(1);
   const [selectedQuarter, setSelectedQuarter] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [savingBulk, setSavingBulk] = useState(false);
+  const [bulkPreviewRows, setBulkPreviewRows] = useState<BulkGradePreviewRow[] | null>(null);
+  const [previewFilter, setPreviewFilter] = useState<'all' | 'valid' | 'errors'>('all');
   const [results, setResults] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [appMessage, setAppMessage] = useState<AppMessagePayload | null>(null);
@@ -39,6 +41,57 @@ export default function TeacherUploadPage() {
     loadSubjects();
   }, [user?.id]);
 
+  useEffect(() => {
+    setBulkPreviewRows(null);
+    setPreviewFilter('all');
+    setResults(null);
+  }, [selectedSubject, selectedSemester, selectedQuarter]);
+
+  const previewSummary = useMemo(() => {
+    if (!bulkPreviewRows) return null;
+    const valid = bulkPreviewRows.filter((r) => r.ok).length;
+    const errors = bulkPreviewRows.length - valid;
+    return { total: bulkPreviewRows.length, valid, errors };
+  }, [bulkPreviewRows]);
+
+  const filteredPreviewRows = useMemo(() => {
+    if (!bulkPreviewRows) return [];
+    if (previewFilter === 'valid') return bulkPreviewRows.filter((r) => r.ok);
+    if (previewFilter === 'errors') return bulkPreviewRows.filter((r) => !r.ok);
+    return bulkPreviewRows;
+  }, [bulkPreviewRows, previewFilter]);
+
+  const buildPreviewFromSpreadsheet = async (jsonData: GradeSpreadsheetRow[]) => {
+    const { data: studentSubjects } = await supabase
+      .from('student_subjects')
+      .select('*, student:students(*, user:users(*))')
+      .eq('subject_id', selectedSubject);
+
+    const enrolledStudents: EnrolledStudentLite[] =
+      studentSubjects?.map((ss: { student?: EnrolledStudentLite }) => ss.student).filter(Boolean) || [];
+
+    const { data: existingGradeRows } = await supabase
+      .from('grades')
+      .select('id, student_id, semester, quarter, grade_status, grade')
+      .eq('subject_id', selectedSubject);
+
+    const existingLookup = buildExistingGradesLookup(
+      ((existingGradeRows || []) as ExistingGradeLite[])
+    );
+
+    const preview = buildBulkGradePreview(jsonData, {
+      enrolled: enrolledStudents,
+      strategy: 'split_first_last',
+      defaultSemester: selectedSemester,
+      defaultQuarter: selectedQuarter,
+      existingLookup,
+    });
+
+    setBulkPreviewRows(preview);
+    setPreviewFilter('all');
+    setResults(null);
+  };
+
   const processFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !selectedSubject) {
@@ -52,82 +105,74 @@ export default function TeacherUploadPage() {
 
     setLoading(true);
     setResults(null);
+    setBulkPreviewRows(null);
 
     try {
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data);
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const jsonData = XLSX.utils.sheet_to_json<GradeRecord>(sheet);
+      const jsonData = XLSX.utils.sheet_to_json<GradeSpreadsheetRow>(sheet);
 
+      if (!jsonData.length) {
+        setAppMessage({
+          title: 'No rows in file',
+          message: 'The spreadsheet appears empty below the header row.',
+          variant: 'warning',
+        });
+        return;
+      }
+
+      await buildPreviewFromSpreadsheet(jsonData);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Could not read or process the file.';
+      setAppMessage({
+        title: 'Upload failed',
+        message,
+        variant: 'error',
+      });
+    } finally {
+      setLoading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const discardBulkPreview = () => {
+    setBulkPreviewRows(null);
+    setPreviewFilter('all');
+    setResults(null);
+  };
+
+  const confirmBulkUpload = async () => {
+    if (!bulkPreviewRows?.length || !selectedSubject || savingBulk) return;
+    const toSave = bulkPreviewRows.filter((r) => r.ok && r.studentId && r.numericGrade != null);
+    if (!toSave.length) return;
+
+    setSavingBulk(true);
+    setResults(null);
+    try {
       let success = 0;
       let failed = 0;
       const errors: string[] = [];
 
-      // Get all enrolled students
-      const { data: studentSubjects } = await supabase
-        .from('student_subjects')
-        .select('*, student:students(*, user:users(*))')
-        .eq('subject_id', selectedSubject);
-
-      const enrolledStudents = studentSubjects?.map(ss => ss.student) || [];
-
-      for (const row of jsonData) {
+      for (const pr of toSave) {
         try {
-          // Try to find student by name or ID
-          let studentId = row.student_id;
-          
-          if (!studentId && row.student_name) {
-            const nameParts = (row.student_name as string).trim().split(' ');
-            const firstName = nameParts[0];
-            const lastName = nameParts.slice(1).join(' ');
-            const student = enrolledStudents.find(s => 
-              s.first_name?.toLowerCase() === firstName?.toLowerCase() &&
-              s.last_name?.toLowerCase() === lastName?.toLowerCase()
-            );
-            studentId = student?.id;
-          }
+          const grade = pr.numericGrade as number;
+          const semester = pr.semester;
+          const quarter = pr.quarter;
 
-          if (!studentId) {
-            failed++;
-            errors.push(`Could not find student: ${row.student_name || row.student_id}`);
-            continue;
-          }
-
-          const semester = Number(row.semester) || selectedSemester;
-          const quarter = Number(row.quarter) || selectedQuarter;
-          const grade = parseFloat(row.grade as any);
-
-          if (isNaN(grade) || grade < 0 || grade > 100) {
-            failed++;
-            errors.push(`Invalid grade for student ${row.student_name || row.student_id}`);
-            continue;
-          }
-
-          // Check if grade exists
-          const { data: existing } = await supabase
-            .from('grades')
-            .select('id')
-            .eq('student_id', studentId)
-            .eq('subject_id', selectedSubject)
-            .eq('semester', semester)
-            .eq('quarter', quarter)
-            .limit(1);
-
-          if (existing && existing.length > 0) {
-            const { data: existingRow } = await supabase.from('grades').select('grade_status').eq('id', existing[0].id).maybeSingle();
-            if (existingRow?.grade_status === 'inc') {
-              failed++;
-              errors.push(`INC grade cannot be updated by teacher: ${row.student_name || row.student_id}`);
-              continue;
-            }
-            await supabase.from('grades').update({
-              grade,
-              remarks: getGradeRemarks(grade),
-              grade_status: getGradeStatus(grade),
-            }).eq('id', existing[0].id);
+          if (pr.existingGradeId) {
+            const { error: updateError } = await supabase
+              .from('grades')
+              .update({
+                grade,
+                remarks: getGradeRemarks(grade),
+                grade_status: getGradeStatus(grade),
+              })
+              .eq('id', pr.existingGradeId);
+            if (updateError) throw updateError;
           } else {
-            await supabase.from('grades').insert({
-              student_id: studentId,
+            const { error: insertError } = await supabase.from('grades').insert({
+              student_id: pr.studentId,
               subject_id: selectedSubject,
               semester,
               quarter,
@@ -135,25 +180,24 @@ export default function TeacherUploadPage() {
               remarks: getGradeRemarks(grade),
               grade_status: getGradeStatus(grade),
             });
+            if (insertError) throw insertError;
           }
-
           success++;
-        } catch (err: any) {
+        } catch (err: unknown) {
           failed++;
-          errors.push(`Error processing row: ${err.message}`);
+          const msg =
+            typeof err === 'object' && err !== null && 'message' in err
+              ? String((err as { message?: unknown }).message)
+              : 'Save failed';
+          errors.push(`${pr.resolvedName}: ${msg}`);
         }
       }
 
+      setBulkPreviewRows(null);
+      setPreviewFilter('all');
       setResults({ success, failed, errors: errors.slice(0, 10) });
-    } catch (err: any) {
-      setAppMessage({
-        title: 'Upload failed',
-        message: err.message || 'Could not read or process the file.',
-        variant: 'error',
-      });
     } finally {
-      setLoading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      setSavingBulk(false);
     }
   };
 
@@ -183,13 +227,13 @@ export default function TeacherUploadPage() {
     <DashboardLayout title="Upload Grades">
       <PageIntro
         title="Bulk grade import"
-        subtitle="Upload a spreadsheet to add or update grades for students enrolled in your subject. Download the template for the correct column layout."
+        subtitle="Upload a spreadsheet to add or update grades for students in your subject. You will review every row before anything is saved."
       />
       <GlassCard variant="plain" className="p-4 sm:p-6 mb-6">
         <h2 className="text-xl font-semibold text-[#800000] mb-1">Upload Excel file</h2>
         <p className="mb-4 text-sm leading-relaxed text-gray-600">
           Columns: student_name, semester (1 or 2), quarter (1–4), grade (0–100). Use the filter icon to choose subject,
-          semester, and quarter for this upload.
+          semester, and quarter for this upload. The file is parsed only; confirming on the preview step writes grades.
         </p>
 
         <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -285,13 +329,152 @@ export default function TeacherUploadPage() {
       )}
 
       {loading && (
-        <div className="space-y-4 py-8" aria-busy="true" aria-label="Loading upload preview">
+        <div className="space-y-4 py-8" aria-busy="true" aria-label="Reading spreadsheet">
           <div className="h-44 animate-pulse rounded-2xl border border-gray-200/75 bg-gray-100/95" />
           <div className="grid grid-cols-2 gap-3 sm:gap-4">
             <div className="h-24 animate-pulse rounded-xl bg-gray-200/65" />
             <div className="h-24 animate-pulse rounded-xl bg-gray-200/65" />
           </div>
         </div>
+      )}
+
+      {bulkPreviewRows && previewSummary && (
+        <GlassCard variant="plain" className="p-4 sm:p-6 mb-6">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-[#800000]">Preview before saving</h3>
+              <p className="mt-1 text-sm text-gray-600">
+                {previewSummary.valid} row{previewSummary.valid !== 1 ? 's' : ''} ready to save,{' '}
+                {previewSummary.errors} row{previewSummary.errors !== 1 ? 's' : ''}{' '}
+                {previewSummary.errors ? 'skipped (fix and re-upload, or proceed with valid rows only)' : 'skipped'}.
+              </p>
+              <p className="mt-2 text-xs text-gray-500">
+                Row numbers start at 1 on the first data row beneath your header. Current filters:{' '}
+                {mySubjects.find((s) => s.id === selectedSubject)?.name || 'Subject'} · Sem {selectedSemester} ·{' '}
+                {quarterLabel(selectedQuarter)}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                className={previewFilter === 'all' ? 'ring-2 ring-[#800000]' : ''}
+                onClick={() => setPreviewFilter('all')}
+              >
+                All ({previewSummary.total})
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                className={previewFilter === 'valid' ? 'ring-2 ring-green-600' : ''}
+                onClick={() => setPreviewFilter('valid')}
+              >
+                Valid ({previewSummary.valid})
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                className={previewFilter === 'errors' ? 'ring-2 ring-red-600' : ''}
+                onClick={() => setPreviewFilter('errors')}
+              >
+                Errors ({previewSummary.errors})
+              </Button>
+            </div>
+          </div>
+
+          <div className="max-h-[min(28rem,60vh)] overflow-auto rounded-xl border border-gray-200 shadow-inner">
+            <Table
+              headers={[
+                '#',
+                'Status',
+                'Student',
+                'Sem',
+                'Quarter',
+                'Grade',
+                'Remarks',
+                'Action',
+                'Previous',
+                'Issues',
+              ]}
+            >
+              {filteredPreviewRows.map((pr) => (
+                <tr
+                  key={`${pr.dataRowNumber}-${pr.rawIdentifier}-${pr.studentId ?? ''}-${pr.semester}-${pr.quarter}`}
+                  className={
+                    pr.ok ? 'border-l-4 border-l-green-500 bg-green-50/40' : 'border-l-4 border-l-red-500 bg-red-50/35'
+                  }
+                >
+                  <td className="whitespace-nowrap px-4 py-2.5 font-mono text-sm text-gray-700">{pr.dataRowNumber}</td>
+                  <td className="px-4 py-2.5 text-sm font-semibold">
+                    {pr.ok ? <span className="text-green-700">Ready</span> : <span className="text-red-700">Error</span>}
+                  </td>
+                  <td className="px-4 py-2.5 font-medium text-gray-900">{pr.resolvedName}</td>
+                  <td className="px-4 py-2.5 text-sm text-gray-700">{pr.semester}</td>
+                  <td className="px-4 py-2.5 text-sm text-gray-700">{quarterLabel(pr.quarter)}</td>
+                  <td className="px-4 py-2.5 tabular-nums font-medium">{pr.numericGrade == null ? '—' : pr.numericGrade}</td>
+                  <td className="px-4 py-2.5 text-sm text-gray-600">{pr.ok ? pr.remarks : '—'}</td>
+                  <td className="px-4 py-2.5 text-sm text-gray-700">
+                    {!pr.ok ? (
+                      <span className="text-gray-400">—</span>
+                    ) : pr.existingGradeId ? (
+                      <span className="rounded-md bg-amber-100 px-2 py-0.5 font-medium text-amber-900">
+                        Replace existing
+                      </span>
+                    ) : (
+                      <span className="rounded-md bg-slate-100 px-2 py-0.5 font-medium text-slate-800">Insert new</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2.5 text-sm text-gray-600">
+                    {!pr.ok ? (
+                      <span className="text-gray-400">—</span>
+                    ) : pr.existingGradeId ? (
+                      <span className="tabular-nums">
+                        {pr.existingGradeDisplay === 'INC'
+                          ? 'INC'
+                          : pr.existingGradeDisplay != null
+                            ? `${pr.existingGradeDisplay}`
+                            : '—'}
+                      </span>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
+                  <td className="min-w-[10rem] px-4 py-2.5 text-sm text-gray-700">
+                    {pr.errorMessage ? <span className="text-red-800">{pr.errorMessage}</span> : '—'}
+                  </td>
+                </tr>
+              ))}
+            </Table>
+          </div>
+
+          {filteredPreviewRows.length === 0 && (
+            <p className="mt-4 text-center text-sm text-gray-500">
+              Nothing to show — change the preview filter tabs above.
+            </p>
+          )}
+
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+            <Button
+              type="button"
+              variant="primary"
+              disabled={previewSummary.valid === 0 || savingBulk}
+              onClick={() => void confirmBulkUpload()}
+            >
+              {savingBulk ? 'Saving…' : `Confirm & save ${previewSummary.valid} grade${previewSummary.valid !== 1 ? 's' : ''}`}
+            </Button>
+            <Button type="button" variant="secondary" disabled={savingBulk} onClick={discardBulkPreview}>
+              Discard preview & choose another file
+            </Button>
+          </div>
+          {previewSummary.errors > 0 && previewSummary.valid > 0 && (
+            <p className="mt-3 text-xs text-amber-800">
+              Rows with errors are not saved. Fix the spreadsheet and upload again if you need those corrected.
+            </p>
+          )}
+          {previewSummary.errors > 0 && previewSummary.valid === 0 && (
+            <p className="mt-3 text-sm text-red-700">Nothing can be saved until at least one row is valid.</p>
+          )}
+        </GlassCard>
       )}
 
       {results && (

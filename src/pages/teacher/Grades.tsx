@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { AlertTriangle, Download, ListFilter, RefreshCw, Search, Star } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import * as XLSX from 'xlsx';
@@ -7,14 +7,15 @@ import { GlassCard, Select, Table, Spinner, Badge, Button, MessageModal, PageSke
 import { useAuthStore } from '../../store';
 import { supabase, getGradeRemarks, getGradeStatus, isPassing } from '../../lib/supabase';
 import { SCHOOL_SECTION_SELECT_OPTIONS, normalizeSchoolSection } from '../../constants/schoolSections';
-
-interface GradeRecord {
-  student_name?: string;
-  student_id?: string;
-  semester?: number;
-  quarter?: number;
-  grade?: number;
-}
+import {
+  buildBulkGradePreview,
+  buildExistingGradesLookup,
+  quarterLabel,
+  type BulkGradePreviewRow,
+  type GradeSpreadsheetRow,
+  type ExistingGradeLite,
+  type EnrolledStudentLite,
+} from '../../lib/bulkGradeUploadPreview';
 
 export default function TeacherGradesPage() {
   const { user } = useAuthStore();
@@ -24,7 +25,10 @@ export default function TeacherGradesPage() {
   const [students, setStudents] = useState<any[]>([]);
   const [enrolledStudents, setEnrolledStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
+  const [uploadParsing, setUploadParsing] = useState(false);
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkPreviewRows, setBulkPreviewRows] = useState<BulkGradePreviewRow[] | null>(null);
+  const [previewFilter, setPreviewFilter] = useState<'all' | 'valid' | 'errors'>('all');
   const [selectedSubject, setSelectedSubject] = useState('');
   const [selectedSemester, setSelectedSemester] = useState(1);
   const [selectedQuarter, setSelectedQuarter] = useState('');
@@ -204,90 +208,34 @@ export default function TeacherGradesPage() {
       setAppMessage({ title: 'Select a subject', message: 'Choose a subject before uploading.', variant: 'warning' });
       return;
     }
-    setUploading(true);
+    setUploadParsing(true);
     setUploadResults(null);
+    setBulkPreviewRows(null);
+
     try {
-      const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data);
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer);
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json<GradeRecord>(sheet);
+      const rows = XLSX.utils.sheet_to_json<GradeSpreadsheetRow>(sheet);
 
-      const { data: studentSubjects } = await supabase
-        .from('student_subjects')
-        .select('*, student:students(*)')
-        .eq('subject_id', selectedSubject);
-      const subjectStudents = studentSubjects?.map((ss: any) => ss.student) || [];
-
-      let success = 0;
-      let failed = 0;
-      const errors: string[] = [];
-      for (const row of rows) {
-        try {
-          let sid = row.student_id;
-          if (!sid && row.student_name) {
-            const n = row.student_name.trim().toLowerCase();
-            const match = subjectStudents.find(
-              (s: any) => `${s.first_name || ''} ${s.last_name || ''}`.trim().toLowerCase() === n
-            );
-            sid = match?.id;
-          }
-          if (!sid) {
-            failed++;
-            errors.push(`Student not found: ${row.student_name || row.student_id}`);
-            continue;
-          }
-          const semester = Number(row.semester) || selectedSemester;
-          const quarter = Number(row.quarter) || Number(selectedQuarter || '1');
-          const grade = Number(row.grade);
-          if (Number.isNaN(grade) || grade < 0 || grade > 100) {
-            failed++;
-            errors.push(`Invalid grade for ${row.student_name || row.student_id}`);
-            continue;
-          }
-          const { data: existing } = await supabase
-            .from('grades')
-            .select('id')
-            .eq('student_id', sid)
-            .eq('subject_id', selectedSubject)
-            .eq('semester', semester)
-            .eq('quarter', quarter)
-            .limit(1);
-          if (existing && existing.length > 0) {
-            const existingGrade = grades.find((g) => g.id === existing[0].id);
-            if (existingGrade?.grade_status === 'inc') {
-              failed++;
-              errors.push(`INC grade cannot be updated by teacher: ${row.student_name || row.student_id}`);
-              continue;
-            }
-            const { error: updateError } = await supabase
-              .from('grades')
-              .update({ grade, remarks: getGradeRemarks(grade), grade_status: getGradeStatus(grade) })
-              .eq('id', existing[0].id);
-            if (updateError) throw updateError;
-          } else {
-            const { error: insertError } = await supabase.from('grades').insert({
-              student_id: sid,
-              subject_id: selectedSubject,
-              semester,
-              quarter,
-              grade,
-              remarks: getGradeRemarks(grade),
-              grade_status: getGradeStatus(grade),
-            });
-            if (insertError) throw insertError;
-          }
-          success++;
-        } catch (err: any) {
-          failed++;
-          errors.push(err.message || 'Row processing failed');
-        }
+      if (!rows.length) {
+        setAppMessage({
+          title: 'No rows in file',
+          message: 'The spreadsheet appears empty below the header row.',
+          variant: 'warning',
+        });
+        return;
       }
 
-      setUploadResults({ success, failed, errors: errors.slice(0, 10) });
-      await loadData();
-      await refreshEnrolledStudents(selectedSubject, mySubjects.map((s) => s.id));
+      await buildBulkGradePreviewSheet(rows);
+    } catch {
+      setAppMessage({
+        title: 'Could not read file',
+        message: 'Check that the file is a valid spreadsheet and try again.',
+        variant: 'error',
+      });
     } finally {
-      setUploading(false);
+      setUploadParsing(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
@@ -342,6 +290,116 @@ export default function TeacherGradesPage() {
   useEffect(() => {
     setGradeTablePage((prev) => Math.min(prev, totalGradePages));
   }, [totalGradePages]);
+
+  useEffect(() => {
+    setBulkPreviewRows(null);
+    setPreviewFilter('all');
+    setUploadResults(null);
+  }, [selectedSubject, selectedSemester, selectedQuarter]);
+
+  const bulkPreviewSummary = useMemo(() => {
+    if (!bulkPreviewRows) return null;
+    const valid = bulkPreviewRows.filter((r) => r.ok).length;
+    return { total: bulkPreviewRows.length, valid, errors: bulkPreviewRows.length - valid };
+  }, [bulkPreviewRows]);
+
+  const filteredBulkPreviewRows = useMemo(() => {
+    if (!bulkPreviewRows) return [];
+    if (previewFilter === 'valid') return bulkPreviewRows.filter((r) => r.ok);
+    if (previewFilter === 'errors') return bulkPreviewRows.filter((r) => !r.ok);
+    return bulkPreviewRows;
+  }, [bulkPreviewRows, previewFilter]);
+
+  const buildBulkGradePreviewSheet = useCallback(async (rows: GradeSpreadsheetRow[]) => {
+    const { data: studentSubjects } = await supabase
+      .from('student_subjects')
+      .select('*, student:students(*)')
+      .eq('subject_id', selectedSubject);
+
+    const enrolled: EnrolledStudentLite[] =
+      studentSubjects?.map((ss: { student?: EnrolledStudentLite }) => ss.student).filter(Boolean) || [];
+
+    const { data: existingGradeRows } = await supabase
+      .from('grades')
+      .select('id, student_id, semester, quarter, grade_status, grade')
+      .eq('subject_id', selectedSubject);
+
+    const existingLookup = buildExistingGradesLookup(((existingGradeRows || []) as ExistingGradeLite[]) ?? []);
+
+    const defaultQuarterNum = Number(selectedQuarter || '1');
+    const preview = buildBulkGradePreview(rows, {
+      enrolled,
+      strategy: 'full_name',
+      defaultSemester: selectedSemester,
+      defaultQuarter: defaultQuarterNum,
+      existingLookup,
+    });
+
+    setBulkPreviewRows(preview);
+    setPreviewFilter('all');
+    setUploadResults(null);
+  }, [selectedSubject, selectedSemester, selectedQuarter]);
+
+  const discardBulkGradePreview = () => {
+    setBulkPreviewRows(null);
+    setPreviewFilter('all');
+    setUploadResults(null);
+  };
+
+  const confirmBulkGradeUpload = async () => {
+    if (!bulkPreviewRows?.length || !selectedSubject || bulkSaving) return;
+    const toSave = bulkPreviewRows.filter((r) => r.ok && r.studentId && r.numericGrade != null);
+    if (!toSave.length) return;
+
+    setBulkSaving(true);
+    setUploadResults(null);
+    try {
+      let success = 0;
+      let failed = 0;
+      const errors: string[] = [];
+
+      for (const pr of toSave) {
+        try {
+          const grade = pr.numericGrade as number;
+          if (pr.existingGradeId) {
+            const { error: updateError } = await supabase
+              .from('grades')
+              .update({ grade, remarks: getGradeRemarks(grade), grade_status: getGradeStatus(grade) })
+              .eq('id', pr.existingGradeId);
+            if (updateError) throw updateError;
+          } else {
+            const { error: insertError } = await supabase.from('grades').insert({
+              student_id: pr.studentId,
+              subject_id: selectedSubject,
+              semester: pr.semester,
+              quarter: pr.quarter,
+              grade,
+              remarks: getGradeRemarks(grade),
+              grade_status: getGradeStatus(grade),
+            });
+            if (insertError) throw insertError;
+          }
+          success++;
+        } catch (err: unknown) {
+          failed++;
+          const msg =
+            typeof err === 'object' && err !== null && 'message' in err
+              ? String((err as { message?: unknown }).message)
+              : 'Save failed';
+          errors.push(`${pr.resolvedName}: ${msg}`);
+        }
+      }
+
+      setBulkPreviewRows(null);
+      setPreviewFilter('all');
+      setUploadResults({ success, failed, errors: errors.slice(0, 10) });
+      await loadData();
+      await refreshEnrolledStudents(selectedSubject, mySubjects.map((s) => s.id));
+    } finally {
+      setBulkSaving(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   const hasActiveFilters =
     Boolean(filterSearch.trim()) ||
@@ -651,7 +709,10 @@ export default function TeacherGradesPage() {
 
       <GlassCard variant="plain" className="mb-6 p-4 sm:p-6">
         <h2 className="mb-2 text-lg font-semibold text-[#800000]">Upload grades (Excel/CSV)</h2>
-        <p className="mb-4 text-sm text-gray-600">Columns: `student_name`, `semester`, `quarter`, `grade`.</p>
+        <p className="mb-4 text-sm text-gray-600">
+          Columns: `student_name`, `semester`, `quarter`, `grade`. Parsed rows are previewed first; nothing is saved
+          until you confirm.
+        </p>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
           <input
             ref={fileInputRef}
@@ -665,8 +726,119 @@ export default function TeacherGradesPage() {
             Download template
           </Button>
         </div>
-        {uploading && <div className="mt-4"><Spinner size="sm" /></div>}
-        {uploadResults && (
+        {uploadParsing && (
+          <div className="mt-4">
+            <Spinner size="sm" />
+          </div>
+        )}
+        {!uploadParsing && bulkPreviewRows && bulkPreviewSummary && (
+          <div className="mt-6 space-y-4 border-t border-gray-100 pt-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h3 className="text-base font-semibold text-[#800000]">Preview before saving</h3>
+                <p className="mt-1 text-sm text-gray-600">
+                  {bulkPreviewSummary.valid} row{bulkPreviewSummary.valid !== 1 ? 's' : ''} will be saved ·{' '}
+                  {bulkPreviewSummary.errors} need correction or will be skipped
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className={`text-xs sm:text-sm ${previewFilter === 'all' ? 'ring-2 ring-[#800000]' : ''}`}
+                  onClick={() => setPreviewFilter('all')}
+                >
+                  All ({bulkPreviewSummary.total})
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className={`text-xs sm:text-sm ${previewFilter === 'valid' ? 'ring-2 ring-green-600' : ''}`}
+                  onClick={() => setPreviewFilter('valid')}
+                >
+                  Valid ({bulkPreviewSummary.valid})
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className={`text-xs sm:text-sm ${previewFilter === 'errors' ? 'ring-2 ring-red-600' : ''}`}
+                  onClick={() => setPreviewFilter('errors')}
+                >
+                  Errors ({bulkPreviewSummary.errors})
+                </Button>
+              </div>
+            </div>
+            <div className="max-h-[min(24rem,55vh)] overflow-auto rounded-xl border border-gray-200">
+              <Table
+                headers={['#', 'Status', 'Student', 'Sem', 'Quarter', 'Grade', 'Remarks', 'Action', 'Previous', 'Issues']}
+              >
+                {filteredBulkPreviewRows.map((pr) => (
+                  <tr
+                    key={`${pr.dataRowNumber}-${pr.rawIdentifier}-${pr.studentId ?? ''}-${pr.semester}-${pr.quarter}`}
+                    className={
+                      pr.ok ? 'border-l-4 border-l-green-500 bg-green-50/35' : 'border-l-4 border-l-red-500 bg-red-50/35'
+                    }
+                  >
+                    <td className="whitespace-nowrap px-2 py-2.5 font-mono text-[11px] sm:px-4 sm:text-xs">{pr.dataRowNumber}</td>
+                    <td className="whitespace-nowrap px-2 py-2.5 text-[11px] font-semibold sm:px-4 sm:text-xs">
+                      {pr.ok ? <span className="text-green-700">Ready</span> : <span className="text-red-700">Error</span>}
+                    </td>
+                    <td className="px-2 py-2.5 font-medium sm:px-4">{pr.resolvedName}</td>
+                    <td className="px-2 py-2.5 sm:px-4">{pr.semester}</td>
+                    <td className="px-2 py-2.5 sm:px-4">{quarterLabel(pr.quarter)}</td>
+                    <td className="tabular-nums px-2 py-2.5 font-medium sm:px-4">
+                      {pr.numericGrade == null ? '—' : pr.numericGrade}
+                    </td>
+                    <td className="px-2 py-2.5 text-gray-200/90 sm:px-4">{pr.ok ? pr.remarks : '—'}</td>
+                    <td className="px-2 py-2.5 text-[11px] sm:px-4 sm:text-xs">
+                      {!pr.ok ? (
+                        '—'
+                      ) : pr.existingGradeId ? (
+                        <span className="rounded bg-amber-500/90 px-1.5 py-0.5 text-white">Replace</span>
+                      ) : (
+                        <span className="rounded bg-slate-500/80 px-1.5 py-0.5 text-white">New</span>
+                      )}
+                    </td>
+                    <td className="px-2 py-2.5 text-[11px] sm:px-4 sm:text-xs">
+                      {!pr.ok ? (
+                        '—'
+                      ) : pr.existingGradeId ? (
+                        <span className="tabular-nums">
+                          {pr.existingGradeDisplay === 'INC'
+                            ? 'INC'
+                            : pr.existingGradeDisplay != null
+                              ? String(pr.existingGradeDisplay)
+                              : '—'}
+                        </span>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td className="min-w-[8rem] px-2 py-2.5 text-[11px] sm:px-4 sm:text-xs">
+                      {pr.errorMessage ? <span className="text-red-700">{pr.errorMessage}</span> : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </Table>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+              <Button
+                type="button"
+                variant="primary"
+                disabled={bulkPreviewSummary.valid === 0 || bulkSaving}
+                onClick={() => void confirmBulkGradeUpload()}
+              >
+                {bulkSaving
+                  ? 'Saving…'
+                  : `Confirm · save ${bulkPreviewSummary.valid} grade${bulkPreviewSummary.valid !== 1 ? 's' : ''}`}
+              </Button>
+              <Button type="button" variant="secondary" disabled={bulkSaving} onClick={discardBulkGradePreview}>
+                Discard preview
+              </Button>
+            </div>
+          </div>
+        )}
+        {uploadResults && !bulkPreviewRows && (
           <div className="mt-4 grid grid-cols-2 gap-4">
             <div className="rounded-xl border border-green-200 bg-green-50 p-3 text-center">
               <p className="text-xl font-bold text-green-600">{uploadResults.success}</p>

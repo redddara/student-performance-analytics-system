@@ -3,7 +3,7 @@ import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { PageIntro } from '../../components/layouts/PageIntro';
 import { GlassCard, Select, Button, PageSkeletonLoader } from '../../components/ui';
 import { useDataStore } from '../../store';
-import { supabase, isPassing, calculateGWA } from '../../lib/supabase';
+import { supabase, isPassing, calculateGWA, isDeanListEligible } from '../../lib/supabase';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, Legend, AreaChart, Area, ComposedChart
@@ -133,6 +133,30 @@ export default function AdminAnalyticsPage() {
       grades: studentGrades.length,
     };
   }).filter(s => s.grades > 0).sort((a, b) => b.gwa - a.gwa).slice(0, 5);
+
+  const deanListByCourse = courses.map((course) => {
+    const courseStudents = filteredStudents.filter((student) => student.course_id === course.id);
+    const deanListStudents = courseStudents.map((student) => {
+      const studentGrades = filteredGrades.filter((grade) => grade.student_id === student.id);
+      if (studentGrades.length === 0 || !isDeanListEligible(studentGrades)) return null;
+      return {
+        id: student.id,
+        name: `${student.first_name || ''} ${student.last_name || ''}`.trim() || 'Unknown Student',
+        gwa: calculateGWA(studentGrades),
+        gradeCount: studentGrades.length,
+      };
+    }).filter(Boolean).sort((a, b) => (b?.gwa || 0) - (a?.gwa || 0)) as Array<{
+      id: string;
+      name: string;
+      gwa: number;
+      gradeCount: number;
+    }>;
+    return {
+      courseId: course.id,
+      courseName: course.name || 'Course',
+      deanListStudents,
+    };
+  }).filter((row) => row.deanListStudents.length > 0);
 
   // Grade Heatmap Data (by quarter and subject)
   const quarterSubjectData = [1, 2, 3, 4].map(q => {
@@ -416,6 +440,34 @@ export default function AdminAnalyticsPage() {
           </div>
         </GlassCard>
       )}
+
+      <GlassCard className={`mt-8 p-4 sm:p-6 ${animated ? 'animate-in fade-in duration-500' : 'opacity-0'}`} style={{ animationDelay: '950ms' }}>
+        <h3 className="text-lg font-semibold text-[#800000] mb-4 flex items-center gap-2">
+          <Trophy size={20} />
+          Dean&apos;s List by Course
+        </h3>
+        
+        {deanListByCourse.length === 0 ? (
+          <p className="text-gray-500">No Dean&apos;s List students match the current filters yet.</p>
+        ) : (
+          <div className="space-y-4">
+            {deanListByCourse.map((courseRow) => (
+              <div key={courseRow.courseId} className="rounded-xl border border-maroon-200/60 bg-white p-4">
+                <p className="font-semibold text-[#800000]">{courseRow.courseName}</p>
+                <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
+                  {courseRow.deanListStudents.map((studentRow) => (
+                    <div key={studentRow.id} className="rounded-lg border border-[#d4af37]/40 bg-[#d4af37]/10 p-3">
+                      <p className="font-semibold text-gray-800">{studentRow.name}</p>
+                      <p className="text-sm text-gray-700">GWA: {studentRow.gwa.toFixed(2)}</p>
+                      <p className="text-xs text-gray-500">Based on {studentRow.gradeCount} recorded grade{studentRow.gradeCount !== 1 ? 's' : ''}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </GlassCard>
     </DashboardLayout>
   );
 }

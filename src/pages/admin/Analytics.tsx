@@ -446,10 +446,7 @@ export default function AdminAnalyticsPage() {
           <Trophy size={20} />
           Dean&apos;s List by Course
         </h3>
-        <p className="mb-4 text-sm text-gray-600">
-          Rule: a student is eligible only if all recorded grades for the school year are 85 or above.
-          If a student gets 84 in any quarter, they are automatically disqualified for the whole school year.
-        </p>
+        
         {deanListByCourse.length === 0 ? (
           <p className="text-gray-500">No Dean&apos;s List students match the current filters yet.</p>
         ) : (

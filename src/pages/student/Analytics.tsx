@@ -15,6 +15,7 @@ export default function StudentAnalyticsPage() {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [strengths, setStrengths] = useState<string[]>([]);
   const [weaknesses, setWeaknesses] = useState<string[]>([]);
+  const [activeSchoolYearName, setActiveSchoolYearName] = useState<string>('');
 
   useEffect(() => {
     loadData();
@@ -30,9 +31,28 @@ export default function StudentAnalyticsPage() {
 
       if (!studentData) return;
 
+      let activeSy: { id?: string; name?: string } | null = null;
+      try {
+        const res = await supabase
+          .from('school_years')
+          .select('id,name')
+          .eq('is_active', true)
+          .maybeSingle();
+        if (res.error) throw res.error;
+        activeSy = res.data as any;
+        setActiveSchoolYearName(activeSy?.name || '');
+      } catch {
+        activeSy = null;
+        setActiveSchoolYearName('');
+      }
+
       const [subjectsRes, gradesRes] = await Promise.all([
         supabase.from('student_subjects').select('*, subject:subjects(*, course:courses(*))').eq('student_id', studentData.id),
-        supabase.from('grades').select('*').eq('student_id', studentData.id),
+        (async () => {
+          let q = supabase.from('grades').select('*').eq('student_id', studentData.id);
+          if (activeSy?.id) q = q.eq('school_year_id', activeSy.id);
+          return q;
+        })(),
       ]);
 
       setMySubjects(subjectsRes.data || []);
@@ -144,6 +164,11 @@ export default function StudentAnalyticsPage() {
 
   return (
     <DashboardLayout title="My Analytics">
+      {activeSchoolYearName && (
+        <p className="mb-3 text-sm text-gray-600">
+          Active School Year: <span className="font-semibold text-[#800000]">{activeSchoolYearName}</span>
+        </p>
+      )}
     
       {/* Summary Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-8">

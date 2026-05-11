@@ -14,6 +14,7 @@ export default function TeacherAnalyticsPage() {
   const [grades, setGrades] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeSchoolYearName, setActiveSchoolYearName] = useState<string>('');
 
   useEffect(() => {
     loadData();
@@ -28,9 +29,28 @@ export default function TeacherAnalyticsPage() {
         return;
       }
 
+      let activeSy: { id?: string; name?: string } | null = null;
+      try {
+        const res = await supabase
+          .from('school_years')
+          .select('id,name')
+          .eq('is_active', true)
+          .maybeSingle();
+        if (res.error) throw res.error;
+        activeSy = res.data as any;
+        setActiveSchoolYearName(activeSy?.name || '');
+      } catch {
+        activeSy = null;
+        setActiveSchoolYearName('');
+      }
+
       const [subjectsRes, gradesRes, studentSubjectsRes] = await Promise.all([
         supabase.from('subjects').select('*, course:courses(*)').eq('teacher_id', user.id),
-        supabase.from('grades').select('*'),
+        (async () => {
+          let q = supabase.from('grades').select('*');
+          if (activeSy?.id) q = q.eq('school_year_id', activeSy.id);
+          return q;
+        })(),
         supabase.from('student_subjects').select('*, subject:subjects(*), student:students(*)'),
       ]);
 
@@ -206,6 +226,11 @@ export default function TeacherAnalyticsPage() {
 
   return (
     <DashboardLayout title="My Analytics">
+      {activeSchoolYearName && (
+        <p className="mb-3 text-sm text-gray-600">
+          Active School Year: <span className="font-semibold text-[#800000]">{activeSchoolYearName}</span>
+        </p>
+      )}
     
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-8">
         <GlassCard className="p-4 sm:p-6">

@@ -14,6 +14,7 @@ export default function StudentGradesPage() {
   const [selectedQuarter, setSelectedQuarter] = useState('');
   const [filterSearch, setFilterSearch] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [activeSchoolYearName, setActiveSchoolYearName] = useState('All years');
 
   useEffect(() => {
     loadData();
@@ -31,7 +32,23 @@ export default function StudentGradesPage() {
 
       const [subjectsRes, gradesRes] = await Promise.all([
         supabase.from('student_subjects').select('*, subject:subjects(*, course:courses(*))').eq('student_id', studentData.id),
-        supabase.from('grades').select('*').eq('student_id', studentData.id),
+        (async () => {
+          try {
+            const { data: activeSy, error: syError } = await supabase
+              .from('school_years')
+              .select('id,name')
+              .eq('is_active', true)
+              .maybeSingle();
+            if (syError) throw syError;
+            setActiveSchoolYearName(activeSy?.name || 'All years');
+            let query = supabase.from('grades').select('*').eq('student_id', studentData.id);
+            if (activeSy?.id) query = query.eq('school_year_id', activeSy.id);
+            return query;
+          } catch {
+            setActiveSchoolYearName('All years');
+            return supabase.from('grades').select('*').eq('student_id', studentData.id);
+          }
+        })(),
       ]);
 
       setMySubjects(subjectsRes.data || []);
@@ -52,7 +69,10 @@ export default function StudentGradesPage() {
       g.subject_id === subjectId.toString() && g.quarter === quarter
     );
     if (!grade) return '-';
-    return grade.grade_status === 'inc' ? 'INC' : grade.grade?.toString() || '-';
+    const base = grade.grade_status === 'inc' ? 'INC' : grade.grade?.toString() || '-';
+    if (grade.is_locked) return `${base} (L)`;
+    if (grade.workflow_status === 'for_review') return `${base} (R)`;
+    return base;
   };
 
   const getSubjectAverage = (subjectId: string) => {
@@ -187,6 +207,9 @@ export default function StudentGradesPage() {
         <h2 className="text-xl font-semibold text-[#800000] mb-4">
           {selectedSemester === 1 ? '1st' : '2nd'} Semester Grades
         </h2>
+        <p className="mb-3 text-sm text-gray-600">
+          School Year: <span className="font-semibold text-[#800000]">{activeSchoolYearName}</span>
+        </p>
         
         {filteredSemesterSubjects.length > 0 && (
           <Table headers={['Subject', 'Prelim', 'Midterm', 'Pre-Finals', 'Finals', 'Average']}>
@@ -219,6 +242,7 @@ export default function StudentGradesPage() {
             </div>
           </div>
         )}
+        <p className="mt-3 text-xs text-gray-500">Legend: `(L)` locked by admin, `(R)` for admin review.</p>
       </GlassCard>
     </DashboardLayout>
   );

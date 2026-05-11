@@ -17,6 +17,7 @@ export default function AdminAnalyticsPage() {
   const [selectedCourse, setSelectedCourse] = useState('all');
   const [animated, setAnimated] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [activeSchoolYearName, setActiveSchoolYearName] = useState<string>('');
 
   useEffect(() => {
     loadData();
@@ -29,10 +30,30 @@ export default function AdminAnalyticsPage() {
 
   const loadData = async () => {
     try {
+      let activeSy: { id?: string; name?: string } | null = null;
+      try {
+        const res = await supabase
+          .from('school_years')
+          .select('id,name')
+          .eq('is_active', true)
+          .maybeSingle();
+        if (res.error) throw res.error;
+        activeSy = res.data as any;
+        setActiveSchoolYearName(activeSy?.name || '');
+      } catch {
+        // If school_years isn't available yet, keep analytics working (legacy behavior).
+        activeSy = null;
+        setActiveSchoolYearName('');
+      }
+
       const [subjectsRes, studentsRes, gradesRes, coursesRes] = await Promise.all([
         supabase.from('subjects').select('*, course:courses(*)'),
         supabase.from('students').select('*, course:courses(*)'),
-        supabase.from('grades').select('*'),
+        (async () => {
+          let q = supabase.from('grades').select('*');
+          if (activeSy?.id) q = q.eq('school_year_id', activeSy.id);
+          return q;
+        })(),
         supabase.from('courses').select('*'),
       ]);
       
@@ -200,6 +221,11 @@ export default function AdminAnalyticsPage() {
       <PageIntro
         title="System-wide analytics" 
       />
+      {activeSchoolYearName && (
+        <p className="mb-3 text-sm text-gray-600">
+          Active School Year: <span className="font-semibold text-[#800000]">{activeSchoolYearName}</span>
+        </p>
+      )}
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <button
           type="button"

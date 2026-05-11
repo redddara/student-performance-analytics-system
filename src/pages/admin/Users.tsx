@@ -43,6 +43,15 @@ import {
 } from '../../constants/schoolSections';
 import { isLoginLocked } from '../../lib/loginLock';
 
+type OfficialSectionRow = {
+  id: string;
+  name: string;
+  course_id: string | null;
+  year_level: string | null;
+  section_code: string | null;
+  is_active: boolean;
+};
+
 export default function AdminUsersPage() {
   // const { setStudents } = useDataStore();
   const [users, setUsers] = useState<any[]>([]);
@@ -228,15 +237,33 @@ export default function AdminUsersPage() {
   const handleEditUser = async (userId: string, updatedData: any, role?: string) => {
     try {
       const previousUser = users.find((u) => u.id === userId);
+      let resolvedYearLevel = updatedData.year_level;
+      let resolvedCourseId = updatedData.course_id || null;
+      let resolvedLegacySection = updatedData.section;
+
+      if (role === 'student' && updatedData.section_id) {
+        const { data: sec, error: secErr } = await supabase
+          .from('sections')
+          .select('id,course_id,year_level,section_code,name,is_active')
+          .eq('id', updatedData.section_id)
+          .maybeSingle();
+        if (secErr) throw secErr;
+        if (sec) {
+          resolvedYearLevel = sec.year_level || resolvedYearLevel;
+          resolvedCourseId = sec.course_id || resolvedCourseId;
+          resolvedLegacySection = (sec.section_code || sec.name || resolvedLegacySection || '').toString();
+        }
+      }
+
       const payload: Record<string, unknown> = {
         first_name: updatedData.first_name,
         last_name: updatedData.last_name,
         email: updatedData.email,
-        year_level: updatedData.year_level,
-        course_id: updatedData.course_id || null,
+        year_level: resolvedYearLevel,
+        course_id: role === 'student' || role === 'teacher' ? resolvedCourseId : null,
       };
       if (role === 'student') {
-        payload.section = updatedData.section;
+        payload.section = resolvedLegacySection;
         payload.is_dropout = Boolean(updatedData.is_dropout);
       }
       await supabase.from('users').update(payload).eq('id', userId);
@@ -251,23 +278,24 @@ export default function AdminUsersPage() {
         await supabase
           .from('students')
           .update({
-            section: updatedData.section,
-            course_id: updatedData.course_id || null,
-            grade_level: updatedData.year_level || null,
+            section_id: updatedData.section_id || null,
+            section: resolvedLegacySection,
+            course_id: resolvedCourseId,
+            grade_level: resolvedYearLevel || null,
           })
           .eq('user_id', userId);
 
-        const courseChanged = (previousUser?.course_id || '') !== (updatedData.course_id || '');
-        const yearChanged = (previousUser?.year_level || '') !== (updatedData.year_level || '');
+        const courseChanged = (previousUser?.course_id || '') !== (resolvedCourseId || '');
+        const yearChanged = (previousUser?.year_level || '') !== (resolvedYearLevel || '');
         if (studentRow?.id && (courseChanged || yearChanged)) {
           await supabase.from('student_subjects').delete().eq('student_id', studentRow.id);
 
-          if (updatedData.course_id && updatedData.year_level) {
+          if (resolvedCourseId && resolvedYearLevel) {
             const { data: newSubjects } = await supabase
               .from('subjects')
               .select('id')
-              .eq('course_id', updatedData.course_id)
-              .eq('year_level', updatedData.year_level);
+              .eq('course_id', resolvedCourseId)
+              .eq('year_level', resolvedYearLevel);
 
             if (newSubjects && newSubjects.length > 0) {
               const newEnrollments = newSubjects.map((sub) => ({
@@ -735,42 +763,90 @@ interface CreateUserModalProps {
 
 function CreateUserModal({ isOpen, onClose, type, courses, onSuccess, onFeedback }: CreateUserModalProps) {
   const [loading, setLoading] = useState(false);
+  const [officialSections, setOfficialSections] = useState<OfficialSectionRow[]>([]);
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
     email: '',
     course_id: '',
     grade_level: '1st',
-    section: DEFAULT_SCHOOL_SECTION,
+    section_id: '',
     semester: '1st Sem',
   });
 
   useEffect(() => {
     if (!isOpen) return;
+    (async () => {
+      try {
+        const res = await supabase.from('sections').select('*').eq('is_active', true).order('name', { ascending: true });
+        if (res.error) throw res.error;
+        setOfficialSections((res.data || []) as OfficialSectionRow[]);
+      } catch {
+        setOfficialSections([]);
+      }
+    })();
     setFormData({
       first_name: '',
       last_name: '',
       email: '',
       course_id: '',
       grade_level: '1st',
-      section: DEFAULT_SCHOOL_SECTION,
+      section_id: '',
       semester: '1st Sem',
     });
   }, [isOpen, type]);
+
+  const availableOfficialSections = useMemo(() => {
+    if (type !== 'student') return [];
+    const courseId = (formData.course_id || '').trim();
+    const year = (formData.grade_level || '').trim();
+    return officialSections.filter((s) => {
+      if (courseId && (s.course_id || '') !== courseId) return false;
+      if (year && (s.year_level || '') !== year) return false;
+      return true;
+    });
+  }, [officialSections, formData.course_id, formData.grade_level, type]);
+
+  const officialSectionOptions = useMemo(() => {
+    return [
+      { value: '', label: availableOfficialSections.length ? 'Select official section' : 'No official sections found (use legacy)' },
+      ...availableOfficialSections.map((s) => ({ value: s.id, label: s.name })),
+    ];
+  }, [availableOfficialSections]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      const course = courses.find(c => c.id === formData.course_id);
+      const selectedOfficial = formData.section_id
+        ? availableOfficialSections.find((s) => s.id === formData.section_id) ||
+          officialSections.find((s) => s.id === formData.section_id) ||
+          null
+        : null;
+
+      if (type === 'student' && !selectedOfficial?.id) {
+        onFeedback({
+          title: 'Section required',
+          message: 'Select an official section first (create it in Admin → Sections).',
+          variant: 'warning',
+        });
+        setLoading(false);
+        return;
+      }
+
+      const effectiveCourseId = selectedOfficial?.course_id || formData.course_id;
+      const effectiveYearLevel = selectedOfficial?.year_level || formData.grade_level;
+      const legacySectionValue = (selectedOfficial?.section_code || selectedOfficial?.name || '').trim();
+
+      const course = courses.find(c => c.id === effectiveCourseId);
       const tempPassword = generateTempPassword();
       const passwordHash = await hashPassword(tempPassword);
 
       let username: string | null = null;
 
       if (type === 'student') {
-        if (!formData.course_id?.trim()) {
+        if (!effectiveCourseId?.trim()) {
           onFeedback({
             title: 'Course required',
             message:
@@ -786,7 +862,7 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess, onFeedback
           const { data: courseRow } = await supabase
             .from('courses')
             .select('name')
-            .eq('id', formData.course_id)
+            .eq('id', effectiveCourseId)
             .maybeSingle();
           courseName = courseRow?.name?.trim();
         }
@@ -865,9 +941,9 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess, onFeedback
           is_dropout: false,
           first_name: formData.first_name,
           last_name: formData.last_name,
-          course_id: type === 'admin' ? null : formData.course_id || null,
-          year_level: type === 'student' ? formData.grade_level : null,
-          section: type === 'student' ? formData.section : null,
+          course_id: type === 'admin' ? null : effectiveCourseId || null,
+          year_level: type === 'student' ? effectiveYearLevel : null,
+          section: type === 'student' ? legacySectionValue : null,
         })
         .select()
         .single();
@@ -901,9 +977,10 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess, onFeedback
             .insert({
               first_name: formData.first_name,
               last_name: formData.last_name,
-              grade_level: formData.grade_level,
-              section: formData.section,
-              course_id: formData.course_id,
+              grade_level: effectiveYearLevel,
+              section_id: selectedOfficial?.id || null,
+              section: legacySectionValue,
+              course_id: effectiveCourseId,
               user_id: userData.id,
             })
             .select()
@@ -918,8 +995,8 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess, onFeedback
             const { data: matchingSubjects } = await supabase
               .from('subjects')
               .select('*')
-              .eq('course_id', formData.course_id)
-              .eq('year_level', formData.grade_level)
+              .eq('course_id', effectiveCourseId)
+              .eq('year_level', effectiveYearLevel)
               .eq('semester', formData.semester);
 
             if (matchingSubjects && matchingSubjects.length > 0) {
@@ -969,7 +1046,7 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess, onFeedback
         email: '',
         course_id: '',
         grade_level: '1st',
-        section: DEFAULT_SCHOOL_SECTION,
+        section_id: '',
         semester: '1st Sem',
       });
     } catch (err: any) {
@@ -998,17 +1075,34 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess, onFeedback
               name="student-course"
               autoComplete="off"
               value={formData.course_id}
-              onChange={e => setFormData({ ...formData, course_id: e.target.value })}
+              onChange={e => setFormData({ ...formData, course_id: e.target.value, section_id: '' })}
               options={[{ value: '', label: 'Select a course' }, ...courses.map(c => ({ value: c.id, label: c.name }))]}
               required
             />
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <Select label="Year Level" value={formData.grade_level} onChange={e => setFormData({ ...formData, grade_level: e.target.value })} options={[{ value: '1st', label: '1st Year' }, { value: '2nd', label: '2nd Year' }, { value: '3rd', label: '3rd Year' }, { value: '4th', label: '4th Year' }]} />
               <Select
-                label="Section"
-                value={formData.section}
-                onChange={e => setFormData({ ...formData, section: e.target.value as SchoolSectionCode })}
-                options={SCHOOL_SECTION_SELECT_OPTIONS}
+                label="Year Level"
+                value={formData.grade_level}
+                onChange={e => setFormData({ ...formData, grade_level: e.target.value, section_id: '' })}
+                options={[{ value: '1st', label: '1st Year' }, { value: '2nd', label: '2nd Year' }, { value: '3rd', label: '3rd Year' }, { value: '4th', label: '4th Year' }]}
+              />
+              <Select
+                label="Official Section"
+                value={formData.section_id}
+                onChange={(e) => {
+                  const nextId = e.target.value;
+                  const sec =
+                    availableOfficialSections.find((s) => s.id === nextId) ||
+                    officialSections.find((s) => s.id === nextId) ||
+                    null;
+                  setFormData({
+                    ...formData,
+                    section_id: nextId,
+                    grade_level: sec?.year_level || formData.grade_level,
+                    course_id: sec?.course_id || formData.course_id,
+                  });
+                }}
+                options={officialSectionOptions}
                 required
               />
               <Select label="Semester" value={formData.semester} onChange={e => setFormData({ ...formData, semester: e.target.value })} options={[{ value: '1st Sem', label: '1st Sem' }, { value: '2nd Sem', label: '2nd Sem' }]} />
@@ -1082,11 +1176,22 @@ function BulkCreateStudentsModal({
 }: BulkCreateStudentsModalProps) {
   const [loading, setLoading] = useState(false);
   const [uploadResults, setUploadResults] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
+  const [officialSections, setOfficialSections] = useState<OfficialSectionRow[]>([]);
 
   useEffect(() => {
     if (!isOpen) {
       setUploadResults(null);
+      return;
     }
+    (async () => {
+      try {
+        const res = await supabase.from('sections').select('*').eq('is_active', true).order('name', { ascending: true });
+        if (res.error) throw res.error;
+        setOfficialSections((res.data || []) as OfficialSectionRow[]);
+      } catch {
+        setOfficialSections([]);
+      }
+    })();
   }, [isOpen]);
 
   const downloadTemplate = () => {
@@ -1165,7 +1270,8 @@ function BulkCreateStudentsModal({
           const email = String(row.email || '').trim().toLowerCase();
           const courseName = String(row.course_name || '').trim().toLowerCase();
           const yearLevel = String(row.year_level || '').trim() || '1st';
-          const section = normalizeSchoolSection(row.section) || DEFAULT_SCHOOL_SECTION;
+          const rawSection = String(row.section || '').trim();
+          const normalizedLegacy = normalizeSchoolSection(rawSection) || DEFAULT_SCHOOL_SECTION;
           const semester = String(row.semester || '').trim() || '1st Sem';
 
           if (!firstName || !lastName || !email || !courseName) {
@@ -1180,6 +1286,25 @@ function BulkCreateStudentsModal({
             errors.push(`Row ${rowNo}: course "${row.course_name}" not found.`);
             continue;
           }
+
+          const matchedOfficial =
+            officialSections.find(
+              (s) =>
+                (s.course_id || '') === matchedCourse.id &&
+                (s.year_level || '') === yearLevel &&
+                (normalizeSchoolSection(s.section_code || '') && normalizeSchoolSection(s.section_code || '') === normalizedLegacy)
+            ) ||
+            officialSections.find(
+              (s) =>
+                (s.course_id || '') === matchedCourse.id &&
+                (s.year_level || '') === yearLevel &&
+                String(s.name || '').trim().toLowerCase() === rawSection.toLowerCase()
+            ) ||
+            null;
+
+          const sectionId = matchedOfficial?.id || null;
+          const sectionLegacyValue =
+            (matchedOfficial?.section_code || matchedOfficial?.name || '').trim() || normalizedLegacy;
 
           if (existingEmailSet.has(email) || generatedEmailSet.has(email)) {
             failed += 1;
@@ -1214,7 +1339,7 @@ function BulkCreateStudentsModal({
               last_name: lastName,
               course_id: matchedCourse.id,
               year_level: yearLevel,
-              section,
+              section: sectionLegacyValue,
             })
             .select()
             .single();
@@ -1231,7 +1356,8 @@ function BulkCreateStudentsModal({
               first_name: firstName,
               last_name: lastName,
               grade_level: yearLevel,
-              section,
+              section_id: sectionId,
+              section: sectionLegacyValue,
               course_id: matchedCourse.id,
               user_id: userData.id,
             })
@@ -1353,12 +1479,13 @@ function BulkCreateStudentsModal({
 function EditUserModal({ user, courses, onSave }: EditUserModalProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [officialSections, setOfficialSections] = useState<OfficialSectionRow[]>([]);
   const [formData, setFormData] = useState({
     first_name: user.first_name || '',
     last_name: user.last_name || '',
     email: user.email || '',
     year_level: user.year_level || '',
-    section: user.role === 'student' ? sectionFromUserRecord(user.section) : '',
+    section_id: '',
     course_id: user.course_id || '',
     is_dropout: Boolean(user.is_dropout),
   });
@@ -1369,20 +1496,55 @@ function EditUserModal({ user, courses, onSave }: EditUserModalProps) {
       last_name: user.last_name || '',
       email: user.email || '',
       year_level: user.year_level || '',
-      section: user.role === 'student' ? sectionFromUserRecord(user.section) : '',
+      section_id: '',
       course_id: user.course_id || '',
       is_dropout: Boolean(user.is_dropout),
     });
   }, [user]);
 
-  const studentSectionOptions = useMemo(() => {
-    const opts = [...SCHOOL_SECTION_SELECT_OPTIONS];
-    const cur = (formData.section || '').trim();
-    if (cur && !opts.some((o) => o.value === cur)) {
-      opts.unshift({ value: cur, label: cur });
-    }
-    return opts;
-  }, [formData.section]);
+  useEffect(() => {
+    if (!isOpen || user.role !== 'student') return;
+    (async () => {
+      try {
+        const [secRes, studentRes] = await Promise.all([
+          supabase.from('sections').select('*').eq('is_active', true).order('name', { ascending: true }),
+          supabase.from('students').select('section_id,course_id,grade_level,section').eq('user_id', user.id).maybeSingle(),
+        ]);
+        if (secRes.error) throw secRes.error;
+        if (studentRes.error) throw studentRes.error;
+        setOfficialSections((secRes.data || []) as OfficialSectionRow[]);
+        const st = studentRes.data as any;
+        if (st) {
+          setFormData((prev) => ({
+            ...prev,
+            section_id: st.section_id || '',
+            course_id: st.course_id || prev.course_id,
+            year_level: st.grade_level || prev.year_level,
+          }));
+        }
+      } catch {
+        setOfficialSections([]);
+      }
+    })();
+  }, [isOpen, user.id, user.role]);
+
+  const availableOfficialSections = useMemo(() => {
+    if (user.role !== 'student') return [];
+    const courseId = (formData.course_id || '').trim();
+    const year = (formData.year_level || '').trim();
+    return officialSections.filter((s) => {
+      if (courseId && (s.course_id || '') !== courseId) return false;
+      if (year && (s.year_level || '') !== year) return false;
+      return true;
+    });
+  }, [officialSections, formData.course_id, formData.year_level, user.role]);
+
+  const officialSectionOptions = useMemo(() => {
+    return [
+      { value: '', label: availableOfficialSections.length ? 'Select official section' : 'No official sections found (use legacy)' },
+      ...availableOfficialSections.map((s) => ({ value: s.id, label: s.name })),
+    ];
+  }, [availableOfficialSections]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1431,7 +1593,7 @@ function EditUserModal({ user, courses, onSave }: EditUserModalProps) {
               <Select
                 label={user.role === 'teacher' ? 'Course (optional)' : 'Course'}
                 value={formData.course_id}
-                onChange={e => setFormData({ ...formData, course_id: e.target.value })}
+                onChange={e => setFormData({ ...formData, course_id: e.target.value, section_id: '' })}
                 options={
                   user.role === 'teacher'
                     ? [{ value: '', label: 'None — not linked to a program' }, ...courses.map((c) => ({ value: c.id, label: c.name }))]
@@ -1442,17 +1604,28 @@ function EditUserModal({ user, courses, onSave }: EditUserModalProps) {
               <Select
                 label="Year Level"
                 value={formData.year_level}
-                onChange={e => setFormData({ ...formData, year_level: e.target.value })}
+                onChange={e => setFormData({ ...formData, year_level: e.target.value, section_id: '' })}
                 options={[{ value: '1st', label: '1st Year' }, { value: '2nd', label: '2nd Year' }, { value: '3rd', label: '3rd Year' }, { value: '4th', label: '4th Year' }]}
               />
               {user.role === 'student' ? (
                 <>
                   <Select
-                    label="Section"
-                    value={formData.section}
-                    onChange={e => setFormData({ ...formData, section: e.target.value })}
-                    options={studentSectionOptions}
-                    required
+                    label="Official Section"
+                    value={formData.section_id}
+                    onChange={(e) => {
+                      const nextId = e.target.value;
+                      const sec =
+                        availableOfficialSections.find((s) => s.id === nextId) ||
+                        officialSections.find((s) => s.id === nextId) ||
+                        null;
+                      setFormData({
+                        ...formData,
+                        section_id: nextId,
+                        year_level: sec?.year_level || formData.year_level,
+                        course_id: sec?.course_id || formData.course_id,
+                      });
+                    }}
+                    options={officialSectionOptions}
                   />
                   <Select
                     label="Student status"

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { AlertTriangle, Download, ListFilter, RefreshCw, Search, Star } from 'lucide-react';
+import { AlertTriangle, Download, ListFilter, Lock, RefreshCw, Search, Star, Unlock } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
@@ -39,6 +39,11 @@ export default function TeacherGradesPage() {
   const [uploadResults, setUploadResults] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [appMessage, setAppMessage] = useState<AppMessagePayload | null>(null);
+  const [requestingUnlock, setRequestingUnlock] = useState(false);
+  const [submittingForReview, setSubmittingForReview] = useState(false);
+  const [activeSchoolYearId, setActiveSchoolYearId] = useState<string | null>(null);
+  const [classRecordDrafts, setClassRecordDrafts] = useState<Record<string, string>>({});
+  const [classRecordSavingKey, setClassRecordSavingKey] = useState('');
 
   const [filterSearch, setFilterSearch] = useState('');
   const [filterSection, setFilterSection] = useState('');
@@ -61,7 +66,9 @@ export default function TeacherGradesPage() {
         .from('student_subjects')
         .select('student:students(*, user:users(*))')
         .eq('subject_id', subjectId);
-      const list = (data || []).map((r: any) => r.student).filter(Boolean);
+      const list = (data || [])
+        .map((r: any) => r.student)
+        .filter((s: any) => Boolean(s) && (s.student_status == null || s.student_status === 'active'));
       setEnrolledStudents(list);
       setSelectedStudentForEntry((prev) => (list.some((s: any) => s.id === prev) ? prev : list[0]?.id ?? ''));
       return;
@@ -73,7 +80,9 @@ export default function TeacherGradesPage() {
     const byId = new Map<string, any>();
     (data || []).forEach((r: any) => {
       const st = r.student;
-      if (st?.id && !byId.has(st.id)) byId.set(st.id, st);
+      if (st?.id && (st.student_status == null || st.student_status === 'active') && !byId.has(st.id)) {
+        byId.set(st.id, st);
+      }
     });
     const list = Array.from(byId.values());
     setEnrolledStudents(list);
@@ -113,7 +122,24 @@ export default function TeacherGradesPage() {
 
       const [studentSubjectsRes, gradesRes] = await Promise.all([
         supabase.from('student_subjects').select('student_id').in('subject_id', subjectIds),
-        supabase.from('grades').select('*').in('subject_id', subjectIds),
+        (async () => {
+          try {
+            const { data: activeSy, error: syError } = await supabase
+              .from('school_years')
+              .select('id')
+              .eq('is_active', true)
+              .maybeSingle();
+            if (syError) throw syError;
+            setActiveSchoolYearId(activeSy?.id ?? null);
+            let query = supabase.from('grades').select('*').in('subject_id', subjectIds);
+            if (activeSy?.id) query = query.eq('school_year_id', activeSy.id);
+            return query;
+          } catch {
+            // Backward-compat: if migration not applied yet, fall back to all grades.
+            setActiveSchoolYearId(null);
+            return supabase.from('grades').select('*').in('subject_id', subjectIds);
+          }
+        })(),
       ]);
 
       setGrades(gradesRes.data || []);
@@ -147,7 +173,22 @@ export default function TeacherGradesPage() {
         g.semester === selectedSemester &&
         g.quarter.toString() === (selectedQuarter || '1')
     );
+    const anyLockedForSubjectSemester = grades.some(
+      (g) =>
+        g.student_id === selectedStudentForEntry &&
+        g.subject_id === selectedSubject &&
+        g.semester === selectedSemester &&
+        Boolean(g.is_locked)
+    );
     const quarterValue = selectedQuarter ? parseInt(selectedQuarter, 10) : 1;
+    if (existing?.is_locked || anyLockedForSubjectSemester) {
+      setAppMessage({
+        title: 'Grade is locked',
+        message: 'This subject grade set is locked after admin approval. Request unlock first.',
+        variant: 'warning',
+      });
+      return;
+    }
     if (existing?.grade_status === 'inc') {
       setAppMessage({
         title: 'Restricted grade update',
@@ -173,6 +214,7 @@ export default function TeacherGradesPage() {
           subject_id: selectedSubject,
           semester: selectedSemester,
           quarter: quarterValue,
+          school_year_id: activeSchoolYearId,
           ...payload,
         });
         if (error) throw error;
@@ -188,6 +230,77 @@ export default function TeacherGradesPage() {
         message: err?.message || 'Grade could not be saved. Please try again.',
         variant: 'error',
       });
+    }
+  };
+
+  const submitCurrentScopeForReview = async () => {
+    if (!selectedSubject) {
+      setAppMessage({ title: 'Select a subject', message: 'Choose a specific subject first.', variant: 'warning' });
+      return;
+    }
+    setSubmittingForReview(true);
+    try {
+      let query = supabase
+        .from('grades')
+        .update({ workflow_status: 'for_review' })
+        .eq('subject_id', selectedSubject)
+        .eq('semester', selectedSemester)
+        .eq('is_locked', false);
+      if (selectedQuarter) query = query.eq('quarter', Number(selectedQuarter));
+      const { error } = await query;
+      if (error) throw error;
+      await loadData();
+      setAppMessage({
+        title: 'Submitted for review',
+        message: 'Current grade scope is now marked For Review.',
+        variant: 'success',
+      });
+    } catch (err: any) {
+      setAppMessage({
+        title: 'Submit failed',
+        message: err?.message || 'Could not submit grades for review.',
+        variant: 'error',
+      });
+    } finally {
+      setSubmittingForReview(false);
+    }
+  };
+
+  const requestUnlockCurrentScope = async () => {
+    if (!selectedSubject) {
+      setAppMessage({ title: 'Select a subject', message: 'Choose a specific subject first.', variant: 'warning' });
+      return;
+    }
+    setRequestingUnlock(true);
+    try {
+      let query = supabase
+        .from('grades')
+        .update({
+          unlock_requested: true,
+          unlock_reason: 'Teacher requested correction.',
+          unlock_requested_at: new Date().toISOString(),
+          unlock_requested_by: user?.id ?? null,
+        })
+        .eq('subject_id', selectedSubject)
+        .eq('semester', selectedSemester)
+        .eq('is_locked', true);
+      if (selectedQuarter) query = query.eq('quarter', Number(selectedQuarter));
+      const { error } = await query;
+      if (error) throw error;
+      await loadData();
+      setAppMessage({
+        title: 'Unlock requested',
+        message: 'Admin can now review and approve this unlock request.',
+        variant: 'success',
+      });
+    } catch (err: any) {
+      setAppMessage({
+        title: 'Request failed',
+        message: err?.message || 'Could not request unlock.',
+        variant: 'error',
+      });
+    } finally {
+      setRequestingUnlock(false);
     }
   };
 
@@ -273,6 +386,17 @@ export default function TeacherGradesPage() {
     });
   }, [enrolledStudents, entryStudentSearch, filterSection]);
 
+  const quickEntryLocked = useMemo(() => {
+    if (!selectedSubject || !selectedStudentForEntry) return false;
+    return grades.some(
+      (g) =>
+        g.student_id === selectedStudentForEntry &&
+        g.subject_id === selectedSubject &&
+        g.semester === selectedSemester &&
+        Boolean(g.is_locked)
+    );
+  }, [grades, selectedSubject, selectedStudentForEntry, selectedSemester]);
+
   const totalGradePages = useMemo(
     () => Math.max(1, Math.ceil(filteredGrades.length / gradeTablePageSize)),
     [filteredGrades.length, gradeTablePageSize]
@@ -296,6 +420,11 @@ export default function TeacherGradesPage() {
     setPreviewFilter('all');
     setUploadResults(null);
   }, [selectedSubject, selectedSemester, selectedQuarter]);
+
+  useEffect(() => {
+    // Prevent stale draft values from a different subject/semester.
+    setClassRecordDrafts({});
+  }, [selectedSubject, selectedSemester]);
 
   const bulkPreviewSummary = useMemo(() => {
     if (!bulkPreviewRows) return null;
@@ -361,6 +490,16 @@ export default function TeacherGradesPage() {
       for (const pr of toSave) {
         try {
           const grade = pr.numericGrade as number;
+          const lockedSet = grades.some(
+            (g) =>
+              g.student_id === pr.studentId &&
+              g.subject_id === selectedSubject &&
+              g.semester === pr.semester &&
+              Boolean(g.is_locked)
+          );
+          if (lockedSet) {
+            throw new Error('Grade set is locked by admin approval.');
+          }
           if (pr.existingGradeId) {
             const { error: updateError } = await supabase
               .from('grades')
@@ -456,6 +595,135 @@ export default function TeacherGradesPage() {
     };
   }, [filteredGrades, students]);
 
+  const classRecordRows = useMemo(() => {
+    if (!selectedSubject) return [];
+    const enrolled = enrolledStudents;
+    const gradesByStudentQuarter = new Map<string, Record<number, any>>();
+    grades
+      .filter((g) => g.subject_id === selectedSubject && g.semester === selectedSemester)
+      .forEach((g) => {
+        const key = g.student_id;
+        const existing = gradesByStudentQuarter.get(key) || {};
+        existing[g.quarter] = g;
+        gradesByStudentQuarter.set(key, existing);
+      });
+
+    return enrolled.map((student: any) => {
+      const byQuarter = gradesByStudentQuarter.get(student.id) || {};
+      const q1 = byQuarter[1];
+      const q2 = byQuarter[2];
+      const q3 = byQuarter[3];
+      const q4 = byQuarter[4];
+      const values = [q1, q2, q3, q4].filter(Boolean).filter((g: any) => g.grade_status !== 'inc').map((g: any) => Number(g.grade));
+      const finalGrade = values.length ? Math.round((values.reduce((a: number, b: number) => a + b, 0) / values.length) * 100) / 100 : null;
+      const encodedCount = [q1, q2, q3, q4].filter(Boolean).length;
+      const completionStatus = encodedCount === 0 ? 'none' : encodedCount < 4 ? 'partial' : 'complete';
+      const locked = [q1, q2, q3, q4].some((g: any) => Boolean(g?.is_locked));
+      return {
+        id: student.id,
+        name: `${student.first_name} ${student.last_name}`,
+        q1: q1?.grade_status === 'inc' ? 'INC' : q1?.grade ?? '—',
+        q2: q2?.grade_status === 'inc' ? 'INC' : q2?.grade ?? '—',
+        q3: q3?.grade_status === 'inc' ? 'INC' : q3?.grade ?? '—',
+        q4: q4?.grade_status === 'inc' ? 'INC' : q4?.grade ?? '—',
+        finalGrade: finalGrade ?? '—',
+        remarks: locked ? 'Locked' : finalGrade == null ? 'In Progress' : finalGrade >= 75 ? 'Passed' : 'Failed',
+        completionStatus,
+        locked,
+      };
+    });
+  }, [selectedSubject, selectedSemester, enrolledStudents, grades]);
+
+  const classRecordCellKey = (studentId: string, quarter: number) =>
+    `${selectedSubject || 'all'}:${selectedSemester}:${studentId}:${quarter}`;
+
+  const getClassRecordInputValue = (studentId: string, quarter: number, current: string | number) => {
+    const draft = classRecordDrafts[classRecordCellKey(studentId, quarter)];
+    if (draft != null) return draft;
+    if (current === '—' || current === 'INC') return '';
+    return String(current);
+  };
+
+  const updateClassRecordDraft = (studentId: string, quarter: number, value: string) => {
+    const key = classRecordCellKey(studentId, quarter);
+    setClassRecordDrafts((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const saveClassRecordCell = async (studentId: string, quarter: number, currentValue: string | number) => {
+    if (!selectedSubject) return;
+    const key = `${studentId}:${quarter}`;
+    const raw = getClassRecordInputValue(studentId, quarter, currentValue).trim();
+    if (!raw) {
+      setAppMessage({ title: 'Invalid grade', message: 'Enter a numeric grade from 0 to 100.', variant: 'warning' });
+      return;
+    }
+    const numeric = Number(raw);
+    if (Number.isNaN(numeric) || numeric < 0 || numeric > 100) {
+      setAppMessage({ title: 'Invalid grade', message: 'Enter a numeric grade from 0 to 100.', variant: 'warning' });
+      return;
+    }
+
+    const lockedSet = grades.some(
+      (g) =>
+        g.student_id === studentId &&
+        g.subject_id === selectedSubject &&
+        g.semester === selectedSemester &&
+        Boolean(g.is_locked)
+    );
+    if (lockedSet) {
+      setAppMessage({
+        title: 'Grade is locked',
+        message: 'This subject grade set is locked after admin approval. Request unlock first.',
+        variant: 'warning',
+      });
+      return;
+    }
+
+    setClassRecordSavingKey(key);
+    try {
+      const existing = grades.find(
+        (g) =>
+          g.student_id === studentId &&
+          g.subject_id === selectedSubject &&
+          g.semester === selectedSemester &&
+          g.quarter === quarter
+      );
+      const payload = {
+        grade: numeric,
+        remarks: getGradeRemarks(numeric),
+        grade_status: getGradeStatus(numeric),
+      };
+      if (existing) {
+        const { error } = await supabase.from('grades').update(payload).eq('id', existing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('grades').insert({
+          student_id: studentId,
+          subject_id: selectedSubject,
+          semester: selectedSemester,
+          quarter,
+          school_year_id: activeSchoolYearId,
+          ...payload,
+        });
+        if (error) throw error;
+      }
+      setClassRecordDrafts((prev) => ({
+        ...prev,
+        [classRecordCellKey(studentId, quarter)]: String(numeric),
+      }));
+      await loadData();
+      setAppMessage({ title: 'Saved', message: `Q${quarter} grade saved from class record.`, variant: 'success' });
+    } catch (err: any) {
+      setAppMessage({
+        title: 'Save failed',
+        message: err?.message || 'Could not save class record grade.',
+        variant: 'error',
+      });
+    } finally {
+      setClassRecordSavingKey('');
+    }
+  };
+
   const clearFilters = () => {
     setFilterSearch('');
     setFilterSection('');
@@ -523,6 +791,24 @@ export default function TeacherGradesPage() {
       </div>
 
       <div className="mb-6 flex flex-wrap items-center gap-3">
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={!selectedSubject || submittingForReview}
+          onClick={() => void submitCurrentScopeForReview()}
+        >
+          <Lock className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+          {submittingForReview ? 'Submitting...' : 'Submit for review'}
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={!selectedSubject || requestingUnlock}
+          onClick={() => void requestUnlockCurrentScope()}
+        >
+          <Unlock className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+          {requestingUnlock ? 'Requesting...' : 'Request unlock'}
+        </Button>
         <button
           type="button"
           onClick={() => setFiltersOpen((o) => !o)}
@@ -613,6 +899,11 @@ export default function TeacherGradesPage() {
             Open the filter panel (filter icon) and choose a specific subject to enter or update a grade for one student.
           </p>
         )}
+        {selectedSubject && selectedStudentForEntry && quickEntryLocked && (
+          <p className="mb-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800">
+            This student’s grade set for the selected subject/semester is <span className="font-semibold">LOCKED</span>. Use “Request unlock” to make changes.
+          </p>
+        )}
         <div className="mb-4 w-full md:max-w-sm">
           <label htmlFor="grade-entry-student-search" className="sr-only">Search student for entry</label>
           <input
@@ -661,6 +952,7 @@ export default function TeacherGradesPage() {
                 type="button"
                 className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${entryStatus !== 'inc' ? 'bg-[#800000] text-white' : 'bg-gray-100 text-gray-700'}`}
                 onClick={() => setEntryStatus('passed')}
+                disabled={quickEntryLocked}
               >
                 Numeric
               </button>
@@ -668,6 +960,7 @@ export default function TeacherGradesPage() {
                 type="button"
                 className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${entryStatus === 'inc' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-700'}`}
                 onClick={() => setEntryStatus('inc')}
+                disabled={quickEntryLocked}
               >
                 INC
               </button>
@@ -679,7 +972,7 @@ export default function TeacherGradesPage() {
               step={0.01}
               value={entryGrade}
               onChange={(e) => setEntryGrade(e.target.value)}
-              disabled={entryStatus === 'inc'}
+              disabled={quickEntryLocked || entryStatus === 'inc'}
               placeholder={entryStatus === 'inc' ? 'Will be saved as INC' : '0 - 100'}
               className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-base text-gray-900"
             />
@@ -695,13 +988,14 @@ export default function TeacherGradesPage() {
                 setEntryStatus('passed');
                 setEntryGrade(String(preset));
               }}
+              disabled={quickEntryLocked}
             >
               {preset}
             </button>
           ))}
         </div>
         <div className="mt-4">
-          <Button type="button" disabled={!selectedSubject} onClick={() => void saveGradeEntry()}>
+          <Button type="button" disabled={!selectedSubject || quickEntryLocked} onClick={() => void saveGradeEntry()}>
             Save grade entry
           </Button>
         </div>
@@ -770,6 +1064,7 @@ export default function TeacherGradesPage() {
             </div>
             <div className="max-h-[min(24rem,55vh)] overflow-auto rounded-xl border border-gray-200">
               <Table
+                variant="light"
                 headers={['#', 'Status', 'Student', 'Sem', 'Quarter', 'Grade', 'Remarks', 'Action', 'Previous', 'Issues']}
               >
                 {filteredBulkPreviewRows.map((pr) => (
@@ -903,12 +1198,116 @@ export default function TeacherGradesPage() {
         </GlassCard>
       </div>
 
-      <GlassCard className="p-4 sm:p-6">
-        <p className="mb-3 text-xs text-gold-100/90 sm:text-sm">
-          Row highlight guide: <span className="font-semibold text-green-200">green</span> = excellent (90+),{' '}
-          <span className="font-semibold text-red-200">red</span> = failing (&lt;75).
+      <GlassCard variant="plain" className="p-4 sm:p-6">
+        {!!selectedSubject && (
+          <div className="mb-6 overflow-x-auto">
+            <h3 className="mb-3 text-lg font-semibold text-[#800000]">Class record view</h3>
+            <p className="mb-4 text-sm text-gray-600">
+              Spreadsheet-style encoding. Type a grade then click <span className="font-semibold">Save</span> per quarter.
+              {` `}If a record is locked, editing is disabled.
+            </p>
+
+            <div className="overflow-hidden rounded-2xl border border-gray-200">
+              <table className="w-full min-w-max text-left text-xs sm:text-sm">
+                <thead className="bg-gray-50">
+                  <tr className="border-b border-gray-200">
+                    {['Student', 'Q1', 'Q2', 'Q3', 'Q4', 'Final Grade', 'Remarks', 'Completion'].map((h) => (
+                      <th
+                        key={h}
+                        className="whitespace-nowrap px-3 py-3 text-xs font-semibold text-gray-700 sm:px-4 sm:text-sm"
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 bg-white">
+                  {classRecordRows.map((row) => (
+                    <tr key={row.id} className={row.locked ? 'bg-gray-50' : 'hover:bg-gray-50/70'}>
+                      <td className="px-3 py-3 font-medium text-gray-900 sm:px-4">{row.name}</td>
+                      {[1, 2, 3, 4].map((quarter) => {
+                        const current =
+                          quarter === 1 ? row.q1 : quarter === 2 ? row.q2 : quarter === 3 ? row.q3 : row.q4;
+                        const cellKey = `${row.id}:${quarter}`;
+                        const draftValue = getClassRecordInputValue(row.id, quarter, current);
+                        const hasExistingNumeric = current !== '—' && current !== 'INC' && current !== '';
+                        const hasExistingInc = current === 'INC';
+                        const showCurrentLabel = hasExistingInc || hasExistingNumeric;
+                        const showCurrentNumericValue =
+                          hasExistingNumeric && String(current) !== draftValue && draftValue.trim().length > 0;
+                        return (
+                          <td key={cellKey} className="px-3 py-3 sm:px-4">
+                            <div className="flex flex-col gap-1.5">
+                              <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                min={0}
+                                max={100}
+                                step={0.01}
+                                value={draftValue}
+                                onChange={(e) => updateClassRecordDraft(row.id, quarter, e.target.value)}
+                                placeholder={current === 'INC' ? 'INC' : current === '—' ? '—' : String(current)}
+                                disabled={row.locked}
+                                className="w-24 rounded-xl border border-gray-300/70 bg-white px-3 py-2 text-sm text-gray-900 focus:border-maroon-500 focus:outline-none focus:ring-2 focus:ring-maroon-500/35 disabled:bg-gray-100 disabled:text-gray-500"
+                              />
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="sm"
+                                disabled={classRecordSavingKey === cellKey || row.locked}
+                                onClick={() => void saveClassRecordCell(row.id, quarter, current)}
+                              >
+                                {classRecordSavingKey === cellKey ? 'Saving…' : 'Save'}
+                              </Button>
+                              </div>
+                              {showCurrentLabel && (
+                                <div className="text-[11px] text-gray-600">
+                                  <span className="font-semibold">Current:</span>{' '}
+                                  {hasExistingInc ? (
+                                    <span className="font-semibold text-amber-700">INC</span>
+                                  ) : showCurrentNumericValue ? (
+                                    <span className="font-semibold tabular-nums">{String(current)}</span>
+                                  ) : (
+                                    <span className="tabular-nums">{String(current)}</span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        );
+                      })}
+                      <td className="px-3 py-3 font-semibold text-gray-900 sm:px-4">{row.finalGrade}</td>
+                      <td className="px-3 py-3 text-gray-700 sm:px-4">{row.remarks}</td>
+                      <td className="px-3 py-3 sm:px-4">
+                        <span
+                          className={`inline-block h-3 w-3 rounded-full ${
+                            row.completionStatus === 'complete'
+                              ? 'bg-green-500'
+                              : row.completionStatus === 'partial'
+                                ? 'bg-yellow-500'
+                                : 'bg-red-500'
+                          }`}
+                          title={
+                            row.completionStatus === 'complete'
+                              ? 'Complete'
+                              : row.completionStatus === 'partial'
+                                ? 'In progress'
+                                : 'No grades yet'
+                          }
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+        <p className="mb-3 text-xs text-gray-600 sm:text-sm">
+          Row highlight guide: <span className="font-semibold text-green-700">green</span> = excellent (90+),{' '}
+          <span className="font-semibold text-red-700">red</span> = failing (&lt;75).
         </p>
-        <Table headers={['Student', 'Subject', 'Semester', 'Quarter', 'Grade', 'Remarks', 'Status']}>
+        <Table variant="light" headers={['Student', 'Subject', 'Semester', 'Quarter', 'Grade', 'Remarks', 'Status', 'Workflow']}>
           {paginatedGrades.map((grade) => {
             const failing = !isPassing(grade.grade);
             const excellent = Number(grade.grade) >= 90;
@@ -946,6 +1345,15 @@ export default function TeacherGradesPage() {
                 >
                   {grade.grade_status === 'inc' ? 'INC' : grade.grade_status === 'passed' ? 'PASSED' : 'FAILED'}
                 </Badge>
+              </td>
+              <td className="px-4 py-3 text-xs font-semibold text-gray-700">
+                {grade.is_locked
+                  ? 'LOCKED'
+                  : grade.unlock_requested
+                    ? 'UNLOCK REQUESTED'
+                    : grade.workflow_status === 'for_review'
+                      ? 'FOR REVIEW'
+                      : 'DRAFT'}
               </td>
             </tr>
           )})}

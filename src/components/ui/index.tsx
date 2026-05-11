@@ -291,9 +291,12 @@ interface TableProps {
   headers: string[];
   children: ReactNode;
   className?: string;
+  /** `dark` = gold-on-dark header (for maroon/glass surfaces). `light` = gray-on-light header (for white cards). */
+  variant?: 'dark' | 'light';
 }
 
-export function Table({ headers, children, className }: TableProps) {
+export function Table({ headers, children, className, variant = 'dark' }: TableProps) {
+  const isDark = variant === 'dark';
   return (
     <div
       className={clsx(
@@ -304,18 +307,21 @@ export function Table({ headers, children, className }: TableProps) {
     >
       <table className="w-full min-w-max text-left text-xs sm:text-sm">
         <thead>
-          <tr className="border-b border-gold-400/35 bg-black/20">
+          <tr className={clsx(isDark ? 'border-b border-gold-400/35 bg-black/20' : 'border-b border-gray-200/80 bg-gray-50/80')}>
             {headers.map((h, i) => (
               <th
                 key={i}
-                className="whitespace-nowrap px-2 py-2.5 text-left text-xs font-semibold text-gold-200/95 backdrop-blur-sm sm:px-4 sm:py-3 sm:text-sm"
+                className={clsx(
+                  'whitespace-nowrap px-2 py-2.5 text-left text-xs font-semibold sm:px-4 sm:py-3 sm:text-sm',
+                  isDark ? 'text-gold-200/95 backdrop-blur-sm' : 'text-gray-700'
+                )}
               >
                 {h}
               </th>
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-gold-400/15">{children}</tbody>
+        <tbody className={clsx('divide-y', isDark ? 'divide-gold-400/15' : 'divide-gray-200/70')}>{children}</tbody>
       </table>
     </div>
   );

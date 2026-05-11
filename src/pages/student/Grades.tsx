@@ -10,6 +10,9 @@ export default function StudentGradesPage() {
   const [mySubjects, setMySubjects] = useState<any[]>([]);
   const [myGrades, setMyGrades] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [schoolYears, setSchoolYears] = useState<any[]>([]);
+  const [activeSchoolYearId, setActiveSchoolYearId] = useState<string | null>(null);
+  const [schoolYearFilter, setSchoolYearFilter] = useState<'active' | 'all' | string>('active');
   const [selectedSemester, setSelectedSemester] = useState(1);
   const [selectedQuarter, setSelectedQuarter] = useState('');
   const [filterSearch, setFilterSearch] = useState('');
@@ -17,7 +20,7 @@ export default function StudentGradesPage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [schoolYearFilter]);
 
   const loadData = async () => {
     try {
@@ -29,9 +32,37 @@ export default function StudentGradesPage() {
 
       if (!studentData) return;
 
+      let effectiveSchoolYearId: string | null = null;
+      try {
+        const syRes = await supabase
+          .from('school_years')
+          .select('id,name,is_active,created_at')
+          .order('created_at', { ascending: false });
+        if (syRes.error) throw syRes.error;
+        const list = syRes.data || [];
+        setSchoolYears(list);
+        const active = list.find((sy: any) => Boolean(sy.is_active)) || null;
+        setActiveSchoolYearId(active?.id ?? null);
+        effectiveSchoolYearId =
+          schoolYearFilter === 'all'
+            ? null
+            : schoolYearFilter === 'active'
+              ? (active?.id ?? null)
+              : (schoolYearFilter || null);
+      } catch {
+        // Backward-compat: if school_years isn't available, show all years.
+        setSchoolYears([]);
+        setActiveSchoolYearId(null);
+        effectiveSchoolYearId = null;
+      }
+
       const [subjectsRes, gradesRes] = await Promise.all([
         supabase.from('student_subjects').select('*, subject:subjects(*, course:courses(*))').eq('student_id', studentData.id),
-        supabase.from('grades').select('*').eq('student_id', studentData.id),
+        (async () => {
+          let q = supabase.from('grades').select('*').eq('student_id', studentData.id);
+          if (effectiveSchoolYearId) q = q.eq('school_year_id', effectiveSchoolYearId);
+          return q;
+        })(),
       ]);
 
       setMySubjects(subjectsRes.data || []);
@@ -84,12 +115,13 @@ export default function StudentGradesPage() {
   }, [semesterSubjects, filterSearch]);
 
   const hasActiveFilters =
-    Boolean(filterSearch.trim()) || selectedSemester !== 1 || selectedQuarter !== '';
+    Boolean(filterSearch.trim()) || selectedSemester !== 1 || selectedQuarter !== '' || schoolYearFilter !== 'active';
 
   const clearFilters = () => {
     setFilterSearch('');
     setSelectedSemester(1);
     setSelectedQuarter('');
+    setSchoolYearFilter('active');
   };
 
   if (loading) {
@@ -157,6 +189,16 @@ export default function StudentGradesPage() {
             Use the search bar above to filter subjects by name or course. Adjust semester and quarter here.
           </p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Select
+              label="School year"
+              value={schoolYearFilter}
+              onChange={(e) => setSchoolYearFilter(e.target.value as any)}
+              options={[
+                { value: 'active', label: activeSchoolYearId ? 'Active school year' : 'Active school year (none)' },
+                { value: 'all', label: 'All school years' },
+                ...(schoolYears || []).map((sy: any) => ({ value: sy.id, label: sy.name })),
+              ]}
+            />
             <Select
               label="Semester"
               value={`${selectedSemester}`}

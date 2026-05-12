@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
-import { Button, GlassCard, Input, MessageModal, type AppMessagePayload } from '../../components/ui';
+import { Button, GlassCard, Input, MessageModal, Spinner, type AppMessagePayload } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase } from '../../lib/supabase';
 import { useSupabaseLiveReload } from '../../lib/useSupabaseLiveReload';
@@ -20,6 +20,7 @@ export default function AdminAcademicPage() {
   const [announcementTitle, setAnnouncementTitle] = useState('');
   const [announcementBody, setAnnouncementBody] = useState('');
   const [appMessage, setAppMessage] = useState<AppMessagePayload | null>(null);
+  const [actionKey, setActionKey] = useState<string | null>(null);
 
   const showError = (fallback: string, err: any) =>
     setAppMessage({
@@ -57,7 +58,8 @@ export default function AdminAcademicPage() {
   );
 
   const createSchoolYear = async () => {
-    if (!newSchoolYear.trim()) return;
+    if (!newSchoolYear.trim() || actionKey) return;
+    setActionKey('create-school-year');
     try {
       const { error } = await supabase.from('school_years').insert({ name: newSchoolYear.trim() });
       if (error) throw error;
@@ -66,10 +68,14 @@ export default function AdminAcademicPage() {
       await load();
     } catch (err: any) {
       showError('Could not add school year.', err);
+    } finally {
+      setActionKey(null);
     }
   };
 
   const setActiveSchoolYear = async (id: string) => {
+    if (actionKey) return;
+    setActionKey(`set-active:${id}`);
     try {
       // Reset active rows first, then activate target row.
       const resetRes = await supabase.from('school_years').update({ is_active: false }).eq('is_active', true);
@@ -83,10 +89,14 @@ export default function AdminAcademicPage() {
       await load();
     } catch (err: any) {
       showError('Could not set active school year.', err);
+    } finally {
+      setActionKey(null);
     }
   };
 
   const archiveSchoolYear = async (id: string) => {
+    if (actionKey) return;
+    setActionKey(`archive:${id}`);
     try {
       const { error } = await supabase
         .from('school_years')
@@ -97,10 +107,13 @@ export default function AdminAcademicPage() {
       await load();
     } catch (err: any) {
       showError('Could not archive school year.', err);
+    } finally {
+      setActionKey(null);
     }
   };
 
   const deleteSchoolYear = async (row: SchoolYear) => {
+    if (actionKey) return;
     if (row.is_active) {
       setAppMessage({
         title: 'Delete blocked',
@@ -109,6 +122,7 @@ export default function AdminAcademicPage() {
       });
       return;
     }
+    setActionKey(`delete-school-year:${row.id}`);
     try {
       const { count, error: gradeCheckError } = await supabase
         .from('grades')
@@ -129,11 +143,14 @@ export default function AdminAcademicPage() {
       await load();
     } catch (err: any) {
       showError('Could not delete school year.', err);
+    } finally {
+      setActionKey(null);
     }
   };
 
   const postAnnouncement = async () => {
-    if (!announcementTitle.trim() || !announcementBody.trim()) return;
+    if (!announcementTitle.trim() || !announcementBody.trim() || actionKey) return;
+    setActionKey('post-announcement');
     try {
       const { error } = await supabase.from('system_announcements').insert({
         title: announcementTitle.trim(),
@@ -147,20 +164,28 @@ export default function AdminAcademicPage() {
       await load();
     } catch (err: any) {
       showError('Could not post announcement.', err);
+    } finally {
+      setActionKey(null);
     }
   };
 
   const toggleAnnouncement = async (id: string, current: boolean) => {
+    if (actionKey) return;
+    setActionKey(`toggle-announcement:${id}`);
     try {
       const { error } = await supabase.from('system_announcements').update({ is_active: !current }).eq('id', id);
       if (error) throw error;
       await load();
     } catch (err: any) {
       showError('Could not update announcement status.', err);
+    } finally {
+      setActionKey(null);
     }
   };
 
   const deleteAnnouncement = async (id: string) => {
+    if (actionKey) return;
+    setActionKey(`delete-announcement:${id}`);
     try {
       const { error } = await supabase.from('system_announcements').delete().eq('id', id);
       if (error) throw error;
@@ -168,6 +193,8 @@ export default function AdminAcademicPage() {
       await load();
     } catch (err: any) {
       showError('Could not delete announcement.', err);
+    } finally {
+      setActionKey(null);
     }
   };
 
@@ -183,8 +210,15 @@ export default function AdminAcademicPage() {
               onChange={(e) => setNewSchoolYear(e.target.value)}
               placeholder="2026-2027"
             />
-            <Button type="button" variant="glass" className="w-full sm:w-auto" onClick={() => void createSchoolYear()}>
-              Add
+            <Button
+              type="button"
+              variant="glass"
+              className="w-full sm:w-auto"
+              onClick={() => void createSchoolYear()}
+              disabled={Boolean(actionKey)}
+            >
+              {actionKey === 'create-school-year' ? <Spinner size="sm" /> : null}
+              {actionKey === 'create-school-year' ? 'Adding...' : 'Add'}
             </Button>
           </div>
           <div className="space-y-2">
@@ -209,14 +243,35 @@ export default function AdminAcademicPage() {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button type="button" variant="secondary" size="sm" onClick={() => void setActiveSchoolYear(sy.id)}>
-                    Set Active
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => void setActiveSchoolYear(sy.id)}
+                    disabled={Boolean(actionKey)}
+                  >
+                    {actionKey === `set-active:${sy.id}` ? <Spinner size="sm" /> : null}
+                    {actionKey === `set-active:${sy.id}` ? 'Setting...' : 'Set Active'}
                   </Button>
-                  <Button type="button" variant="secondary" size="sm" onClick={() => void archiveSchoolYear(sy.id)}>
-                    Archive
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => void archiveSchoolYear(sy.id)}
+                    disabled={Boolean(actionKey)}
+                  >
+                    {actionKey === `archive:${sy.id}` ? <Spinner size="sm" /> : null}
+                    {actionKey === `archive:${sy.id}` ? 'Archiving...' : 'Archive'}
                   </Button>
-                  <Button type="button" variant="danger" size="sm" onClick={() => void deleteSchoolYear(sy)}>
-                    Delete
+                  <Button
+                    type="button"
+                    variant="danger"
+                    size="sm"
+                    onClick={() => void deleteSchoolYear(sy)}
+                    disabled={Boolean(actionKey)}
+                  >
+                    {actionKey === `delete-school-year:${sy.id}` ? <Spinner size="sm" /> : null}
+                    {actionKey === `delete-school-year:${sy.id}` ? 'Deleting...' : 'Delete'}
                   </Button>
                 </div>
               </div>
@@ -242,8 +297,15 @@ export default function AdminAcademicPage() {
                 className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm"
               />
             </div>
-            <Button type="button" variant="glass" className="w-full sm:w-auto" onClick={() => void postAnnouncement()}>
-              Post announcement
+            <Button
+              type="button"
+              variant="glass"
+              className="w-full sm:w-auto"
+              onClick={() => void postAnnouncement()}
+              disabled={Boolean(actionKey)}
+            >
+              {actionKey === 'post-announcement' ? <Spinner size="sm" /> : null}
+              {actionKey === 'post-announcement' ? 'Posting...' : 'Post announcement'}
             </Button>
           </div>
           <div className="mt-4 space-y-2">
@@ -257,16 +319,22 @@ export default function AdminAcademicPage() {
                     variant="secondary"
                     size="sm"
                     onClick={() => void toggleAnnouncement(ann.id, ann.is_active)}
+                    disabled={Boolean(actionKey)}
                   >
-                    {ann.is_active ? 'Deactivate' : 'Activate'}
+                    {actionKey === `toggle-announcement:${ann.id}`
+                      ? 'Updating...'
+                      : ann.is_active
+                        ? 'Deactivate'
+                        : 'Activate'}
                   </Button>
                   <Button
                     type="button"
                     variant="danger"
                     size="sm"
                     onClick={() => void deleteAnnouncement(ann.id)}
+                    disabled={Boolean(actionKey)}
                   >
-                    Delete
+                    {actionKey === `delete-announcement:${ann.id}` ? 'Deleting...' : 'Delete'}
                   </Button>
                 </div>
               </div>

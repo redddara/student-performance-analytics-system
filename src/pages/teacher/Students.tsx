@@ -7,6 +7,15 @@ import { useAuthStore } from '../../store';
 import { supabase, getGradeStatus } from '../../lib/supabase';
 import { SCHOOL_SECTION_SELECT_OPTIONS, normalizeSchoolSection } from '../../constants/schoolSections';
 
+const yearLevelRank = (value?: string | null) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized.startsWith('1')) return 1;
+  if (normalized.startsWith('2')) return 2;
+  if (normalized.startsWith('3')) return 3;
+  if (normalized.startsWith('4')) return 4;
+  return 0;
+};
+
 export default function TeacherStudentsPage() {
   const { user } = useAuthStore();
   const [mySubjects, setMySubjects] = useState<any[]>([]);
@@ -137,7 +146,11 @@ export default function TeacherStudentsPage() {
       const hasInc = rows.some((g) => g.grade_status === 'inc');
       const avg = numeric.length ? Math.round((numeric.reduce((s, n) => s + n, 0) / numeric.length) * 100) / 100 : null;
       const status = hasInc ? 'inc' : getGradeStatus(avg ?? 0);
-      return { subject, rows, avg, status };
+      const isBackSubject =
+        yearLevelRank(subject?.year_level) > 0 &&
+        yearLevelRank(student?.grade_level) > 0 &&
+        yearLevelRank(subject?.year_level) < yearLevelRank(student?.grade_level);
+      return { subject, rows, avg, status, isBackSubject };
     });
   };
 
@@ -347,19 +360,25 @@ export default function TeacherStudentsPage() {
                         {student.course?.name || '-'} · {student.grade_level || '-'} · {student.section || '-'}
                       </p>
                     </div>
-                    <Badge variant="info">{subjectCards.length} subject{subjectCards.length !== 1 ? 's' : ''}</Badge>
+                    <div className="flex items-center gap-2">
+                      {subjectCards.some((c) => c.isBackSubject) && <Badge variant="warning">Has Back Subject</Badge>}
+                      <Badge variant="info">{subjectCards.length} subject{subjectCards.length !== 1 ? 's' : ''}</Badge>
+                    </div>
                   </div>
 
                   <div className="space-y-3">
                     {subjectCards.length === 0 ? (
                       <p className="text-sm text-gray-500">No grades yet for this student.</p>
-                    ) : subjectCards.map(({ subject, rows, avg, status }) => (
+                    ) : subjectCards.map(({ subject, rows, avg, status, isBackSubject }) => (
                       <div key={`${student.id}-${subject.id}`} className="rounded-xl border border-gray-200 p-3">
                         <div className="mb-2 flex items-center justify-between gap-2">
                           <p className="text-sm font-semibold text-[#800000]">{subject.name}</p>
-                          <Badge variant={status === 'inc' ? 'warning' : status === 'passed' ? 'success' : 'danger'}>
-                            {status.toUpperCase()}
-                          </Badge>
+                          <div className="flex items-center gap-1.5">
+                            {isBackSubject && <Badge variant="warning">Back Subject</Badge>}
+                            <Badge variant={status === 'inc' ? 'warning' : status === 'passed' ? 'success' : 'danger'}>
+                              {status.toUpperCase()}
+                            </Badge>
+                          </div>
                         </div>
                         <div className="mb-2 flex flex-wrap gap-1.5">
                           {rows.length === 0 ? (

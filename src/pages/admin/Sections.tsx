@@ -7,6 +7,7 @@ import {
   GlassCard,
   Input,
   MessageModal,
+  Spinner,
   Select,
   Table,
   type AppMessagePayload,
@@ -77,6 +78,9 @@ export default function AdminSectionsPage() {
   const [promoteToSectionId, setPromoteToSectionId] = useState('');
 
   const [appMessage, setAppMessage] = useState<AppMessagePayload | null>(null);
+  const [creatingSection, setCreatingSection] = useState(false);
+  const [assigningSection, setAssigningSection] = useState(false);
+  const [promotingStudents, setPromotingStudents] = useState(false);
   const showError = (fallback: string, err: any) =>
     setAppMessage({
       title: 'Action failed',
@@ -170,7 +174,8 @@ export default function AdminSectionsPage() {
   };
 
   const createSection = async () => {
-    if (!newSectionName.trim()) return;
+    if (!newSectionName.trim() || creatingSection) return;
+    setCreatingSection(true);
     try {
       const payload: any = {
         name: newSectionName.trim(),
@@ -187,11 +192,14 @@ export default function AdminSectionsPage() {
       await load();
     } catch (err: any) {
       showError('Could not create section.', err);
+    } finally {
+      setCreatingSection(false);
     }
   };
 
   const bulkAssign = async (sectionId: string) => {
-    if (!sectionId || selectedStudentIds.length === 0) return;
+    if (!sectionId || selectedStudentIds.length === 0 || assigningSection) return;
+    setAssigningSection(true);
     try {
       const { error } = await supabase.rpc('assign_students_to_section', {
         p_student_ids: selectedStudentIds,
@@ -204,22 +212,32 @@ export default function AdminSectionsPage() {
       await load();
     } catch (err: any) {
       showError('Could not assign students to section.', err);
+    } finally {
+      setAssigningSection(false);
     }
   };
 
   const promoteSelected = async () => {
-    if (selectedStudentIds.length === 0) return;
+    if (selectedStudentIds.length === 0 || promotingStudents) return;
+    setPromotingStudents(true);
     try {
-      const { error } = await supabase.rpc('promote_students', {
+      const { data, error } = await supabase.rpc('promote_students', {
         p_student_ids: selectedStudentIds,
         p_to_section_id: promoteToSectionId || null,
       });
       if (error) throw error;
-      setAppMessage({ title: 'Promoted', message: 'Selected students were promoted.', variant: 'success' });
+      const promotedCount = Number(data || 0);
+      setAppMessage({
+        title: 'Promoted',
+        message: `${promotedCount} student${promotedCount === 1 ? '' : 's'} promoted successfully.`,
+        variant: 'success',
+      });
       setSelectedStudentIds([]);
       await load();
     } catch (err: any) {
       showError('Could not promote selected students.', err);
+    } finally {
+      setPromotingStudents(false);
     }
   };
 
@@ -267,9 +285,15 @@ export default function AdminSectionsPage() {
                 placeholder="A"
               />
             </div>
-            <Button type="button" variant="glass" className="w-full sm:w-auto" onClick={() => void createSection()}>
-              <Plus className="h-5 w-5 shrink-0" />
-              Create section
+            <Button
+              type="button"
+              variant="glass"
+              className="w-full sm:w-auto"
+              onClick={() => void createSection()}
+              disabled={creatingSection}
+            >
+              {creatingSection ? <Spinner size="sm" /> : <Plus className="h-5 w-5 shrink-0" />}
+              {creatingSection ? 'Creating…' : 'Create section'}
             </Button>
           </div>
 
@@ -404,11 +428,11 @@ export default function AdminSectionsPage() {
                   type="button"
                   className="mt-3 w-full sm:w-auto"
                   variant="glass"
-                  disabled={!transferToSectionId || selectedStudentIds.length === 0}
+                  disabled={!transferToSectionId || selectedStudentIds.length === 0 || assigningSection}
                   onClick={() => void bulkAssign(transferToSectionId)}
                 >
-                  <ArrowRightLeft className="h-5 w-5 shrink-0" />
-                  Apply section
+                  {assigningSection ? <Spinner size="sm" /> : <ArrowRightLeft className="h-5 w-5 shrink-0" />}
+                  {assigningSection ? 'Applying…' : 'Apply section'}
                 </Button>
               </GlassCard>
 
@@ -424,11 +448,11 @@ export default function AdminSectionsPage() {
                   type="button"
                   className="mt-3 w-full sm:w-auto"
                   variant="glass"
-                  disabled={selectedStudentIds.length === 0}
+                  disabled={selectedStudentIds.length === 0 || promotingStudents}
                   onClick={() => void promoteSelected()}
                 >
-                  <ArrowUpRight className="h-5 w-5 shrink-0" />
-                  Promote students
+                  {promotingStudents ? <Spinner size="sm" /> : <ArrowUpRight className="h-5 w-5 shrink-0" />}
+                  {promotingStudents ? 'Promoting…' : 'Promote students'}
                 </Button>
                 <p className="mt-2 text-xs text-gray-600">1st→2nd→3rd→4th (4th stays 4th).</p>
               </GlassCard>

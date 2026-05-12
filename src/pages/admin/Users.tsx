@@ -69,6 +69,7 @@ export default function AdminUsersPage() {
   const [filterAccountStatus, setFilterAccountStatus] = useState('');
   const [filterSection, setFilterSection] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [rowActionKey, setRowActionKey] = useState<string | null>(null);
   const [usersTablePage, setUsersTablePage] = useState(1);
   const [usersTablePageSize, setUsersTablePageSize] = useState(10);
 
@@ -104,6 +105,8 @@ export default function AdminUsersPage() {
   };
 
   const handleUnlockLogin = async (userId: string) => {
+    if (rowActionKey) return;
+    setRowActionKey(`unlock:${userId}`);
     const { error } = await supabase
       .from('users')
       .update({ login_failed_attempts: 0, login_locked_until: null })
@@ -114,6 +117,7 @@ export default function AdminUsersPage() {
         message: error.message || 'Check your connection and try again.',
         variant: 'error',
       });
+      setRowActionKey(null);
       return;
     }
     showMessage({
@@ -122,9 +126,12 @@ export default function AdminUsersPage() {
       variant: 'success',
     });
     loadData();
+    setRowActionKey(null);
   };
 
   const handleToggleDropout = async (userId: string, makeDropout: boolean) => {
+    if (rowActionKey) return;
+    setRowActionKey(`dropout:${userId}`);
     const { error } = await supabase
       .from('users')
       .update({
@@ -141,6 +148,7 @@ export default function AdminUsersPage() {
         message: error.message || 'Check your connection and try again.',
         variant: 'error',
       });
+      setRowActionKey(null);
       return;
     }
 
@@ -152,6 +160,7 @@ export default function AdminUsersPage() {
       variant: 'success',
     });
     loadData();
+    setRowActionKey(null);
   };
 
   const handleResetPassword = async () => {
@@ -607,6 +616,7 @@ export default function AdminUsersPage() {
                       type="button"
                       className={`p-2 rounded-lg glass-hover ${user.is_dropout ? 'text-green-700' : 'text-amber-700'}`}
                       onClick={() => handleToggleDropout(user.id, !user.is_dropout)}
+                      disabled={Boolean(rowActionKey)}
                       title={user.is_dropout ? 'Reactivate student account' : 'Mark as dropout (lock account)'}
                       aria-label={
                         user.is_dropout
@@ -615,9 +625,17 @@ export default function AdminUsersPage() {
                       }
                     >
                       {user.is_dropout ? (
-                        <UserCheck className="h-[1.15rem] w-[1.15rem] shrink-0" strokeWidth={2} aria-hidden />
+                        rowActionKey === `dropout:${user.id}` ? (
+                          <Spinner size="sm" />
+                        ) : (
+                          <UserCheck className="h-[1.15rem] w-[1.15rem] shrink-0" strokeWidth={2} aria-hidden />
+                        )
                       ) : (
-                        <UserX className="h-[1.15rem] w-[1.15rem] shrink-0" strokeWidth={2} aria-hidden />
+                        rowActionKey === `dropout:${user.id}` ? (
+                          <Spinner size="sm" />
+                        ) : (
+                          <UserX className="h-[1.15rem] w-[1.15rem] shrink-0" strokeWidth={2} aria-hidden />
+                        )
                       )}
                     </button>
                   )}
@@ -626,10 +644,15 @@ export default function AdminUsersPage() {
                       type="button"
                       className="p-2 rounded-lg glass-hover text-green-700"
                       onClick={() => handleUnlockLogin(user.id)}
+                      disabled={Boolean(rowActionKey)}
                       title="Unlock login (clear lockout)"
                       aria-label={`Unlock login for ${user.name || user.first_name || 'user'}`}
                     >
-                      <LockOpen className="h-[1.15rem] w-[1.15rem] shrink-0" strokeWidth={2} aria-hidden />
+                      {rowActionKey === `unlock:${user.id}` ? (
+                        <Spinner size="sm" />
+                      ) : (
+                        <LockOpen className="h-[1.15rem] w-[1.15rem] shrink-0" strokeWidth={2} aria-hidden />
+                      )}
                     </button>
                   )}
                   <button 

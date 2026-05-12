@@ -18,6 +18,15 @@ import {
   type EnrolledStudentLite,
 } from '../../lib/bulkGradeUploadPreview';
 
+const yearLevelRank = (value?: string | null) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized.startsWith('1')) return 1;
+  if (normalized.startsWith('2')) return 2;
+  if (normalized.startsWith('3')) return 3;
+  if (normalized.startsWith('4')) return 4;
+  return 0;
+};
+
 export default function TeacherGradesPage() {
   const { user } = useAuthStore();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -748,6 +757,17 @@ export default function TeacherGradesPage() {
     return s?.name || 'Unknown';
   };
 
+  const isBackSubjectForStudent = (studentId: string, subjectId: string) => {
+    const st = students.find((s) => s.id === studentId);
+    const sub = mySubjects.find((s) => s.id === subjectId);
+    if (!st || !sub) return false;
+    return (
+      yearLevelRank(sub.year_level) > 0 &&
+      yearLevelRank(st.grade_level) > 0 &&
+      yearLevelRank(sub.year_level) < yearLevelRank(st.grade_level)
+    );
+  };
+
   if (loading) {
     return <DashboardLayout title="Grades"><PageSkeletonLoader rows={6} /></DashboardLayout>;
   }
@@ -1228,7 +1248,16 @@ export default function TeacherGradesPage() {
                 <tbody className="divide-y divide-gray-100 bg-white">
                   {classRecordRows.map((row) => (
                     <tr key={row.id} className={row.locked ? 'bg-gray-50' : 'hover:bg-gray-50/70'}>
-                      <td className="px-3 py-3 font-medium text-gray-900 sm:px-4">{row.name}</td>
+                      <td className="px-3 py-3 font-medium text-gray-900 sm:px-4">
+                        <div className="flex items-center gap-2">
+                          <span>{row.name}</span>
+                          {selectedSubject && isBackSubjectForStudent(row.id, selectedSubject) && (
+                            <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                              Back Subject
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       {[1, 2, 3, 4].map((quarter) => {
                         const current =
                           quarter === 1 ? row.q1 : quarter === 2 ? row.q2 : quarter === 3 ? row.q3 : row.q4;
@@ -1322,7 +1351,16 @@ export default function TeacherGradesPage() {
                 : 'hover:bg-white/20';
             return (
             <tr key={grade.id} className={rowClassName}>
-              <td className={`px-4 py-3 font-semibold ${failing ? 'text-red-950' : excellent ? 'text-green-950' : 'text-gray-800'}`}>{getStudentName(grade.student_id)}</td>
+              <td className={`px-4 py-3 font-semibold ${failing ? 'text-red-950' : excellent ? 'text-green-950' : 'text-gray-800'}`}>
+                <div className="flex items-center gap-2">
+                  <span>{getStudentName(grade.student_id)}</span>
+                  {isBackSubjectForStudent(grade.student_id, grade.subject_id) && (
+                    <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                      Back Subject
+                    </span>
+                  )}
+                </div>
+              </td>
               <td className={`px-4 py-3 ${failing ? 'text-red-900' : excellent ? 'text-green-900' : 'text-gray-600'}`}>{getSubjectName(grade.subject_id)}</td>
               <td className={`px-4 py-3 ${failing ? 'text-red-900' : excellent ? 'text-green-900' : 'text-gray-600'}`}>{grade.semester === 1 ? '1st Sem' : '2nd Sem'}</td>
               <td className={`px-4 py-3 ${failing ? 'text-red-900' : excellent ? 'text-green-900' : 'text-gray-600'}`}>

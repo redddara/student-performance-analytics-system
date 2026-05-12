@@ -30,6 +30,7 @@ export default function StudentGradesPage() {
   const [selectedSemester, setSelectedSemester] = useState(1);
   const [selectedQuarter, setSelectedQuarter] = useState('');
   const [filterSearch, setFilterSearch] = useState('');
+  const [filterYearLevel, setFilterYearLevel] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [activeSchoolYearId, setActiveSchoolYearId] = useState<string | null>(null);
   const [activeSchoolYearName, setActiveSchoolYearName] = useState('All years');
@@ -94,8 +95,10 @@ export default function StudentGradesPage() {
         byId.set(activeSchoolYearId, activeSchoolYearName);
       }
     }
-    const rows = [...byId.entries()].sort((a, b) => a[1].localeCompare(b[1]));
-    return [{ value: '', label: 'All school years' }, ...rows.map(([value, label]) => ({ value, label }))];
+    const rows = [...byId.entries()]
+      .map(([id, name]) => ({ id, name: name && name.trim() ? name : `Unknown school year (${id.slice(0, 8)}...)` }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    return [{ value: '', label: 'All school years' }, ...rows.map((r) => ({ value: r.id, label: r.name }))];
   }, [myGrades, activeSchoolYearId, activeSchoolYearName]);
 
   const yearIdsForGrouping = useMemo(() => {
@@ -191,36 +194,35 @@ export default function StudentGradesPage() {
     return calculateGWA(semesterGrades as any[]).toFixed(2);
   };
 
+  const subjectMatchesSearchAndYear = useCallback(
+    (ss: { subject?: { name?: string; course?: { name?: string }; year_level?: string } }) => {
+      const q = filterSearch.trim().toLowerCase();
+      const name = String(ss.subject?.name || '').toLowerCase();
+      const course = String(ss.subject?.course?.name || '').toLowerCase();
+      if (q && !name.includes(q) && !course.includes(q)) return false;
+      if (filterYearLevel && (ss.subject?.year_level || '') !== filterYearLevel) return false;
+      return true;
+    },
+    [filterSearch, filterYearLevel]
+  );
+
   const semesterSubjects = useMemo(
     () => (selectedSchoolYearId ? buildSubjectRows(selectedSchoolYearId) : []),
     [selectedSchoolYearId, buildSubjectRows]
   );
 
   const filteredSemesterSubjects = useMemo(() => {
-    const q = filterSearch.trim().toLowerCase();
-    if (!q) return semesterSubjects;
-    return semesterSubjects.filter((ss) => {
-      const name = String(ss.subject?.name || '').toLowerCase();
-      const course = String(ss.subject?.course?.name || '').toLowerCase();
-      return name.includes(q) || course.includes(q);
-    });
-  }, [semesterSubjects, filterSearch]);
+    return semesterSubjects.filter(subjectMatchesSearchAndYear);
+  }, [semesterSubjects, subjectMatchesSearchAndYear]);
 
   const groupedGradePanels = useMemo(() => {
     if (selectedSchoolYearId) return null;
-    const q = filterSearch.trim().toLowerCase();
     return yearScopesForGrouping.map(({ key, label }) => {
       const rows = buildSubjectRows(key);
-      const filtered = q
-        ? rows.filter((ss) => {
-            const name = String(ss.subject?.name || '').toLowerCase();
-            const course = String(ss.subject?.course?.name || '').toLowerCase();
-            return name.includes(q) || course.includes(q);
-          })
-        : rows;
+      const filtered = rows.filter(subjectMatchesSearchAndYear);
       return { scopeKey: key, title: label, rows, filtered };
     });
-  }, [selectedSchoolYearId, yearScopesForGrouping, buildSubjectRows, filterSearch]);
+  }, [selectedSchoolYearId, yearScopesForGrouping, buildSubjectRows, subjectMatchesSearchAndYear]);
 
   const subjectCountSummary = useMemo(() => {
     if (selectedSchoolYearId) {
@@ -234,12 +236,14 @@ export default function StudentGradesPage() {
 
   const hasActiveFilters =
     Boolean(filterSearch.trim()) ||
+    Boolean(filterYearLevel) ||
     selectedSemester !== 1 ||
     selectedQuarter !== '' ||
     (activeSchoolYearId ? selectedSchoolYearId !== activeSchoolYearId : selectedSchoolYearId !== '');
 
   const clearFilters = () => {
     setFilterSearch('');
+    setFilterYearLevel('');
     setSelectedSemester(1);
     setSelectedQuarter('');
     setSelectedSchoolYearId(activeSchoolYearId || '');
@@ -316,7 +320,7 @@ export default function StudentGradesPage() {
           <p className="mb-4 text-sm leading-relaxed text-gray-600">
             Use the search bar above to filter subjects by name or course. Adjust semester and quarter here.
           </p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Select
               label="Semester"
               value={`${selectedSemester}`}
@@ -333,6 +337,18 @@ export default function StudentGradesPage() {
                 { value: '2', label: 'Midterm' },
                 { value: '3', label: 'Pre-Finals' },
                 { value: '4', label: 'Finals' },
+              ]}
+            />
+            <Select
+              label="Year level"
+              value={filterYearLevel}
+              onChange={(e) => setFilterYearLevel(e.target.value)}
+              options={[
+                { value: '', label: 'All years' },
+                { value: '1st', label: '1st Year' },
+                { value: '2nd', label: '2nd Year' },
+                { value: '3rd', label: '3rd Year' },
+                { value: '4th', label: '4th Year' },
               ]}
             />
           </div>

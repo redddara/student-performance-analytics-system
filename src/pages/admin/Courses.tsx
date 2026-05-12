@@ -8,6 +8,7 @@ import {
   Input,
   Table,
   Modal,
+  Spinner,
   PageSkeletonLoader,
   ConfirmModal,
   MessageModal,
@@ -22,6 +23,8 @@ export default function AdminCoursesPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingCourse, setEditingCourse] = useState<any>(null);
   const [courseName, setCourseName] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{isOpen: boolean; id: string | null; name: string | null}>({ isOpen: false, id: null, name: null });
   const [appMessage, setAppMessage] = useState<AppMessagePayload | null>(null);
 
@@ -37,6 +40,8 @@ export default function AdminCoursesPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
     try {
       if (editingCourse) {
         const { error } = await supabase.from('courses').update({ name: courseName }).eq('id', editingCourse.id);
@@ -58,6 +63,8 @@ export default function AdminCoursesPage() {
         message: err.message || 'Check your connection and try again.',
         variant: 'error',
       });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -72,7 +79,8 @@ export default function AdminCoursesPage() {
   };
 
   const confirmDelete = async () => {
-    if (!deleteConfirm.id) return;
+    if (!deleteConfirm.id || deleting) return;
+    setDeleting(true);
     const name = deleteConfirm.name || 'Course';
     try {
       const { error } = await supabase.from('courses').delete().eq('id', deleteConfirm.id);
@@ -86,6 +94,7 @@ export default function AdminCoursesPage() {
         variant: 'error',
       });
     } finally {
+      setDeleting(false);
       setDeleteConfirm({ isOpen: false, id: null, name: null });
     }
   };
@@ -159,13 +168,15 @@ export default function AdminCoursesPage() {
               <XCircle className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
               Cancel
             </Button>
-            <Button type="submit" className="flex-1">
-              {editingCourse ? (
+            <Button type="submit" className="flex-1" disabled={submitting}>
+              {submitting ? (
+                <Spinner size="sm" />
+              ) : editingCourse ? (
                 <Pencil className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
               ) : (
                 <Plus className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
               )}
-              {editingCourse ? 'Update' : 'Create'}
+              {submitting ? 'Saving...' : editingCourse ? 'Update' : 'Create'}
             </Button>
           </div>
         </form>

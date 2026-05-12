@@ -1,5 +1,5 @@
 import { clsx } from 'clsx';
-import { ReactNode, ButtonHTMLAttributes } from 'react';
+import { ReactNode, ButtonHTMLAttributes, useState } from 'react';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -487,7 +487,7 @@ export function EmptyState({ title, description, action }: EmptyStateProps) {
 interface ConfirmModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
   title: string;
   message: string;
   confirmText?: string;
@@ -505,6 +505,7 @@ export function ConfirmModal({
   cancelText = 'Cancel',
   variant = 'danger'
 }: ConfirmModalProps) {
+  const [processing, setProcessing] = useState(false);
   if (!isOpen) return null;
   
   const variants = {
@@ -533,7 +534,9 @@ export function ConfirmModal({
     <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-md touch-manipulation"
-        onClick={onClose}
+        onClick={() => {
+          if (!processing) onClose();
+        }}
         aria-hidden
       />
       <div className="relative m-0 max-h-[min(90dvh,100vh)] w-full max-w-sm overflow-y-auto overscroll-y-contain rounded-t-2xl bg-white/80 backdrop-blur-2xl shadow-2xl border border-white/50 sm:m-4 sm:rounded-2xl animate-in fade-in zoom-in duration-200">
@@ -551,6 +554,7 @@ export function ConfirmModal({
             <button
               type="button"
               onClick={onClose}
+              disabled={processing}
               className="flex min-h-[44px] w-full items-center justify-center gap-2 touch-manipulation rounded-xl border border-gray-300 px-4 py-2.5 text-gray-700 hover:bg-gray-100 transition-all duration-300 sm:w-auto sm:min-h-0"
             >
               <XCircle className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
@@ -558,14 +562,32 @@ export function ConfirmModal({
             </button>
             <button
               type="button"
-              onClick={() => {
-                onConfirm();
-                onClose();
+              disabled={processing}
+              onClick={async () => {
+                if (processing) return;
+                setProcessing(true);
+                try {
+                  await onConfirm();
+                  onClose();
+                } catch (error) {
+                  console.error('Confirm action failed:', error);
+                } finally {
+                  setProcessing(false);
+                }
               }}
               className={`flex min-h-[44px] w-full items-center justify-center gap-2 touch-manipulation rounded-xl px-4 py-2.5 text-white ${v.button} transition-all duration-300 shadow-lg hover:shadow-xl sm:w-auto sm:min-h-0`}
             >
-              <ConfirmActionIcon className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
-              {confirmText}
+              {processing ? (
+                <>
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/80 border-t-transparent" aria-hidden />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <ConfirmActionIcon className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+                  {confirmText}
+                </>
+              )}
             </button>
           </div>
         </div>

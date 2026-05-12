@@ -105,6 +105,10 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
   );
 
   useEffect(() => {
+    void loadAnnouncements();
+  }, [loadAnnouncements]);
+
+  useEffect(() => {
     try {
       const raw = localStorage.getItem(notificationsStorageKey);
       if (!raw) {

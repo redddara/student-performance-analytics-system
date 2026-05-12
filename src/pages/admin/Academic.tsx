@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { Button, GlassCard, Input, MessageModal, type AppMessagePayload } from '../../components/ui';
+import { useAuthStore } from '../../store';
 import { supabase } from '../../lib/supabase';
+import { useSupabaseLiveReload } from '../../lib/useSupabaseLiveReload';
 
 type SchoolYear = {
   id: string;
@@ -11,6 +13,7 @@ type SchoolYear = {
 };
 
 export default function AdminAcademicPage() {
+  const { user } = useAuthStore();
   const [schoolYears, setSchoolYears] = useState<SchoolYear[]>([]);
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [newSchoolYear, setNewSchoolYear] = useState('');
@@ -25,7 +28,7 @@ export default function AdminAcademicPage() {
       variant: 'error',
     });
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const [syRes, annRes] = await Promise.all([
         supabase.from('school_years').select('*').order('created_at', { ascending: false }),
@@ -41,11 +44,17 @@ export default function AdminAcademicPage() {
         err
       );
     }
-  };
+  }, []);
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [load]);
+
+  useSupabaseLiveReload(
+    load,
+    user?.id ? `live:admin-academic:${user.id}` : null,
+    ['school_years', 'system_announcements']
+  );
 
   const createSchoolYear = async () => {
     if (!newSchoolYear.trim()) return;

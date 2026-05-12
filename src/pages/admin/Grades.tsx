@@ -263,21 +263,24 @@ export default function AdminGradesPage() {
   const approveUnlock = async (row: FinalAverageRow) => {
     if (!row.grade_ids.length) return;
     setActionLoadingKey(`${row.key}:unlock`);
-    await supabase
-      .from('grades')
-      .update({
-        workflow_status: 'reopened',
-        is_locked: false,
-        locked_at: null,
-        locked_by: null,
-        unlock_requested: false,
-        unlock_reason: null,
-        unlock_requested_at: null,
-        unlock_requested_by: null,
-      })
-      .in('id', row.grade_ids);
-    setActionLoadingKey('');
-    await loadData();
+    try {
+      await supabase
+        .from('grades')
+        .update({
+          workflow_status: 'reopened',
+          is_locked: false,
+          locked_at: null,
+          locked_by: null,
+          unlock_requested: false,
+          unlock_reason: null,
+          unlock_requested_at: null,
+          unlock_requested_by: null,
+        })
+        .in('id', row.grade_ids);
+      await loadData();
+    } finally {
+      setActionLoadingKey('');
+    }
   };
 
   if (loading) return <DashboardLayout title="Grades"><PageSkeletonLoader rows={4} /></DashboardLayout>;
@@ -401,9 +404,9 @@ export default function AdminGradesPage() {
                     <button
                       type="button"
                       className="rounded-lg p-2 text-amber-700 hover:bg-amber-50 disabled:opacity-50"
-                      disabled={!anyUnlockRequested || actionLoadingKey === `${row.key}:unlock`}
+                      disabled={!anyLocked || actionLoadingKey === `${row.key}:unlock`}
                       onClick={() => void approveUnlock(row)}
-                      title={anyUnlockRequested ? 'Approve unlock request' : 'No unlock request'}
+                      title={anyLocked ? 'Unlock and reopen for editing' : 'Already unlocked'}
                     >
                       <LockOpen className="h-[1.1rem] w-[1.1rem] shrink-0" />
                     </button>

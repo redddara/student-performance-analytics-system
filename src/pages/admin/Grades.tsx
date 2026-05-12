@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Download, Lock, LockOpen, Pencil } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { PageIntro } from '../../components/layouts/PageIntro';
 import { Button, GlassCard, Modal, Select, Table, PageSkeletonLoader } from '../../components/ui';
+import { useAuthStore } from '../../store';
 import { supabase, getGradeRemarks, getGradeStatus } from '../../lib/supabase';
+import { useSupabaseLiveReload } from '../../lib/useSupabaseLiveReload';
 
 type FinalAverageRow = {
   key: string;
@@ -22,6 +24,7 @@ type FinalAverageRow = {
 };
 
 export default function AdminGradesPage() {
+  const { user } = useAuthStore();
   const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [grades, setGrades] = useState<any[]>([]);
@@ -50,55 +53,65 @@ export default function AdminGradesPage() {
     if (sem) setSemester(sem);
   }, [searchParams]);
 
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent ?? false;
+    if (!silent) setLoading(true);
     let activeSy: { id?: string; name?: string } | null = null;
     try {
-      const listRes = await supabase
-        .from('school_years')
-        .select('id,name,is_active,created_at')
-        .order('created_at', { ascending: false });
-      if (listRes.error) throw listRes.error;
-      const list = (listRes.data || []) as any[];
-      setSchoolYears(list);
-      const foundActive = list.find((sy) => Boolean(sy.is_active)) || null;
+      try {
+        const listRes = await supabase
+          .from('school_years')
+          .select('id,name,is_active,created_at')
+          .order('created_at', { ascending: false });
+        if (listRes.error) throw listRes.error;
+        const list = (listRes.data || []) as any[];
+        setSchoolYears(list);
+        const foundActive = list.find((sy) => Boolean(sy.is_active)) || null;
 
-      activeSy = foundActive ? { id: foundActive.id, name: foundActive.name } : null;
-      setActiveSchoolYearId(foundActive?.id ?? null);
-      setActiveSchoolYearName(activeSy?.name || 'None active');
-    } catch {
-      // Backward-compat: if migration not applied yet, keep admin grades working.
-      activeSy = null;
-      setActiveSchoolYearName('All years');
+        activeSy = foundActive ? { id: foundActive.id, name: foundActive.name } : null;
+        setActiveSchoolYearId(foundActive?.id ?? null);
+        setActiveSchoolYearName(activeSy?.name || 'None active');
+      } catch {
+        // Backward-compat: if migration not applied yet, keep admin grades working.
+        activeSy = null;
+        setActiveSchoolYearName('All years');
+      }
+
+      const effectiveSchoolYearId =
+        schoolYearFilter === 'all'
+          ? null
+          : schoolYearFilter === 'active'
+            ? activeSy?.id || null
+            : schoolYearFilter || null;
+
+      const [gradesRes, studentsRes, subjectsRes, coursesRes] = await Promise.all([
+        (async () => {
+          let query = supabase.from('grades').select('*').order('created_at', { ascending: false });
+          if (effectiveSchoolYearId) query = query.eq('school_year_id', effectiveSchoolYearId);
+          return query;
+        })(),
+        supabase.from('students').select('id,first_name,last_name,section,grade_level,course_id'),
+        supabase.from('subjects').select('id,name,course_id'),
+        supabase.from('courses').select('id,name'),
+      ]);
+      setGrades(gradesRes.data || []);
+      setStudents(studentsRes.data || []);
+      setSubjects(subjectsRes.data || []);
+      setCourses(coursesRes.data || []);
+    } finally {
+      if (!silent) setLoading(false);
     }
-
-    const effectiveSchoolYearId =
-      schoolYearFilter === 'all'
-        ? null
-        : schoolYearFilter === 'active'
-          ? activeSy?.id || null
-          : schoolYearFilter || null;
-
-    const [gradesRes, studentsRes, subjectsRes, coursesRes] = await Promise.all([
-      (async () => {
-        let query = supabase.from('grades').select('*').order('created_at', { ascending: false });
-        if (effectiveSchoolYearId) query = query.eq('school_year_id', effectiveSchoolYearId);
-        return query;
-      })(),
-      supabase.from('students').select('id,first_name,last_name,section,grade_level,course_id'),
-      supabase.from('subjects').select('id,name,course_id'),
-      supabase.from('courses').select('id,name'),
-    ]);
-    setGrades(gradesRes.data || []);
-    setStudents(studentsRes.data || []);
-    setSubjects(subjectsRes.data || []);
-    setCourses(coursesRes.data || []);
-    setLoading(false);
-  };
+  }, [schoolYearFilter]);
 
   useEffect(() => {
     void loadData();
-  }, [schoolYearFilter]);
+  }, [loadData]);
+
+  useSupabaseLiveReload(
+    useCallback(() => loadData({ silent: true }), [loadData]),
+    user?.id ? `live:admin-grades:${user.id}` : null,
+    ['grades', 'students', 'subjects', 'courses', 'school_years', 'student_subjects']
+  );
 
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();

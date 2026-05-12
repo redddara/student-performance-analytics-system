@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useSupabaseLiveReload } from '../../lib/useSupabaseLiveReload';
 import { AlertTriangle, Lightbulb, Star } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { GlassCard, PageSkeletonLoader, Select } from '../../components/ui';
@@ -32,11 +33,7 @@ export default function StudentAnalyticsPage() {
   /** '' = all school years */
   const [selectedSchoolYearId, setSelectedSchoolYearId] = useState('');
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const { data: studentData } = await supabase
         .from('students')
@@ -75,7 +72,19 @@ export default function StudentAnalyticsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id]);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
+
+  useSupabaseLiveReload(loadData, user?.id ? `live:student-analytics:${user.id}` : null, [
+    'grades',
+    'student_subjects',
+    'school_years',
+    'subjects',
+    'students',
+  ]);
 
   const schoolYearOptions = useMemo(() => {
     const byId = new Map<string, string>();

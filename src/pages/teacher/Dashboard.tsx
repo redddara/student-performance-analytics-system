@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useSupabaseLiveReload } from '../../lib/useSupabaseLiveReload';
 import { CheckCircle2, GraduationCap, UserPen, UserRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
@@ -14,11 +15,7 @@ export default function TeacherDashboard() {
   const [mySubjects, setMySubjects] = useState<any[]>([]);
   const [myStudents, setMyStudents] = useState<any[]>([]);
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       // Get subjects assigned to this teacher
       const { data: teacherSubjects } = await supabase
@@ -53,7 +50,19 @@ export default function TeacherDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id]);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
+
+  useSupabaseLiveReload(loadData, user?.id ? `live:teacher-dashboard:${user.id}` : null, [
+    'grades',
+    'student_subjects',
+    'subjects',
+    'students',
+    'courses',
+  ]);
 
   if (loading) {
     return <DashboardLayout title="Dashboard"><PageSkeletonLoader /></DashboardLayout>;

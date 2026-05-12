@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   BookOpen,
@@ -23,8 +23,9 @@ import {
   MessageModal,
   type AppMessagePayload,
 } from '../../components/ui';
-import { useDataStore } from '../../store';
+import { useDataStore, useAuthStore } from '../../store';
 import { supabase, generateStudentUsername, generateTempPassword, hashPassword } from '../../lib/supabase';
+import { useSupabaseLiveReload } from '../../lib/useSupabaseLiveReload';
 import { sendEmail, generateStudentCredentialEmail } from '../../api/email';
 import type { Course } from '../../types';
 import {
@@ -35,6 +36,7 @@ import {
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
+  const { user } = useAuthStore();
   const { students, teachers, courses, subjects, grades, setCourses, setSubjects, setStudents, setGrades, setTeachers } = useDataStore();
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -42,11 +44,7 @@ export default function AdminDashboard() {
   const [appMessage, setAppMessage] = useState<AppMessagePayload | null>(null);
   const showMessage = (payload: AppMessagePayload) => setAppMessage(payload);
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const [coursesRes, subjectsRes, studentsRes, usersRes, gradesRes] = await Promise.all([
         supabase.from('courses').select('*'),
@@ -66,7 +64,17 @@ export default function AdminDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [setCourses, setSubjects, setStudents, setGrades, setTeachers]);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
+
+  useSupabaseLiveReload(
+    loadData,
+    user?.id ? `live:admin-dashboard:${user.id}` : null,
+    ['courses', 'subjects', 'students', 'users', 'grades', 'student_subjects']
+  );
 
   const totalStudents = students.length;
   const totalTeachers = teachers.length;

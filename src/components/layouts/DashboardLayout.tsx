@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../../store';
 import { supabase } from '../../lib/supabase';
+import { useSupabaseLiveReload } from '../../lib/useSupabaseLiveReload';
 import logoSpas from '../../assets/LOGO SPAS.png';
 
 interface DashboardLayoutProps {
@@ -78,27 +79,30 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
 
   const notificationsStorageKey = `sapas_read_notifications_${user?.id || 'guest'}_${role}`;
 
-  useEffect(() => {
-    const loadAnnouncements = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('system_announcements')
-          .select('id,title,body,expires_at')
-          .eq('is_active', true)
-          .order('created_at', { ascending: false })
-          .limit(2);
-        if (error) throw error;
-        const now = Date.now();
-        setActiveAnnouncements(
-          (data || []).filter((a: any) => !a.expires_at || new Date(a.expires_at).getTime() > now)
-        );
-      } catch {
-        // Backward-compat: if migration not applied yet, keep dashboards working.
-        setActiveAnnouncements([]);
-      }
-    };
-    void loadAnnouncements();
+  const loadAnnouncements = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('system_announcements')
+        .select('id,title,body,expires_at')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(2);
+      if (error) throw error;
+      const now = Date.now();
+      setActiveAnnouncements(
+        (data || []).filter((a: any) => !a.expires_at || new Date(a.expires_at).getTime() > now)
+      );
+    } catch {
+      // Backward-compat: if migration not applied yet, keep dashboards working.
+      setActiveAnnouncements([]);
+    }
   }, []);
+
+  useSupabaseLiveReload(
+    loadAnnouncements,
+    user?.id ? `live:layout-announcements:${user.id}` : null,
+    ['system_announcements']
+  );
 
   useEffect(() => {
     try {
@@ -192,7 +196,7 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
       reloadAdminWorkflowTimerRef.current = window.setTimeout(() => {
         reloadAdminWorkflowTimerRef.current = null;
         void loadAdminWorkflowAlerts();
-      }, 350);
+      }, 80);
     };
 
     const channel = supabase
@@ -212,6 +216,14 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
       void supabase.removeChannel(channel);
     };
   }, [role, user?.id, loadAdminWorkflowAlerts]);
+
+  useEffect(() => {
+    if (role !== 'admin') return;
+    const id = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void loadAdminWorkflowAlerts();
+    }, 2000);
+    return () => window.clearInterval(id);
+  }, [role, loadAdminWorkflowAlerts]);
 
   const announcementNotifications = activeAnnouncements.map((ann: any) => ({
     id: `ann:${ann.id}`,

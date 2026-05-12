@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useGradesAutoRefresh } from '../../lib/useGradesAutoRefresh';
 import { ListFilter, RefreshCw, Search } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { GlassCard, Select, Table, Button, PageSkeletonLoader } from '../../components/ui';
@@ -35,11 +36,7 @@ export default function StudentGradesPage() {
   /** '' = all years (grouped tables); otherwise one school_years.id */
   const [selectedSchoolYearId, setSelectedSchoolYearId] = useState('');
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const { data: studentData } = await supabase
         .from('students')
@@ -76,7 +73,13 @@ export default function StudentGradesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id]);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
+
+  useGradesAutoRefresh(loadData, user?.id ? `grades-live:student-grades:${user.id}` : null);
 
   const schoolYearOptions = useMemo(() => {
     const byId = new Map<string, string>();

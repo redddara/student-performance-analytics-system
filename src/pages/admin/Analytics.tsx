@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { PageIntro } from '../../components/layouts/PageIntro';
 import { GlassCard, Select, Button, PageSkeletonLoader } from '../../components/ui';
-import { useDataStore } from '../../store';
+import { useDataStore, useAuthStore } from '../../store';
 import { supabase, isPassing, calculateGWA, isDeanListEligible } from '../../lib/supabase';
+import { useSupabaseLiveReload } from '../../lib/useSupabaseLiveReload';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, Legend, AreaChart, Area, ComposedChart
@@ -12,6 +13,7 @@ import { Users, BarChart3, TrendingUp, GraduationCap, BookOpen, CheckCircle2, Ch
 import { chartAxis, chartGrid, chartLegend, chartTooltip } from '../../lib/chartTheme';
 
 export default function AdminAnalyticsPage() {
+  const { user } = useAuthStore();
   const { subjects, students, grades, courses } = useDataStore();
   const [loading, setLoading] = useState(true);
   const [selectedCourse, setSelectedCourse] = useState('all');
@@ -19,16 +21,7 @@ export default function AdminAnalyticsPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [activeSchoolYearName, setActiveSchoolYearName] = useState<string>('');
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  useEffect(() => {
-    // Trigger animations after data loads
-    setTimeout(() => setAnimated(true), 100);
-  }, [loading]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       let activeSy: { id?: string; name?: string } | null = null;
       try {
@@ -66,7 +59,22 @@ export default function AdminAnalyticsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
+
+  useSupabaseLiveReload(
+    loadData,
+    user?.id ? `live:admin-analytics:${user.id}` : null,
+    ['subjects', 'students', 'grades', 'courses', 'school_years', 'student_subjects']
+  );
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setAnimated(true), 100);
+    return () => window.clearTimeout(t);
+  }, [loading]);
 
   if (loading) {
     return <DashboardLayout title="Analytics"><PageSkeletonLoader rows={5} /></DashboardLayout>;

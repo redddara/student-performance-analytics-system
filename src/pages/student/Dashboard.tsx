@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useGradesAutoRefresh } from '../../lib/useGradesAutoRefresh';
 import { BookOpen, CheckCircle2, Pencil, Target } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { GlassCard, PageSkeletonLoader } from '../../components/ui';
@@ -11,11 +12,7 @@ export default function StudentDashboard() {
   const [myGrades, setMyGrades] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       // Get student record
       const { data: studentData } = await supabase
@@ -49,7 +46,13 @@ export default function StudentDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id]);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
+
+  useGradesAutoRefresh(loadData, user?.id ? `grades-live:student-dashboard:${user.id}` : null);
 
   if (loading) {
     return <DashboardLayout title="Dashboard"><PageSkeletonLoader /></DashboardLayout>;

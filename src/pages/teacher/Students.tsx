@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useSupabaseLiveReload } from '../../lib/useSupabaseLiveReload';
 import { BookUser, GraduationCap, ListFilter, RefreshCw, Search, UserRound } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { GlassCard, Badge, Table, Button, Select, PageSkeletonLoader } from '../../components/ui';
@@ -20,11 +21,7 @@ export default function TeacherStudentsPage() {
   const [filterSubjectId, setFilterSubjectId] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const { data: teacherSubjects } = await supabase
         .from('subjects')
@@ -79,7 +76,19 @@ export default function TeacherStudentsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id]);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
+
+  useSupabaseLiveReload(loadData, user?.id ? `live:teacher-students:${user.id}` : null, [
+    'grades',
+    'student_subjects',
+    'subjects',
+    'students',
+    'courses',
+  ]);
 
   const courseOptions = useMemo(() => {
     const m = new Map<string, string>();

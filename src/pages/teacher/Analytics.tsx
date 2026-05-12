@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useSupabaseLiveReload } from '../../lib/useSupabaseLiveReload';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { GlassCard, PageSkeletonLoader } from '../../components/ui';
 import { useAuthStore } from '../../store';
@@ -16,11 +17,7 @@ export default function TeacherAnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [activeSchoolYearName, setActiveSchoolYearName] = useState<string>('');
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       if (!user?.id) {
         setMySubjects([]);
@@ -81,7 +78,20 @@ export default function TeacherAnalyticsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id]);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
+
+  useSupabaseLiveReload(loadData, user?.id ? `live:teacher-analytics:${user.id}` : null, [
+    'grades',
+    'student_subjects',
+    'subjects',
+    'students',
+    'courses',
+    'school_years',
+  ]);
 
   // Get grades for my subjects only
   const mySubjectIds = mySubjects.map(s => s.id);

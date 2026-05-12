@@ -6,6 +6,7 @@ import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { GlassCard, Select, Table, Spinner, Badge, Button, MessageModal, PageSkeletonLoader, type AppMessagePayload } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase, getGradeRemarks, getGradeStatus, isPassing } from '../../lib/supabase';
+import { useGradesAutoRefresh } from '../../lib/useGradesAutoRefresh';
 import { SCHOOL_SECTION_SELECT_OPTIONS, normalizeSchoolSection } from '../../constants/schoolSections';
 import {
   buildBulkGradePreview,
@@ -51,11 +52,7 @@ export default function TeacherGradesPage() {
   const [gradeTablePage, setGradeTablePage] = useState(1);
   const [gradeTablePageSize, setGradeTablePageSize] = useState(10);
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const refreshEnrolledStudents = async (subjectId: string, allSubjectIds: string[]) => {
+  const refreshEnrolledStudents = useCallback(async (subjectId: string, allSubjectIds: string[]) => {
     if (!allSubjectIds.length) {
       setEnrolledStudents([]);
       setSelectedStudentForEntry('');
@@ -87,9 +84,9 @@ export default function TeacherGradesPage() {
     const list = Array.from(byId.values());
     setEnrolledStudents(list);
     setSelectedStudentForEntry((prev) => (list.some((s: any) => s.id === prev) ? prev : list[0]?.id ?? ''));
-  };
+  }, []);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const { data: subjectsData } = await supabase
         .from('subjects')
@@ -157,7 +154,13 @@ export default function TeacherGradesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id, searchParams, setSearchParams, refreshEnrolledStudents]);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
+
+  useGradesAutoRefresh(loadData, user?.id ? `grades-live:teacher-grades:${user.id}` : null);
 
   const saveGradeEntry = async () => {
     if (!selectedSubject || !selectedStudentForEntry) return;

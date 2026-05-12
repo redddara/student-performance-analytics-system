@@ -87,7 +87,16 @@ export default function AdminGradesPage() {
       const [gradesRes, studentsRes, subjectsRes, coursesRes] = await Promise.all([
         (async () => {
           let query = supabase.from('grades').select('*').order('created_at', { ascending: false });
-          if (effectiveSchoolYearId) query = query.eq('school_year_id', effectiveSchoolYearId);
+          // Active-year view: include legacy rows missing school_year_id (bulk upload used to omit it).
+          if (effectiveSchoolYearId) {
+            if (schoolYearFilter === 'active') {
+              query = query.or(
+                `school_year_id.eq.${effectiveSchoolYearId},school_year_id.is.null`
+              );
+            } else {
+              query = query.eq('school_year_id', effectiveSchoolYearId);
+            }
+          }
           return query;
         })(),
         supabase.from('students').select('id,first_name,last_name,section,grade_level,course_id'),

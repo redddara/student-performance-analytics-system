@@ -515,6 +515,7 @@ export default function TeacherGradesPage() {
               subject_id: selectedSubject,
               semester: pr.semester,
               quarter: pr.quarter,
+              school_year_id: activeSchoolYearId,
               grade,
               remarks: getGradeRemarks(grade),
               grade_status: getGradeStatus(grade),

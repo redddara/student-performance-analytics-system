@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { PageIntro } from '../../components/layouts/PageIntro';
 import { GlassCard, Select, Button, PageSkeletonLoader } from '../../components/ui';
-import { useDataStore } from '../../store';
+import { useDataStore, useAuthStore } from '../../store';
 import { supabase, isPassing, calculateGWA, isDeanListEligible } from '../../lib/supabase';
+import { useSupabaseLiveReload } from '../../lib/useSupabaseLiveReload';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, Legend, AreaChart, Area, ComposedChart
@@ -12,27 +13,40 @@ import { Users, BarChart3, TrendingUp, GraduationCap, BookOpen, CheckCircle2, Ch
 import { chartAxis, chartGrid, chartLegend, chartTooltip } from '../../lib/chartTheme';
 
 export default function AdminAnalyticsPage() {
+  const { user } = useAuthStore();
   const { subjects, students, grades, courses } = useDataStore();
   const [loading, setLoading] = useState(true);
   const [selectedCourse, setSelectedCourse] = useState('all');
   const [animated, setAnimated] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [activeSchoolYearName, setActiveSchoolYearName] = useState<string>('');
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  useEffect(() => {
-    // Trigger animations after data loads
-    setTimeout(() => setAnimated(true), 100);
-  }, [loading]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
+      let activeSy: { id?: string; name?: string } | null = null;
+      try {
+        const res = await supabase
+          .from('school_years')
+          .select('id,name')
+          .eq('is_active', true)
+          .maybeSingle();
+        if (res.error) throw res.error;
+        activeSy = res.data as any;
+        setActiveSchoolYearName(activeSy?.name || '');
+      } catch {
+        // If school_years isn't available yet, keep analytics working (legacy behavior).
+        activeSy = null;
+        setActiveSchoolYearName('');
+      }
+
       const [subjectsRes, studentsRes, gradesRes, coursesRes] = await Promise.all([
         supabase.from('subjects').select('*, course:courses(*)'),
         supabase.from('students').select('*, course:courses(*)'),
-        supabase.from('grades').select('*'),
+        (async () => {
+          let q = supabase.from('grades').select('*');
+          if (activeSy?.id) q = q.eq('school_year_id', activeSy.id);
+          return q;
+        })(),
         supabase.from('courses').select('*'),
       ]);
       
@@ -45,7 +59,22 @@ export default function AdminAnalyticsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
+
+  useSupabaseLiveReload(
+    loadData,
+    user?.id ? `live:admin-analytics:${user.id}` : null,
+    ['subjects', 'students', 'grades', 'courses', 'school_years', 'student_subjects']
+  );
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setAnimated(true), 100);
+    return () => window.clearTimeout(t);
+  }, [loading]);
 
   if (loading) {
     return <DashboardLayout title="Analytics"><PageSkeletonLoader rows={5} /></DashboardLayout>;
@@ -200,6 +229,11 @@ export default function AdminAnalyticsPage() {
       <PageIntro
         title="System-wide analytics" 
       />
+      {activeSchoolYearName && (
+        <p className="mb-3 text-sm text-gray-600">
+          Active School Year: <span className="font-semibold text-[#800000]">{activeSchoolYearName}</span>
+        </p>
+      )}
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <button
           type="button"

@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Check, Download, Save, Search, Users } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { GlassCard, Select, Button, MessageModal, PageSkeletonLoader, type AppMessagePayload } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase } from '../../lib/supabase';
+import { useSupabaseLiveReload } from '../../lib/useSupabaseLiveReload';
 import { SCHOOL_SECTION_SELECT_OPTIONS, normalizeSchoolSection } from '../../constants/schoolSections';
 import { BarChart, Bar, CartesianGrid, LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
@@ -25,11 +26,99 @@ export default function TeacherAttendancePage() {
   const [saving, setSaving] = useState(false);
   const [appMessage, setAppMessage] = useState<AppMessagePayload | null>(null);
 
-  useEffect(() => {
-    void loadData();
-  }, [user?.id]);
+  const selectedSubjectIdRef = useRef(selectedSubjectId);
+  const selectedDateRef = useRef(selectedDate);
+  const studentEnrollmentsRef = useRef(studentEnrollments);
+  selectedSubjectIdRef.current = selectedSubjectId;
+  selectedDateRef.current = selectedDate;
+  studentEnrollmentsRef.current = studentEnrollments;
 
-  const loadData = async () => {
+  const rosterStudentIdsForSubject = (subjectId: string, enrollments: any[]) => {
+    const byId = new Map<string, string>();
+    enrollments
+      .filter((record: any) => record.subject_id === subjectId)
+      .forEach((record: any) => {
+        const student = record.student;
+        if (student?.id) byId.set(student.id, student.id);
+      });
+    return Array.from(byId.values());
+  };
+
+  const loadAttendanceForDate = useCallback(async () => {
+    const sid = selectedSubjectIdRef.current;
+    const d = selectedDateRef.current;
+    const enrollments = studentEnrollmentsRef.current;
+    if (!sid) {
+      setPresentByStudent({});
+      return;
+    }
+
+    const studentIds = rosterStudentIdsForSubject(sid, enrollments);
+    if (!studentIds.length) {
+      setPresentByStudent({});
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('attendance_records')
+      .select('student_id, is_present')
+      .eq('subject_id', sid)
+      .eq('attendance_date', d)
+      .in('student_id', studentIds);
+
+    if (error) {
+      setAppMessage({
+        title: 'Attendance table missing',
+        message: 'Please run the new Supabase migration, then reload this page.',
+        variant: 'warning',
+      });
+      setPresentByStudent({});
+      return;
+    }
+
+    const nextMap: Record<string, boolean> = {};
+    studentIds.forEach((studentId: string) => {
+      nextMap[studentId] = false;
+    });
+    (data || []).forEach((record: any) => {
+      nextMap[record.student_id] = Boolean(record.is_present);
+    });
+    setPresentByStudent(nextMap);
+  }, []);
+
+  const loadAttendanceAnalytics = useCallback(async () => {
+    const sid = selectedSubjectIdRef.current;
+    const enrollments = studentEnrollmentsRef.current;
+    if (!sid) {
+      setAttendanceHistory([]);
+      return;
+    }
+
+    const studentIds = rosterStudentIdsForSubject(sid, enrollments);
+    if (!studentIds.length) {
+      setAttendanceHistory([]);
+      return;
+    }
+
+    setAnalyticsLoading(true);
+    const { data, error } = await supabase
+      .from('attendance_records')
+      .select('student_id, is_present, attendance_date')
+      .eq('subject_id', sid)
+      .in('student_id', studentIds)
+      .order('attendance_date', { ascending: true });
+
+    if (error) {
+      setAttendanceHistory([]);
+      setAnalyticsLoading(false);
+      return;
+    }
+
+    setAttendanceHistory(data || []);
+    setAnalyticsLoading(false);
+  }, []);
+
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const { data: subjectsData } = await supabase
@@ -44,22 +133,46 @@ export default function TeacherAttendancePage() {
       if (!subjects.length) {
         setStudentEnrollments([]);
         setSelectedSubjectId('');
+        studentEnrollmentsRef.current = [];
+        selectedSubjectIdRef.current = '';
         return;
       }
 
-      const initialSubjectId = subjects[0]?.id ?? '';
-      setSelectedSubjectId(initialSubjectId);
+      const subjectIds = subjects.map((s: any) => s.id);
+      let nextSid = selectedSubjectIdRef.current;
+      if (!nextSid || !subjectIds.includes(nextSid)) {
+        nextSid = subjects[0]?.id ?? '';
+      }
+      selectedSubjectIdRef.current = nextSid;
+      setSelectedSubjectId(nextSid);
 
       const { data: enrollments } = await supabase
         .from('student_subjects')
         .select('subject_id, student:students(*, course:courses(*), user:users(*))')
-        .in('subject_id', subjects.map((s: any) => s.id));
+        .in('subject_id', subjectIds);
 
-      setStudentEnrollments(enrollments || []);
+      const list = enrollments || [];
+      studentEnrollmentsRef.current = list;
+      setStudentEnrollments(list);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id]);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
+
+  useSupabaseLiveReload(
+    useCallback(async () => {
+      await loadData();
+      await new Promise((r) => setTimeout(r, 0));
+      await loadAttendanceForDate();
+      await loadAttendanceAnalytics();
+    }, [loadData, loadAttendanceForDate, loadAttendanceAnalytics]),
+    user?.id ? `live:teacher-attendance:${user.id}` : null,
+    ['attendance_records', 'student_subjects', 'subjects', 'students']
+  );
 
   const courseOptions = useMemo(() => {
     const courses = new Map<string, string>();
@@ -91,80 +204,11 @@ export default function TeacherAttendancePage() {
 
   useEffect(() => {
     void loadAttendanceForDate();
-  }, [selectedSubjectId, selectedDate, studentsForSelectedSubject.length]);
+  }, [selectedSubjectId, selectedDate, studentsForSelectedSubject.length, loadAttendanceForDate]);
 
   useEffect(() => {
     void loadAttendanceAnalytics();
-  }, [selectedSubjectId, studentsForSelectedSubject.length]);
-
-  const loadAttendanceForDate = async () => {
-    if (!selectedSubjectId) {
-      setPresentByStudent({});
-      return;
-    }
-
-    const studentIds = studentsForSelectedSubject.map((student: any) => student.id);
-    if (!studentIds.length) {
-      setPresentByStudent({});
-      return;
-    }
-
-    const { data, error } = await supabase
-      .from('attendance_records')
-      .select('student_id, is_present')
-      .eq('subject_id', selectedSubjectId)
-      .eq('attendance_date', selectedDate)
-      .in('student_id', studentIds);
-
-    if (error) {
-      setAppMessage({
-        title: 'Attendance table missing',
-        message: 'Please run the new Supabase migration, then reload this page.',
-        variant: 'warning',
-      });
-      setPresentByStudent({});
-      return;
-    }
-
-    const nextMap: Record<string, boolean> = {};
-    studentIds.forEach((studentId: string) => {
-      nextMap[studentId] = false;
-    });
-    (data || []).forEach((record: any) => {
-      nextMap[record.student_id] = Boolean(record.is_present);
-    });
-    setPresentByStudent(nextMap);
-  };
-
-  const loadAttendanceAnalytics = async () => {
-    if (!selectedSubjectId) {
-      setAttendanceHistory([]);
-      return;
-    }
-
-    const studentIds = studentsForSelectedSubject.map((student: any) => student.id);
-    if (!studentIds.length) {
-      setAttendanceHistory([]);
-      return;
-    }
-
-    setAnalyticsLoading(true);
-    const { data, error } = await supabase
-      .from('attendance_records')
-      .select('student_id, is_present, attendance_date')
-      .eq('subject_id', selectedSubjectId)
-      .in('student_id', studentIds)
-      .order('attendance_date', { ascending: true });
-
-    if (error) {
-      setAttendanceHistory([]);
-      setAnalyticsLoading(false);
-      return;
-    }
-
-    setAttendanceHistory(data || []);
-    setAnalyticsLoading(false);
-  };
+  }, [selectedSubjectId, studentsForSelectedSubject.length, loadAttendanceAnalytics]);
 
   const filteredStudents = useMemo(() => {
     const q = filterSearch.trim().toLowerCase();

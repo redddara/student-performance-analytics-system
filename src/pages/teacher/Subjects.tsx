@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useSupabaseLiveReload } from '../../lib/useSupabaseLiveReload';
 import { ListFilter, RefreshCw } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { GlassCard, Button, Input, Select, PageSkeletonLoader } from '../../components/ui';
@@ -17,11 +18,7 @@ export default function TeacherSubjectsPage() {
   const [filterSemester, setFilterSemester] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  useEffect(() => {
-    void loadData();
-  }, [user?.id]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const { data } = await supabase
@@ -35,7 +32,17 @@ export default function TeacherSubjectsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id]);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
+
+  useSupabaseLiveReload(loadData, user?.id ? `live:teacher-subjects:${user.id}` : null, [
+    'subjects',
+    'courses',
+    'users',
+  ]);
 
   const filteredSubjects = useMemo(() => {
     const q = filterSearch.trim().toLowerCase();

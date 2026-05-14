@@ -1,26 +1,39 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useSupabaseLiveReload } from '../../lib/useSupabaseLiveReload';
 import { AlertTriangle, Lightbulb, Star } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
-import { GlassCard, PageSkeletonLoader } from '../../components/ui';
+import { GlassCard, PageSkeletonLoader, Select } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase, isPassing, calculateGWA } from '../../lib/supabase';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { chartAxis, chartGrid, chartTooltip } from '../../lib/chartTheme';
 
+type GradeRow = {
+  subject_id?: string;
+  quarter?: number;
+  school_year_id?: string | null;
+  subject?: { name?: string };
+  school_year?: { id?: string; name?: string };
+  grade_status?: string;
+  grade?: number;
+};
+
+type AnalyticsBucket = { subject_id: string; school_year_id: string | null; displayName: string };
+
 export default function StudentAnalyticsPage() {
   const { user } = useAuthStore();
   const [mySubjects, setMySubjects] = useState<any[]>([]);
-  const [myGrades, setMyGrades] = useState<any[]>([]);
+  const [myGrades, setMyGrades] = useState<GradeRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [strengths, setStrengths] = useState<string[]>([]);
   const [weaknesses, setWeaknesses] = useState<string[]>([]);
+  const [activeSchoolYearId, setActiveSchoolYearId] = useState<string | null>(null);
+  const [activeSchoolYearName, setActiveSchoolYearName] = useState<string>('');
+  /** '' = all school years */
+  const [selectedSchoolYearId, setSelectedSchoolYearId] = useState('');
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const { data: studentData } = await supabase
         .from('students')
@@ -30,70 +43,146 @@ export default function StudentAnalyticsPage() {
 
       if (!studentData) return;
 
-      const [subjectsRes, gradesRes] = await Promise.all([
+      const [subjectsRes, activeSyRes, gradesRes] = await Promise.all([
         supabase.from('student_subjects').select('*, subject:subjects(*, course:courses(*))').eq('student_id', studentData.id),
-        supabase.from('grades').select('*').eq('student_id', studentData.id),
+        supabase.from('school_years').select('id,name').eq('is_active', true).maybeSingle(),
+        supabase
+          .from('grades')
+          .select('*, subject:subjects(*, course:courses(*)), school_year:school_years(id,name)')
+          .eq('student_id', studentData.id),
       ]);
 
-      setMySubjects(subjectsRes.data || []);
-      setMyGrades(gradesRes.data || []);
+      const activeSy = activeSyRes.data as { id?: string; name?: string } | null;
+      if (activeSyRes.error) {
+        setActiveSchoolYearId(null);
+        setActiveSchoolYearName('');
+        setSelectedSchoolYearId('');
+      } else {
+        setActiveSchoolYearId(activeSy?.id ?? null);
+        setActiveSchoolYearName(activeSy?.name || '');
+        if (activeSy?.id) setSelectedSchoolYearId(activeSy.id);
+        else setSelectedSchoolYearId('');
+      }
 
-      // Analyze performance
-      analyzePerformance(subjectsRes.data || [], gradesRes.data || []);
+      const grades = (gradesRes.data as GradeRow[]) || [];
+      setMySubjects(subjectsRes.data || []);
+      setMyGrades(grades);
     } catch (error) {
       console.error('Error:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id]);
 
-  const analyzePerformance = (subjects: any[], grades: any[]) => {
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
+
+  useSupabaseLiveReload(loadData, user?.id ? `live:student-analytics:${user.id}` : null, [
+    'grades',
+    'student_subjects',
+    'school_years',
+    'subjects',
+    'students',
+  ]);
+
+  const schoolYearOptions = useMemo(() => {
+    const byId = new Map<string, string>();
+    for (const g of myGrades) {
+      const id = g.school_year_id;
+      if (!id) continue;
+      const name = g.school_year?.name || 'School year';
+      byId.set(id, name);
+    }
+    if (activeSchoolYearId && activeSchoolYearName) {
+      if (!byId.has(activeSchoolYearId)) {
+        byId.set(activeSchoolYearId, activeSchoolYearName);
+      }
+    }
+    const rows = [...byId.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+    return [{ value: '', label: 'All school years' }, ...rows.map(([value, label]) => ({ value, label }))];
+  }, [myGrades, activeSchoolYearId, activeSchoolYearName]);
+
+  const filteredGrades = useMemo(() => {
+    if (!selectedSchoolYearId) return myGrades;
+    return myGrades.filter((g) => g.school_year_id === selectedSchoolYearId);
+  }, [myGrades, selectedSchoolYearId]);
+
+  const analyticsBuckets = useMemo(() => {
+    const buckets: AnalyticsBucket[] = [];
+    const seen = new Set<string>();
+    for (const g of filteredGrades) {
+      if (!g.subject_id) continue;
+      const sy = g.school_year_id ?? null;
+      const k = `${g.subject_id}:${sy ?? 'null'}`;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      const yearPart = g.school_year?.name ? ` (${g.school_year.name})` : '';
+      buckets.push({
+        subject_id: g.subject_id,
+        school_year_id: sy,
+        displayName: `${g.subject?.name || 'Subject'}${yearPart}`,
+      });
+    }
+    return buckets;
+  }, [filteredGrades]);
+
+  const analyzePerformanceFromGrades = useCallback((grades: GradeRow[], buckets: AnalyticsBucket[]) => {
     const newSuggestions: string[] = [];
     const newStrengths: string[] = [];
     const newWeaknesses: string[] = [];
 
-    // Calculate subject averages
-    const subjectAverages: { [key: string]: number } = {};
-    subjects.forEach(ss => {
-      const subjectGrades = grades.filter(g => g.subject_id === ss.subject_id);
+    const bucketKey = (subjectId: string, schoolYearId: string | null) =>
+      `${subjectId}:${schoolYearId ?? 'null'}`;
+
+    const subjectAverages: Record<string, number> = {};
+    buckets.forEach((b) => {
+      const k = bucketKey(b.subject_id, b.school_year_id);
+      const subjectGrades = grades.filter(
+        (g) => g.subject_id === b.subject_id && (g.school_year_id ?? null) === (b.school_year_id ?? null)
+      );
       if (subjectGrades.length > 0) {
-        subjectAverages[ss.subject_id] = calculateGWA(subjectGrades);
+        subjectAverages[k] = calculateGWA(subjectGrades as any[]);
       }
     });
 
-    // Find strengths (avg >= 85)
-    Object.entries(subjectAverages).forEach(([subjectId, avg]) => {
-      const subject = subjects.find(s => s.subject_id === subjectId);
+    Object.entries(subjectAverages).forEach(([key, avg]) => {
+      const b = buckets.find((x) => bucketKey(x.subject_id, x.school_year_id) === key);
+      if (!b) return;
       if (avg >= 85) {
-        newStrengths.push(`${subject?.subject?.name}: ${avg.toFixed(2)}`);
+        newStrengths.push(`${b.displayName}: ${avg.toFixed(2)}`);
       } else if (avg < 75) {
-        newWeaknesses.push(`${subject?.subject?.name}: ${avg.toFixed(2)}`);
+        newWeaknesses.push(`${b.displayName}: ${avg.toFixed(2)}`);
       }
     });
 
-    // Check for incomplete quarters
-    const failingSubjects = Object.entries(subjectAverages).filter(([_, avg]) => avg < 75);
-    failingSubjects.forEach(([subjectId, avg]) => {
-      const subject = subjects.find(s => s.subject_id === subjectId);
-      newSuggestions.push(`Focus on ${subject?.subject?.name} — currently at ${avg.toFixed(2)}, below passing`);
-    });
+    Object.entries(subjectAverages)
+      .filter(([, avg]) => avg < 75)
+      .forEach(([key, avg]) => {
+        const b = buckets.find((x) => bucketKey(x.subject_id, x.school_year_id) === key);
+        if (b) {
+          newSuggestions.push(`Focus on ${b.displayName} — currently at ${avg.toFixed(2)}, below passing`);
+        }
+      });
 
-    // Check for missing grades
-    subjects.forEach(ss => {
-      const subjectGrades = grades.filter(g => g.subject_id === ss.subject_id);
-      const hasFinals = subjectGrades.some(g => g.quarter === 4);
-      
+    buckets.forEach((b) => {
+      const k = bucketKey(b.subject_id, b.school_year_id);
+      const subjectGrades = grades.filter(
+        (g) => g.subject_id === b.subject_id && (g.school_year_id ?? null) === (b.school_year_id ?? null)
+      );
+      const hasFinals = subjectGrades.some((g) => g.quarter === 4);
       if (subjectGrades.length > 0 && !hasFinals) {
-        const currentAvg = subjectAverages[ss.subject_id];
-        const neededForPass = Math.max(0, 75 - (currentAvg * 0.4) / 0.6);
-        if (neededForPass <= 100) {
-          newSuggestions.push(`Score at least ${neededForPass.toFixed(0)} in Finals to pass ${ss.subject?.name}`);
+        const currentAvg = subjectAverages[k];
+        if (currentAvg !== undefined) {
+          const neededForPass = Math.max(0, 75 - (currentAvg * 0.4) / 0.6);
+          if (neededForPass <= 100) {
+            newSuggestions.push(`Score at least ${neededForPass.toFixed(0)} in Finals to pass ${b.displayName}`);
+          }
         }
       }
     });
 
-    // Overall GWA suggestion
-    const overallGWA = grades.length > 0 ? calculateGWA(grades) : 0;
+    const overallGWA = grades.length > 0 ? calculateGWA(grades as any[]) : 0;
     if (overallGWA >= 85) {
       newSuggestions.push('Great job! Maintain your excellent performance');
     } else if (overallGWA >= 75) {
@@ -105,45 +194,87 @@ export default function StudentAnalyticsPage() {
     setSuggestions(newSuggestions);
     setStrengths(newStrengths);
     setWeaknesses(newWeaknesses);
-  };
+  }, []);
+
+  useEffect(() => {
+    analyzePerformanceFromGrades(filteredGrades, analyticsBuckets);
+  }, [filteredGrades, analyticsBuckets, analyzePerformanceFromGrades]);
+
+  const subjectPerformance = useMemo(() => {
+    return analyticsBuckets
+      .map((b) => {
+        const subjectGrades = filteredGrades.filter(
+          (g) => g.subject_id === b.subject_id && (g.school_year_id ?? null) === (b.school_year_id ?? null)
+        );
+        const avg = subjectGrades.length > 0 ? calculateGWA(subjectGrades as any[]) : 0;
+        return {
+          name: b.displayName.substring(0, 18),
+          average: avg,
+        };
+      })
+      .filter((s) => s.average > 0);
+  }, [analyticsBuckets, filteredGrades]);
+
+  const quarterlyData = useMemo(() => {
+    return [1, 2, 3, 4].map((q) => {
+      const qGrades = filteredGrades.filter((g) => g.quarter === q);
+      return {
+        quarter: `Q${q}`,
+        average: qGrades.length > 0 ? calculateGWA(qGrades as any[]) : 0,
+      };
+    });
+  }, [filteredGrades]);
+
+  const overallGWA = useMemo(
+    () => (filteredGrades.length > 0 ? calculateGWA(filteredGrades as any[]) : 0),
+    [filteredGrades]
+  );
+
+  const passRate = useMemo(() => {
+    const subjectAverages = analyticsBuckets.map((b) => {
+      const subjectGrades = filteredGrades.filter(
+        (g) => g.subject_id === b.subject_id && (g.school_year_id ?? null) === (b.school_year_id ?? null)
+      );
+      return {
+        average: subjectGrades.length > 0 ? calculateGWA(subjectGrades as any[]) : 0,
+        hasGrades: subjectGrades.length > 0,
+      };
+    });
+    const withGrades = subjectAverages.filter((row) => row.hasGrades);
+    const passingSubjects = withGrades.filter((row) => isPassing(row.average)).length;
+    return withGrades.length > 0 ? Math.round((passingSubjects / withGrades.length) * 100) : 0;
+  }, [analyticsBuckets, filteredGrades]);
+
+  const analyticsScopeLabel =
+    selectedSchoolYearId === ''
+      ? 'All school years'
+      : schoolYearOptions.find((o) => o.value === selectedSchoolYearId)?.label || activeSchoolYearName;
 
   if (loading) {
     return <DashboardLayout title="Analytics"><PageSkeletonLoader rows={5} /></DashboardLayout>;
   }
 
-  // Prepare chart data
-  const subjectPerformance = mySubjects.map(ss => {
-    const subjectGrades = myGrades.filter(g => g.subject_id === ss.subject_id);
-    const avg = subjectGrades.length > 0 ? calculateGWA(subjectGrades) : 0;
-    return {
-      name: ss.subject?.name?.substring(0, 12) || 'Subject',
-      average: avg,
-    };
-  }).filter(s => s.average > 0);
-
-  // Quarterly trends
-  const quarterlyData = [1, 2, 3, 4].map(q => {
-    const qGrades = myGrades.filter(g => g.quarter === q);
-    return {
-      quarter: `Q${q}`,
-      average: qGrades.length > 0 ? calculateGWA(qGrades) : 0,
-    };
-  });
-
-  const overallGWA = myGrades.length > 0 ? calculateGWA(myGrades) : 0;
-  const subjectAverages = mySubjects.map((ss) => {
-    const subjectGrades = myGrades.filter((g) => g.subject_id === ss.subject_id);
-    return {
-      subjectId: ss.subject_id,
-      average: subjectGrades.length > 0 ? calculateGWA(subjectGrades) : 0,
-      hasGrades: subjectGrades.length > 0,
-    };
-  }).filter((row) => row.hasGrades);
-  const passingSubjects = subjectAverages.filter((row) => isPassing(row.average)).length;
-  const passRate = subjectAverages.length > 0 ? Math.round((passingSubjects / subjectAverages.length) * 100) : 0;
-
   return (
     <DashboardLayout title="My Analytics">
+      <div className="mb-5 w-full max-w-md">
+        <Select
+          label="School year"
+          value={selectedSchoolYearId}
+          onChange={(e) => setSelectedSchoolYearId(e.target.value)}
+          options={schoolYearOptions}
+        />
+      </div>
+
+      <p className="mb-3 text-sm text-gray-600">
+        Showing analytics for{' '}
+        <span className="font-semibold text-[#800000]">{analyticsScopeLabel}</span>
+        {activeSchoolYearName ? (
+          <>
+            {' '}
+            (active school year: <span className="font-semibold text-[#800000]">{activeSchoolYearName}</span>)
+          </>
+        ) : null}
+      </p>
     
       {/* Summary Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-8">

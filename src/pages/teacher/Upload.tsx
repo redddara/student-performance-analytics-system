@@ -150,6 +150,18 @@ export default function TeacherUploadPage() {
     setSavingBulk(true);
     setResults(null);
     try {
+      let activeSchoolYearId: string | null = null;
+      try {
+        const { data: sy, error: syErr } = await supabase
+          .from('school_years')
+          .select('id')
+          .eq('is_active', true)
+          .maybeSingle();
+        if (!syErr && sy?.id) activeSchoolYearId = sy.id;
+      } catch {
+        activeSchoolYearId = null;
+      }
+
       let success = 0;
       let failed = 0;
       const errors: string[] = [];
@@ -176,6 +188,7 @@ export default function TeacherUploadPage() {
               subject_id: selectedSubject,
               semester,
               quarter,
+              school_year_id: activeSchoolYearId,
               grade,
               remarks: getGradeRemarks(grade),
               grade_status: getGradeStatus(grade),

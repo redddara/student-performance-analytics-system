@@ -9,6 +9,7 @@ import {
   Table,
   Modal,
   PageSkeletonLoader,
+  Spinner,
   Select,
   ConfirmModal,
   MessageModal,
@@ -28,6 +29,7 @@ export default function AdminSubjectsPage() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingSubject, setEditingSubject] = useState<any>(null);
+  const [submitting, setSubmitting] = useState(false);
   const [teachers, setTeachers] = useState<any[]>([]);
   const [deleteConfirm, setDeleteConfirm] = useState<{isOpen: boolean; id: string | null; name: string | null}>({ isOpen: false, id: null, name: null });
   const [appMessage, setAppMessage] = useState<AppMessagePayload | null>(null);
@@ -65,6 +67,8 @@ export default function AdminSubjectsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
 
     const courseId = formData.course_id?.trim() || null;
     const teacherId = formData.teacher_id?.trim() || null;
@@ -128,6 +132,8 @@ export default function AdminSubjectsPage() {
         message: err.message || 'Check required fields and try again.',
         variant: 'error',
       });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -401,13 +407,15 @@ export default function AdminSubjectsPage() {
               <XCircle className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
               Cancel
             </Button>
-            <Button type="submit" className="flex-1">
-              {editingSubject ? (
+            <Button type="submit" className="flex-1" disabled={submitting}>
+              {submitting ? (
+                <Spinner size="sm" />
+              ) : editingSubject ? (
                 <Pencil className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
               ) : (
                 <Plus className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
               )}
-              {editingSubject ? 'Update' : 'Create'}
+              {submitting ? 'Saving…' : editingSubject ? 'Update' : 'Create'}
             </Button>
           </div>
         </form>

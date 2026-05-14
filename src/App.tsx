@@ -33,6 +33,8 @@ import AdminCoursesPage from './pages/admin/Courses';
 import AdminSubjectsPage from './pages/admin/Subjects';
 import AdminAnalyticsPage from './pages/admin/Analytics';
 import AdminGradesPage from './pages/admin/Grades';
+import AdminAcademicPage from './pages/admin/Academic';
+import AdminSectionsPage from './pages/admin/Sections';
 
 // Teacher Pages
 import TeacherDashboard from './pages/teacher/Dashboard';
@@ -355,6 +357,8 @@ export default function App() {
                   <Route path="courses" element={<AdminCoursesPage />} />
                   <Route path="subjects" element={<AdminSubjectsPage />} />
                   <Route path="analytics" element={<AdminAnalyticsPage />} />
+                  <Route path="academic" element={<AdminAcademicPage />} />
+                  <Route path="sections" element={<AdminSectionsPage />} />
                   <Route path="*" element={<Navigate to="dashboard" replace />} />
                 </Routes>
               </ProtectedRoute>

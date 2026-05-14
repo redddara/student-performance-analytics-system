@@ -1,13 +1,25 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useSupabaseLiveReload } from '../../lib/useSupabaseLiveReload';
 import { ListFilter, RefreshCw, Search } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { GlassCard, Select, Button, Input, PageSkeletonLoader } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase } from '../../lib/supabase';
 
+const yearLevelRank = (value?: string | null) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized.startsWith('1')) return 1;
+  if (normalized.startsWith('2')) return 2;
+  if (normalized.startsWith('3')) return 3;
+  if (normalized.startsWith('4')) return 4;
+  return 0;
+};
+
 export default function StudentSubjectsPage() {
   const { user } = useAuthStore();
   const [mySubjects, setMySubjects] = useState<any[]>([]);
+  const [courses, setCourses] = useState<{ id: string; name: string }[]>([]);
+  const [studentYearLevel, setStudentYearLevel] = useState('');
   const [loading, setLoading] = useState(true);
   const [filterSearch, setFilterSearch] = useState('');
   const [filterCourseId, setFilterCourseId] = useState('');
@@ -15,28 +27,40 @@ export default function StudentSubjectsPage() {
   const [filterSemester, setFilterSemester] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const { data: studentData } = await supabase.from('students').select('*').eq('user_id', user?.id).single();
 
       if (!studentData) return;
+      setStudentYearLevel(studentData.grade_level || '');
 
-      const { data: studentSubjects } = await supabase
-        .from('student_subjects')
-        .select('*, subject:subjects(*, course:courses(*), teacher:users(*))')
-        .eq('student_id', studentData.id);
+      const [{ data: studentSubjects }, { data: courseRows }] = await Promise.all([
+        supabase
+          .from('student_subjects')
+          .select('*, subject:subjects(*, course:courses(*), teacher:users(*))')
+          .eq('student_id', studentData.id),
+        supabase.from('courses').select('id,name'),
+      ]);
 
       setMySubjects(studentSubjects || []);
+      setCourses((courseRows || []) as { id: string; name: string }[]);
     } catch (error) {
       console.error('Error:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id]);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
+
+  useSupabaseLiveReload(loadData, user?.id ? `live:student-subjects:${user.id}` : null, [
+    'student_subjects',
+    'subjects',
+    'users',
+    'students',
+  ]);
 
   const filteredSubjects = useMemo(() => {
     const q = filterSearch.trim().toLowerCase();
@@ -67,11 +91,22 @@ export default function StudentSubjectsPage() {
     setFilterSemester('');
   };
 
+  const courseNameById = useMemo(() => {
+    const byId = new Map<string, string>();
+    for (const row of courses) {
+      if (row?.id && row?.name) byId.set(row.id, row.name);
+    }
+    return byId;
+  }, [courses]);
+
   const courseOptions = Array.from(
-    new Map(mySubjects.map((ss) => [ss.subject?.course?.id, ss.subject?.course?.name]).entries())
-  )
-    .filter(([id, name]) => Boolean(id && name))
-    .map(([value, label]) => ({ value: String(value), label: String(label) }));
+    new Set(mySubjects.map((ss) => ss.subject?.course?.id).filter(Boolean))
+  ).map((courseId) => {
+    const id = String(courseId);
+    const joinedName = mySubjects.find((ss) => ss.subject?.course?.id === id)?.subject?.course?.name;
+    const label = joinedName || courseNameById.get(id) || `Course ${id.slice(0, 8)}...`;
+    return { value: id, label };
+  });
 
   if (loading) {
     return <DashboardLayout title="My Subjects"><PageSkeletonLoader rows={4} /></DashboardLayout>;
@@ -185,7 +220,16 @@ export default function StudentSubjectsPage() {
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           {filteredSubjects.map((ss) => (
             <div key={ss.id} className="rounded-2xl border border-maroon-200/50 bg-white p-5 shadow-sm sm:p-6">
-              <h3 className="text-lg font-semibold text-[#800000]">{ss.subject?.name}</h3>
+              <div className="flex items-start justify-between gap-2">
+                <h3 className="text-lg font-semibold text-[#800000]">{ss.subject?.name}</h3>
+                {yearLevelRank(ss.subject?.year_level) > 0 &&
+                  yearLevelRank(studentYearLevel) > 0 &&
+                  yearLevelRank(ss.subject?.year_level) < yearLevelRank(studentYearLevel) && (
+                    <span className="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                      Back Subject
+                    </span>
+                  )}
+              </div>
               <div className="mt-3 space-y-1 text-sm text-gray-700">
                 <p><span className="font-semibold">Course:</span> {ss.subject?.course?.name || '-'}</p>
                 <p><span className="font-semibold">Year level:</span> {ss.subject?.year_level || '-'}</p>

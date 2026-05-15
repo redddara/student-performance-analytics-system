@@ -32,6 +32,7 @@ export interface Course {
 export interface Subject {
   id: string;
   name: string;
+  code?: string;
   course_id: string;
   teacher_id?: string;
   year_level?: string;

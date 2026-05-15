@@ -6,6 +6,7 @@ import { GlassCard, Badge, Table, Button, Select, PageSkeletonLoader } from '../
 import { useAuthStore } from '../../store';
 import { supabase, getGradeStatus } from '../../lib/supabase';
 import { SCHOOL_SECTION_SELECT_OPTIONS, normalizeSchoolSection } from '../../constants/schoolSections';
+import { compareNumeric, sortByLabel, sortByName, sortByStudentName, sortSelectOptions } from '../../lib/sortUtils';
 
 const yearLevelRank = (value?: string | null) => {
   const normalized = String(value || '').trim().toLowerCase();
@@ -104,12 +105,12 @@ export default function TeacherStudentsPage() {
     students.forEach((s: any) => {
       if (s.course_id && s.course?.name) m.set(s.course_id, s.course.name);
     });
-    return Array.from(m.entries()).map(([value, label]) => ({ value, label }));
+    return sortByLabel(Array.from(m.entries()).map(([value, label]) => ({ value, label })));
   }, [students]);
 
   const filteredStudents = useMemo(() => {
     const q = filterSearch.trim().toLowerCase();
-    return students.filter((s: any) => {
+    const filtered = students.filter((s: any) => {
       const name = `${s.first_name || ''} ${s.last_name || ''}`.trim().toLowerCase();
       if (q && !name.includes(q)) return false;
       if (filterCourseId && s.course_id !== filterCourseId) return false;
@@ -118,6 +119,7 @@ export default function TeacherStudentsPage() {
       if (filterSubjectId && !s.subjects?.some((sub: any) => sub.id === filterSubjectId)) return false;
       return true;
     });
+    return sortByStudentName(filtered);
   }, [students, filterSearch, filterCourseId, filterYear, filterSection, filterSubjectId]);
 
   const hasActiveFilters =
@@ -141,7 +143,7 @@ export default function TeacherStudentsPage() {
     return (student.subjects || []).map((subject: any) => {
       const rows = studentGrades
         .filter((g) => g.student_id === student.id && g.subject_id === subject.id)
-        .sort((a, b) => (a.semester - b.semester) || (a.quarter - b.quarter));
+        .sort((a, b) => compareNumeric(a.semester, b.semester) || compareNumeric(a.quarter, b.quarter));
       const numeric = rows.filter((g) => g.grade_status !== 'inc').map((g) => Number(g.grade));
       const hasInc = rows.some((g) => g.grade_status === 'inc');
       const avg = numeric.length ? Math.round((numeric.reduce((s, n) => s + n, 0) / numeric.length) * 100) / 100 : null;
@@ -226,7 +228,7 @@ export default function TeacherStudentsPage() {
               label="Course / program"
               value={filterCourseId}
               onChange={(e) => setFilterCourseId(e.target.value)}
-              options={[{ value: '', label: 'All courses' }, ...courseOptions]}
+              options={sortSelectOptions([{ value: '', label: 'All courses' }, ...courseOptions], [''])}
             />
             <Select
               label="Year level"
@@ -244,13 +246,16 @@ export default function TeacherStudentsPage() {
               label="Section"
               value={filterSection}
               onChange={(e) => setFilterSection(e.target.value)}
-              options={[{ value: '', label: 'All sections' }, ...SCHOOL_SECTION_SELECT_OPTIONS]}
+              options={sortSelectOptions([{ value: '', label: 'All sections' }, ...SCHOOL_SECTION_SELECT_OPTIONS], [''])}
             />
             <Select
               label="Enrolled in subject"
               value={filterSubjectId}
               onChange={(e) => setFilterSubjectId(e.target.value)}
-              options={[{ value: '', label: 'Any of your subjects' }, ...mySubjects.map((s) => ({ value: s.id, label: s.name }))]}
+              options={sortSelectOptions(
+                [{ value: '', label: 'Any of your subjects' }, ...sortByName(mySubjects).map((s) => ({ value: s.id, label: s.name || '' }))],
+                ['']
+              )}
             />
           </div>
           <p className="mt-4 text-sm text-gray-600">

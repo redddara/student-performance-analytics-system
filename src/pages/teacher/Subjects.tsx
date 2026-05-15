@@ -7,6 +7,7 @@ import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { GlassCard, Button, Input, Select, PageSkeletonLoader } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase } from '../../lib/supabase';
+import { courseSelectOptions, sortByName } from '../../lib/sortUtils';
 
 export default function TeacherSubjectsPage() {
   const { user } = useAuthStore();
@@ -48,13 +49,14 @@ export default function TeacherSubjectsPage() {
 
   const filteredSubjects = useMemo(() => {
     const q = filterSearch.trim().toLowerCase();
-    return mySubjects.filter((s) => {
+    const filtered = mySubjects.filter((s) => {
       if (q && !String(s.name || '').toLowerCase().includes(q)) return false;
       if (filterCourseId && s.course_id !== filterCourseId) return false;
       if (filterYear && (s.year_level || '') !== filterYear) return false;
       if (filterSemester && (s.semester || '') !== filterSemester) return false;
       return true;
     });
+    return sortByName(filtered);
   }, [mySubjects, filterSearch, filterCourseId, filterYear, filterSemester]);
 
   const hasActiveFilters =
@@ -67,7 +69,7 @@ export default function TeacherSubjectsPage() {
     setFilterSemester('');
   };
 
-  const courseOptions = courses.map((c) => ({ value: c.id, label: c.name }));
+  const courseOptions = useMemo(() => courseSelectOptions(courses), [courses]);
 
   if (loading) {
     return <DashboardLayout title="My Subjects"><PageSkeletonLoader rows={4} /></DashboardLayout>;
@@ -121,7 +123,7 @@ export default function TeacherSubjectsPage() {
               label="Course"
               value={filterCourseId}
               onChange={(e) => setFilterCourseId(e.target.value)}
-              options={[{ value: '', label: 'All courses' }, ...courseOptions]}
+              options={courseOptions}
             />
             <Select
               label="Year level"

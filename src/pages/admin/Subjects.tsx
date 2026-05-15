@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { ListFilter, Pencil, Plus, RefreshCw, Trash2, XCircle } from 'lucide-react';
+import { Download, ListFilter, Pencil, Plus, RefreshCw, Trash2, Upload, XCircle } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { PageIntro } from '../../components/layouts/PageIntro';
 import {
@@ -17,6 +18,7 @@ import {
 } from '../../components/ui';
 import { useDataStore } from '../../store';
 import { supabase } from '../../lib/supabase';
+import { compareAlphabetical, sortByName, sortSelectOptions } from '../../lib/sortUtils';
 import { CLASS_DAY_PRESET_OPTIONS } from '../../lib/classSchedule';
 
 const TEACHER_UNASSIGNED = '__unassigned__';
@@ -41,8 +43,12 @@ export default function AdminSubjectsPage() {
   const [filterSemester, setFilterSemester] = useState('');
   const [filterTeacherId, setFilterTeacherId] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [bulkResults, setBulkResults] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
 
   const [formData, setFormData] = useState({
+    code: '',
     name: '',
     course_id: '',
     year_level: '1st',
@@ -58,8 +64,8 @@ export default function AdminSubjectsPage() {
   const loadData = async () => {
     const [subjectsRes, coursesRes, teachersRes] = await Promise.all([
       supabase.from('subjects').select('*, course:courses(*), teacher:users(*)').order('name'),
-      supabase.from('courses').select('*'),
-      supabase.from('users').select('*').eq('role', 'teacher'),
+      supabase.from('courses').select('*').order('name', { ascending: true }),
+      supabase.from('users').select('*').eq('role', 'teacher').order('last_name', { ascending: true }),
     ]);
     setSubjects(subjectsRes.data || []);
     setCourses(coursesRes.data || []);
@@ -84,7 +90,15 @@ export default function AdminSubjectsPage() {
       return;
     }
 
+    const code = formData.code.trim().toUpperCase();
+    if (!code) {
+      setAppMessage({ title: 'Code required', message: 'Every subject must have a unique code.', variant: 'warning' });
+      setSubmitting(false);
+      return;
+    }
+
     const data = {
+      code,
       name: formData.name.trim(),
       course_id: courseId,
       year_level: formData.year_level,
@@ -126,7 +140,7 @@ export default function AdminSubjectsPage() {
       }
 
       setShowModal(false);
-      setFormData({ name: '', course_id: '', year_level: '1st', semester: '1st Sem', teacher_id: '', class_days: '' });
+      setFormData({ code: '', name: '', course_id: '', year_level: '1st', semester: '1st Sem', teacher_id: '', class_days: '' });
       setEditingSubject(null);
       loadData();
     } catch (err: any) {
@@ -143,6 +157,7 @@ export default function AdminSubjectsPage() {
   const handleEdit = (subject: any) => {
     setEditingSubject(subject);
     setFormData({
+      code: subject.code || '',
       name: subject.name,
       course_id: subject.course_id ?? '',
       year_level: subject.year_level || '1st',
@@ -176,10 +191,17 @@ export default function AdminSubjectsPage() {
     }
   };
 
+  const sortedCourses = useMemo(() => sortByName(courses), [courses]);
+
+  const sortedTeachers = useMemo(
+    () => [...teachers].sort((a, b) => compareAlphabetical(teacherLabel(a), teacherLabel(b))),
+    [teachers]
+  );
+
   const filteredSubjects = useMemo(() => {
     const q = filterSearch.trim().toLowerCase();
-    return subjects.filter(s => {
-      if (q && !String(s.name || '').toLowerCase().includes(q)) return false;
+    const filtered = subjects.filter((s) => {
+      if (q && !String(s.name || '').toLowerCase().includes(q) && !String(s.code || '').toLowerCase().includes(q)) return false;
       if (filterCourseId && s.course_id !== filterCourseId) return false;
       if (filterYear && (s.year_level || '') !== filterYear) return false;
       if (filterSemester && (s.semester || '') !== filterSemester) return false;
@@ -188,6 +210,7 @@ export default function AdminSubjectsPage() {
       } else if (filterTeacherId && s.teacher_id !== filterTeacherId) return false;
       return true;
     });
+    return sortByName(filtered);
   }, [subjects, filterSearch, filterCourseId, filterYear, filterSemester, filterTeacherId]);
 
   const hasActiveFilters =
@@ -221,11 +244,13 @@ export default function AdminSubjectsPage() {
           onClick={() => {
             setEditingSubject(null);
             setFormData({
+              code: '',
               name: '',
               course_id: '',
               year_level: '1st',
               semester: '1st Sem',
               teacher_id: '',
+              class_days: '',
             });
             setShowModal(true);
           }}
@@ -233,6 +258,10 @@ export default function AdminSubjectsPage() {
         >
           <Plus className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
           Add Subject
+        </Button>
+        <Button type="button" variant="secondary" onClick={() => setShowBulkModal(true)} className="w-full sm:w-auto">
+          <Upload className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+          Bulk Add Subjects
         </Button>
         <button
           type="button"
@@ -278,7 +307,7 @@ export default function AdminSubjectsPage() {
               label="Course"
               value={filterCourseId}
               onChange={e => setFilterCourseId(e.target.value)}
-              options={[{ value: '', label: 'All courses' }, ...courses.map(c => ({ value: c.id, label: c.name }))]}
+              options={sortSelectOptions([{ value: '', label: 'All courses' }, ...sortedCourses.map(c => ({ value: c.id, label: c.name }))], [''])}
             />
             <Select
               label="Year level"
@@ -306,11 +335,14 @@ export default function AdminSubjectsPage() {
               label="Teacher"
               value={filterTeacherId}
               onChange={e => setFilterTeacherId(e.target.value)}
-              options={[
-                { value: '', label: 'All teachers' },
-                { value: TEACHER_UNASSIGNED, label: 'No teacher assigned' },
-                ...teachers.map(t => ({ value: t.id, label: teacherLabel(t) })),
-              ]}
+              options={sortSelectOptions(
+                [
+                  { value: '', label: 'All teachers' },
+                  { value: TEACHER_UNASSIGNED, label: 'No teacher assigned' },
+                  ...sortedTeachers.map(t => ({ value: t.id, label: teacherLabel(t) })),
+                ],
+                ['', TEACHER_UNASSIGNED]
+              )}
             />
           </div>
           <p className="mt-4 text-sm text-gray-600">
@@ -322,9 +354,10 @@ export default function AdminSubjectsPage() {
 
       
       <GlassCard className="p-4 sm:p-6">
-        <Table headers={['Subject Name', 'Course', 'Year Level', 'Semester', 'Teacher', 'Actions']}>
+        <Table headers={['Code', 'Subject Name', 'Course', 'Year Level', 'Semester', 'Teacher', 'Actions']}>
           {filteredSubjects.map(subject => (
             <tr key={subject.id} className="hover:bg-white/20">
+              <td className="px-4 py-3 font-mono text-sm font-semibold text-[#800000]">{subject.code || '—'}</td>
               <td className="px-4 py-3 font-medium text-gray-800">{subject.name}</td>
               <td className="px-4 py-3 text-gray-600">{subject.course?.name || '-'}</td>
               <td className="px-4 py-3 text-gray-600">{subject.year_level || '-'}</td>
@@ -363,8 +396,16 @@ export default function AdminSubjectsPage() {
         )}
       </GlassCard>
 
-      <Modal isOpen={showModal} onClose={() => { setShowModal(false); setFormData({ name: '', course_id: '', year_level: '1st', semester: '1st Sem', teacher_id: '', class_days: '' }); setEditingSubject(null); }} title={editingSubject ? 'Edit Subject' : 'Add Subject'}>
+      <Modal isOpen={showModal} onClose={() => { setShowModal(false); setFormData({ code: '', name: '', course_id: '', year_level: '1st', semester: '1st Sem', teacher_id: '', class_days: '' }); setEditingSubject(null); }} title={editingSubject ? 'Edit Subject' : 'Add Subject'}>
         <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
+          <Input
+            label="Subject Code"
+            name="subject-code"
+            value={formData.code}
+            onChange={e => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
+            placeholder="e.g., IT101"
+            required
+          />
           <Input
             label="Subject Name"
             name="subject-display-name"
@@ -381,8 +422,8 @@ export default function AdminSubjectsPage() {
             onChange={e => setFormData({ ...formData, course_id: e.target.value })}
             options={
               editingSubject
-                ? courses.map(c => ({ value: c.id, label: c.name }))
-                : [{ value: '', label: 'Select a course' }, ...courses.map(c => ({ value: c.id, label: c.name }))]
+                ? sortedCourses.map(c => ({ value: c.id, label: c.name }))
+                : [{ value: '', label: 'Select a course' }, ...sortedCourses.map(c => ({ value: c.id, label: c.name }))]
             }
             required
           />
@@ -390,7 +431,7 @@ export default function AdminSubjectsPage() {
             <Select label="Year Level" value={formData.year_level} onChange={e => setFormData({ ...formData, year_level: e.target.value })} options={[{ value: '1st', label: '1st Year' }, { value: '2nd', label: '2nd Year' }, { value: '3rd', label: '3rd Year' }, { value: '4th', label: '4th Year' }]} />
             <Select label="Semester" value={formData.semester} onChange={e => setFormData({ ...formData, semester: e.target.value })} options={[{ value: '1st Sem', label: '1st Sem' }, { value: '2nd Sem', label: '2nd Sem' }]} />
           </div>
-          <Select label="Teacher (Optional)" value={formData.teacher_id} onChange={e => setFormData({ ...formData, teacher_id: e.target.value })} options={[{ value: '', label: 'No Teacher' }, ...teachers.map(t => ({ value: t.id, label: t.name || `${t.first_name} ${t.last_name}` || t.username }))]} />
+          <Select label="Teacher (Optional)" value={formData.teacher_id} onChange={e => setFormData({ ...formData, teacher_id: e.target.value })} options={[{ value: '', label: 'No Teacher' }, ...sortedTeachers.map(t => ({ value: t.id, label: teacherLabel(t) }))]} />
           <Select
             label="Class days (attendance schedule)"
             value={formData.class_days}
@@ -405,6 +446,7 @@ export default function AdminSubjectsPage() {
               onClick={() => {
                 setShowModal(false);
                 setFormData({
+                  code: '',
                   name: '',
                   course_id: '',
                   year_level: '1st',
@@ -451,6 +493,158 @@ export default function AdminSubjectsPage() {
           variant={appMessage.variant}
         />
       )}
+
+      <Modal isOpen={showBulkModal} onClose={() => { setShowBulkModal(false); setBulkResults(null); }} title="Bulk Add Subjects" size="md">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            Required columns: <code>code</code>, <code>name</code>, <code>course_name</code>, <code>year_level</code>, <code>semester</code>.
+            Optional: <code>teacher_email</code>, <code>class_days</code>.
+          </p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                const template = [{
+                  code: 'IT101',
+                  name: 'Introduction to Computing',
+                  course_name: courses[0]?.name || 'BSCS',
+                  year_level: '1st',
+                  semester: '1st Sem',
+                  teacher_email: '',
+                  class_days: '',
+                }];
+                const ws = XLSX.utils.json_to_sheet(template);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Subjects');
+                XLSX.writeFile(wb, 'bulk_subjects_template.xlsx');
+              }}
+            >
+              <Download className="h-5 w-5 shrink-0" />
+              Download template
+            </Button>
+            <input
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              disabled={bulkLoading}
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                setBulkLoading(true);
+                setBulkResults(null);
+                try {
+                  const buffer = await file.arrayBuffer();
+                  const wb = XLSX.read(buffer);
+                  const rows = XLSX.utils.sheet_to_json<{
+                    code?: string;
+                    name?: string;
+                    course_name?: string;
+                    year_level?: string;
+                    semester?: string;
+                    teacher_email?: string;
+                    class_days?: string;
+                  }>(wb.Sheets[wb.SheetNames[0]]);
+                  const codeSet = new Set(subjects.map((s) => String(s.code || '').toUpperCase()));
+                  let success = 0;
+                  let failed = 0;
+                  const errors: string[] = [];
+                  for (let i = 0; i < rows.length; i++) {
+                    const row = rows[i];
+                    const rowNo = i + 2;
+                    const code = String(row.code || '').trim().toUpperCase();
+                    const name = String(row.name || '').trim();
+                    const courseName = String(row.course_name || '').trim().toLowerCase();
+                    const yearLevel = String(row.year_level || '1st').trim();
+                    const semester = String(row.semester || '1st Sem').trim();
+                    if (!code || !name || !courseName) {
+                      failed += 1;
+                      errors.push(`Row ${rowNo}: code, name, and course_name are required.`);
+                      continue;
+                    }
+                    if (codeSet.has(code)) {
+                      failed += 1;
+                      errors.push(`Row ${rowNo}: code "${code}" already exists.`);
+                      continue;
+                    }
+                    const course = courses.find((c) => String(c.name || '').trim().toLowerCase() === courseName);
+                    if (!course?.id) {
+                      failed += 1;
+                      errors.push(`Row ${rowNo}: course "${row.course_name}" not found.`);
+                      continue;
+                    }
+                    let teacherId: string | null = null;
+                    const teacherEmail = String(row.teacher_email || '').trim().toLowerCase();
+                    if (teacherEmail) {
+                      const teacher = teachers.find((t) => String(t.email || '').trim().toLowerCase() === teacherEmail);
+                      if (!teacher?.id) {
+                        failed += 1;
+                        errors.push(`Row ${rowNo}: teacher email not found.`);
+                        continue;
+                      }
+                      teacherId = teacher.id;
+                    }
+                    const { data: inserted, error } = await supabase
+                      .from('subjects')
+                      .insert({
+                        code,
+                        name,
+                        course_id: course.id,
+                        year_level: yearLevel,
+                        semester,
+                        teacher_id: teacherId,
+                        class_days: String(row.class_days || '').trim() || null,
+                      })
+                      .select('id')
+                      .single();
+                    if (error || !inserted?.id) {
+                      failed += 1;
+                      errors.push(`Row ${rowNo}: ${error?.message || 'insert failed'}`);
+                      continue;
+                    }
+                    const { data: matchingStudents } = await supabase
+                      .from('students')
+                      .select('id')
+                      .eq('course_id', course.id)
+                      .eq('grade_level', yearLevel);
+                    if (matchingStudents?.length) {
+                      await supabase.from('student_subjects').upsert(
+                        matchingStudents.map((s) => ({ student_id: s.id, subject_id: inserted.id })),
+                        { onConflict: 'student_id,subject_id', ignoreDuplicates: true }
+                      );
+                    }
+                    codeSet.add(code);
+                    success += 1;
+                  }
+                  setBulkResults({ success, failed, errors: errors.slice(0, 12) });
+                  setAppMessage({
+                    title: 'Bulk import finished',
+                    message: `Created ${success} subject(s). Failed: ${failed}.`,
+                    variant: failed > 0 ? 'warning' : 'success',
+                  });
+                  loadData();
+                } finally {
+                  setBulkLoading(false);
+                  e.target.value = '';
+                }
+              }}
+              className="w-full min-w-0 text-sm file:mr-4 file:rounded-xl file:border-0 file:bg-[#800000] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white"
+            />
+          </div>
+          {bulkLoading && <Spinner size="sm" />}
+          {bulkResults && (
+            <div className="grid grid-cols-2 gap-3 text-center text-sm">
+              <div className="rounded-xl border border-green-200 bg-green-50 p-3">
+                <p className="text-xl font-bold text-green-700">{bulkResults.success}</p>
+                <p>Created</p>
+              </div>
+              <div className="rounded-xl border border-red-200 bg-red-50 p-3">
+                <p className="text-xl font-bold text-red-700">{bulkResults.failed}</p>
+                <p>Failed</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </Modal>
     </DashboardLayout>
   );
 }

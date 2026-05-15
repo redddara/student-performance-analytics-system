@@ -24,10 +24,11 @@ import {
   type AppMessagePayload,
 } from '../../components/ui';
 import { useDataStore, useAuthStore } from '../../store';
-import { supabase, generateStudentUsername, generateTempPassword, hashPassword } from '../../lib/supabase';
+import { supabase, generateStudentUsername, generateTempPassword, hashPassword, isPassing, toGradePoint } from '../../lib/supabase';
 import { useSupabaseLiveReload } from '../../lib/useSupabaseLiveReload';
 import { sendEmail, generateStudentCredentialEmail } from '../../api/email';
 import type { Course } from '../../types';
+import { compareAlphabetical, sortByName, sortSelectOptions } from '../../lib/sortUtils';
 import {
   DEFAULT_SCHOOL_SECTION,
   SCHOOL_SECTION_SELECT_OPTIONS,
@@ -82,7 +83,7 @@ export default function AdminDashboard() {
 
   // Calculate pass rate
   const passRate = grades.length > 0
-    ? Math.round((grades.filter(g => g.grade >= 75).length / grades.length) * 100)
+    ? Math.round((grades.filter((g) => isPassing(toGradePoint(Number(g.grade)))).length / grades.length) * 100)
     : 0;
 
   const recentStudentsSorted = useMemo(
@@ -136,7 +137,7 @@ export default function AdminDashboard() {
       counts.set(key, (counts.get(key) ?? 0) + 1);
     }
     return [...counts.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
+      .sort(([a], [b]) => compareAlphabetical(a, b))
       .slice(-12);
   }, [grades]);
 
@@ -654,10 +655,10 @@ function CreateUserModal({ isOpen, onClose, type, courses, onFeedback }: CreateU
             label="Course (optional)"
             value={formData.course_id}
             onChange={e => setFormData({ ...formData, course_id: e.target.value })}
-            options={[
-              { value: '', label: 'None — not linked to a program' },
-              ...courses.map((c) => ({ value: c.id, label: c.name })),
-            ]}
+            options={sortSelectOptions(
+              [{ value: '', label: 'None — not linked to a program' }, ...sortByName(courses).map((c) => ({ value: c.id, label: c.name || '' }))],
+              ['']
+            )}
           />
         )}
 
@@ -667,7 +668,7 @@ function CreateUserModal({ isOpen, onClose, type, courses, onFeedback }: CreateU
               label="Course"
               value={formData.course_id}
               onChange={e => setFormData({ ...formData, course_id: e.target.value })}
-              options={courses.map(c => ({ value: c.id, label: c.name }))}
+              options={sortByName(courses).map((c) => ({ value: c.id, label: c.name || '' }))}
               required
             />
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

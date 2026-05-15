@@ -5,9 +5,24 @@ import * as XLSX from 'xlsx';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { GlassCard, Select, Table, Spinner, Badge, Button, MessageModal, PageSkeletonLoader, type AppMessagePayload } from '../../components/ui';
 import { useAuthStore } from '../../store';
-import { supabase, getGradeRemarks, getGradeStatus, isPassing } from '../../lib/supabase';
+import {
+  supabase,
+  getGradeRemarks,
+  getGradeStatus,
+  isPassing,
+  parseGradeInput,
+  toGradePoint,
+  formatGradeDisplay,
+  VALID_GRADE_POINTS,
+} from '../../lib/supabase';
 import { useGradesAutoRefresh } from '../../lib/useGradesAutoRefresh';
 import { SCHOOL_SECTION_SELECT_OPTIONS, normalizeSchoolSection } from '../../constants/schoolSections';
+import {
+  compareNumeric,
+  sortByName,
+  sortByStudentName,
+  sortSelectOptions,
+} from '../../lib/sortUtils';
 import {
   buildBulkGradePreview,
   buildExistingGradesLookup,
@@ -181,9 +196,13 @@ export default function TeacherGradesPage() {
 
   const saveGradeEntry = async () => {
     if (!selectedSubject || !selectedStudentForEntry) return;
-    const value = parseFloat(entryGrade);
-    if (entryStatus !== 'inc' && (Number.isNaN(value) || value < 0 || value > 100)) {
-      setAppMessage({ title: 'Invalid grade', message: 'Enter a number between 0 and 100.', variant: 'warning' });
+    const gradePoint = parseGradeInput(entryGrade);
+    if (entryStatus !== 'inc' && gradePoint == null) {
+      setAppMessage({
+        title: 'Invalid grade',
+        message: 'Enter a grade point (1.00–5.00) or percentage (0–100).',
+        variant: 'warning',
+      });
       return;
     }
     const existing = grades.find(
@@ -220,7 +239,11 @@ export default function TeacherGradesPage() {
     const payload =
       entryStatus === 'inc'
         ? { grade: 0, remarks: 'INC', grade_status: 'inc' as const }
-        : { grade: value, remarks: getGradeRemarks(value), grade_status: getGradeStatus(value) };
+        : {
+            grade: gradePoint!,
+            remarks: getGradeRemarks(gradePoint!),
+            grade_status: getGradeStatus(gradePoint!),
+          };
     try {
       if (existing) {
         const { error } = await supabase
@@ -398,12 +421,13 @@ export default function TeacherGradesPage() {
 
   const filteredEntryStudents = useMemo(() => {
     const q = entryStudentSearch.trim().toLowerCase();
-    return enrolledStudents.filter((s: any) => {
+    const filtered = enrolledStudents.filter((s: any) => {
       const name = `${s.first_name || ''} ${s.last_name || ''}`.trim().toLowerCase();
       if (q && !name.includes(q)) return false;
       if (filterSection && normalizeSchoolSection(s.section) !== filterSection) return false;
       return true;
     });
+    return sortByStudentName(filtered);
   }, [enrolledStudents, entryStudentSearch, filterSection]);
 
   const quickEntryLocked = useMemo(() => {
@@ -607,11 +631,11 @@ export default function TeacherGradesPage() {
     return {
       topPerformers: rows
         .filter((entry) => entry.average >= 85 && entry.failingCount === 0)
-        .sort((a, b) => b.average - a.average)
+        .sort((a, b) => compareNumeric(b.average, a.average))
         .slice(0, 5),
       atRiskStudents: rows
         .filter((entry) => entry.average < 75 || entry.failingCount > 0)
-        .sort((a, b) => b.failingCount - a.failingCount || a.average - b.average)
+        .sort((a, b) => compareNumeric(b.failingCount, a.failingCount) || compareNumeric(a.average, b.average))
         .slice(0, 5),
     };
   }, [filteredGrades, students]);
@@ -894,10 +918,13 @@ export default function TeacherGradesPage() {
               }}
               options={
                 mySubjects.length
-                  ? [
-                      { value: '', label: 'All subjects' },
-                      ...mySubjects.map((s) => ({ value: `${s.id}`, label: `${s.name} — ${s.course?.name || ''}` })),
-                    ]
+                  ? sortSelectOptions(
+                      [
+                        { value: '', label: 'All subjects' },
+                        ...sortByName(mySubjects).map((s) => ({ value: `${s.id}`, label: `${s.name} — ${s.course?.name || ''}` })),
+                      ],
+                      ['']
+                    )
                   : [{ value: '', label: 'No subjects assigned' }]
               }
             />
@@ -926,7 +953,7 @@ export default function TeacherGradesPage() {
               label="Student section"
               value={filterSection}
               onChange={(e) => setFilterSection(e.target.value)}
-              options={[{ value: '', label: 'All sections' }, ...SCHOOL_SECTION_SELECT_OPTIONS]}
+              options={sortSelectOptions([{ value: '', label: 'All sections' }, ...SCHOOL_SECTION_SELECT_OPTIONS], [''])}
             />
           </div>
         </div>
@@ -962,7 +989,10 @@ export default function TeacherGradesPage() {
             onChange={(e) => setSelectedStudentForEntry(e.target.value)}
             options={[
               { value: '', label: filteredEntryStudents.length ? 'Select student' : 'No matching students' },
-              ...filteredEntryStudents.map((s: any) => ({ value: s.id, label: `${s.first_name} ${s.last_name}` })),
+              ...filteredEntryStudents.map((s: any) => ({
+                value: s.id,
+                label: `${s.first_name || ''} ${s.last_name || ''}`.trim(),
+              })),
             ]}
           />
           <Select
@@ -1007,19 +1037,19 @@ export default function TeacherGradesPage() {
             </div>
             <input
               type="number"
-              min={0}
-              max={100}
-              step={0.01}
+              min={1}
+              max={5}
+              step={0.25}
               value={entryGrade}
               onChange={(e) => setEntryGrade(e.target.value)}
               disabled={quickEntryLocked || entryStatus === 'inc'}
-              placeholder={entryStatus === 'inc' ? 'Will be saved as INC' : '0 - 100'}
+              placeholder={entryStatus === 'inc' ? 'Will be saved as INC' : 'Grade point e.g. 1.00'}
               className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-base text-gray-900"
             />
           </div>
         </div>
         <div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-600">
-          {[75, 80, 85, 90, 95].map((preset) => (
+          {VALID_GRADE_POINTS.filter((gp) => gp <= 3).map((preset) => (
             <button
               key={preset}
               type="button"
@@ -1419,7 +1449,7 @@ export default function TeacherGradesPage() {
         <Table variant="light" headers={['Student', 'Subject', 'Semester', 'Quarter', 'Grade', 'Remarks', 'Status', 'Workflow']}>
           {paginatedGrades.map((grade) => {
             const failing = !isPassing(grade.grade);
-            const excellent = Number(grade.grade) >= 90;
+            const excellent = toGradePoint(Number(grade.grade)) <= 1.5;
             const rowClassName = failing
               ? 'border-l-4 border-red-600 bg-red-200/95 hover:bg-red-200'
               : excellent
@@ -1442,7 +1472,9 @@ export default function TeacherGradesPage() {
               <td className={`px-4 py-3 ${failing ? 'text-red-900' : excellent ? 'text-green-900' : 'text-gray-600'}`}>
                 {['', 'Prelim', 'Midterm', 'Pre-Finals', 'Finals'][grade.quarter]}
               </td>
-              <td className="px-4 py-3 font-medium text-gray-800">{grade.grade_status === 'inc' ? 'INC' : grade.grade}</td>
+              <td className="px-4 py-3 font-medium text-gray-800">
+                {grade.grade_status === 'inc' ? 'INC' : formatGradeDisplay(Number(grade.grade))}
+              </td>
               <td className={`px-4 py-3 ${failing ? 'text-red-900' : excellent ? 'text-green-900' : 'text-gray-600'}`}>{grade.remarks || '—'}</td>
               <td className="px-4 py-3">
                 <Badge

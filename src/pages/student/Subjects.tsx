@@ -5,6 +5,7 @@ import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { GlassCard, Select, Button, Input, PageSkeletonLoader } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase } from '../../lib/supabase';
+import { compareAlphabetical, sortSelectOptions } from '../../lib/sortUtils';
 
 const yearLevelRank = (value?: string | null) => {
   const normalized = String(value || '').trim().toLowerCase();
@@ -64,7 +65,7 @@ export default function StudentSubjectsPage() {
 
   const filteredSubjects = useMemo(() => {
     const q = filterSearch.trim().toLowerCase();
-    return mySubjects.filter((ss) => {
+    const filtered = mySubjects.filter((ss) => {
       const sub = ss.subject;
       const name = String(sub?.name || '').toLowerCase();
       const course = String(sub?.course?.name || '').toLowerCase();
@@ -79,6 +80,7 @@ export default function StudentSubjectsPage() {
       if (filterSemester && (sub?.semester || '') !== filterSemester) return false;
       return true;
     });
+    return filtered.sort((a, b) => compareAlphabetical(a.subject?.name || '', b.subject?.name || ''));
   }, [mySubjects, filterSearch, filterCourseId, filterYear, filterSemester]);
 
   const hasActiveFilters =
@@ -99,14 +101,17 @@ export default function StudentSubjectsPage() {
     return byId;
   }, [courses]);
 
-  const courseOptions = Array.from(
-    new Set(mySubjects.map((ss) => ss.subject?.course?.id).filter(Boolean))
-  ).map((courseId) => {
-    const id = String(courseId);
-    const joinedName = mySubjects.find((ss) => ss.subject?.course?.id === id)?.subject?.course?.name;
-    const label = joinedName || courseNameById.get(id) || `Course ${id.slice(0, 8)}...`;
-    return { value: id, label };
-  });
+  const courseOptions = useMemo(() => {
+    const options = Array.from(new Set(mySubjects.map((ss) => ss.subject?.course?.id).filter(Boolean))).map(
+      (courseId) => {
+        const id = String(courseId);
+        const joinedName = mySubjects.find((ss) => ss.subject?.course?.id === id)?.subject?.course?.name;
+        const label = joinedName || courseNameById.get(id) || `Course ${id.slice(0, 8)}...`;
+        return { value: id, label };
+      }
+    );
+    return sortSelectOptions([{ value: '', label: 'All courses' }, ...options], ['']);
+  }, [mySubjects, courseNameById]);
 
   if (loading) {
     return <DashboardLayout title="My Subjects"><PageSkeletonLoader rows={4} /></DashboardLayout>;
@@ -180,7 +185,7 @@ export default function StudentSubjectsPage() {
               label="Course"
               value={filterCourseId}
               onChange={(e) => setFilterCourseId(e.target.value)}
-              options={[{ value: '', label: 'All courses' }, ...courseOptions]}
+              options={courseOptions}
             />
             <Select
               label="Year level"

@@ -3,7 +3,7 @@ import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { PageIntro } from '../../components/layouts/PageIntro';
 import { GlassCard, Select, Button, PageSkeletonLoader } from '../../components/ui';
 import { useDataStore, useAuthStore } from '../../store';
-import { supabase, isPassing, calculateGWA, isDeanListEligible } from '../../lib/supabase';
+import { supabase, isPassing, calculateGWA, isDeanListEligible, toGradePoint, getRemarkCategory } from '../../lib/supabase';
 import { useSupabaseLiveReload } from '../../lib/useSupabaseLiveReload';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
@@ -11,6 +11,7 @@ import {
 } from 'recharts';
 import { Users, BarChart3, TrendingUp, GraduationCap, BookOpen, CheckCircle2, ChartLine, Trophy, RefreshCw, ListFilter } from 'lucide-react';
 import { chartAxis, chartGrid, chartLegend, chartTooltip } from '../../lib/chartTheme';
+import { compareNumeric, sortByName, sortSelectOptions } from '../../lib/sortUtils';
 
 export default function AdminAnalyticsPage() {
   const { user } = useAuthStore();
@@ -40,14 +41,14 @@ export default function AdminAnalyticsPage() {
       }
 
       const [subjectsRes, studentsRes, gradesRes, coursesRes] = await Promise.all([
-        supabase.from('subjects').select('*, course:courses(*)'),
-        supabase.from('students').select('*, course:courses(*)'),
+        supabase.from('subjects').select('*, course:courses(*)').order('name', { ascending: true }),
+        supabase.from('students').select('*, course:courses(*)').order('last_name', { ascending: true }),
         (async () => {
           let q = supabase.from('grades').select('*');
           if (activeSy?.id) q = q.eq('school_year_id', activeSy.id);
           return q;
         })(),
-        supabase.from('courses').select('*'),
+        supabase.from('courses').select('*').order('name', { ascending: true }),
       ]);
       
       useDataStore.getState().setSubjects(subjectsRes.data || []);
@@ -84,23 +85,28 @@ export default function AdminAnalyticsPage() {
   const filteredStudentIds = new Set(filteredStudents.map((s) => s.id));
   const filteredGrades = grades.filter((g) => filteredStudentIds.has(g.student_id));
 
-  // Grade Distribution
-  const gradeDistribution = [0, 0, 0, 0, 0];
-  filteredGrades.forEach(g => {
-    if (g.grade >= 90) gradeDistribution[0]++;
-    else if (g.grade >= 85) gradeDistribution[1]++;
-    else if (g.grade >= 80) gradeDistribution[2]++;
-    else if (g.grade >= 75) gradeDistribution[3]++;
-    else gradeDistribution[4]++;
+  const remarkBuckets: Record<string, number> = {
+    EXCELLENT: 0,
+    'VERY GOOD': 0,
+    SATISFACTORY: 0,
+    FAIR: 0,
+    PASSING: 0,
+    'FAILED OR CONDITIONAL': 0,
+  };
+  filteredGrades.forEach((g) => {
+    if (g.grade_status === 'inc') return;
+    const cat = getRemarkCategory(toGradePoint(Number(g.grade)));
+    remarkBuckets[cat] = (remarkBuckets[cat] || 0) + 1;
   });
 
   const pieData = [
-    { name: 'Excellent (90+)', value: gradeDistribution[0], color: '#800000' },
-    { name: 'Very Good (85-89)', value: gradeDistribution[1], color: '#d4af37' },
-    { name: 'Good (80-84)', value: gradeDistribution[2], color: '#4CAF50' },
-    { name: 'Passing (75-79)', value: gradeDistribution[3], color: '#2196F3' },
-    { name: 'Failed (<75)', value: gradeDistribution[4], color: '#f44336' },
-  ].filter(d => d.value > 0);
+    { name: 'Excellent', value: remarkBuckets.EXCELLENT, color: '#800000' },
+    { name: 'Very Good', value: remarkBuckets['VERY GOOD'], color: '#d4af37' },
+    { name: 'Satisfactory', value: remarkBuckets.SATISFACTORY, color: '#4CAF50' },
+    { name: 'Fair', value: remarkBuckets.FAIR, color: '#2196F3' },
+    { name: 'Passing', value: remarkBuckets.PASSING, color: '#9C27B0' },
+    { name: 'Failed / Conditional', value: remarkBuckets['FAILED OR CONDITIONAL'], color: '#f44336' },
+  ].filter((d) => d.value > 0);
 
   // Pass/Fail Rate
   const studentPassRows = filteredStudents.map((student) => {
@@ -120,7 +126,9 @@ export default function AdminAnalyticsPage() {
   // Subject Performance
   const subjectPerformance = subjects.map(sub => {
     const subjectGrades = filteredGrades.filter(g => g.subject_id === sub.id);
-    const avg = subjectGrades.length > 0 ? Math.round(subjectGrades.reduce((sum, g) => sum + g.grade, 0) / subjectGrades.length * 100) / 100 : 0;
+    const avg = subjectGrades.length > 0
+      ? Math.round(subjectGrades.reduce((sum, g) => sum + toGradePoint(Number(g.grade)), 0) / subjectGrades.length * 100) / 100
+      : 0;
     return { name: sub.name.length > 15 ? sub.name.substring(0, 15) + '...' : sub.name, average: avg, students: subjectGrades.length };
   }).filter(s => s.students > 0).slice(0, 10);
 
@@ -130,25 +138,43 @@ export default function AdminAnalyticsPage() {
     const byStudent = new Map<string, number[]>();
     qGrades.forEach((grade) => {
       const list = byStudent.get(grade.student_id) || [];
-      list.push(grade.grade);
+      list.push(toGradePoint(Number(grade.grade)));
       byStudent.set(grade.student_id, list);
     });
     const passingStudents = Array.from(byStudent.values()).filter((list) => isPassing(list.reduce((sum, value) => sum + value, 0) / list.length)).length;
-    return { quarter: `Q${q}`, average: qGrades.length > 0 ? Math.round(qGrades.reduce((sum, g) => sum + g.grade, 0) / qGrades.length * 100) / 100 : 0, passing: passingStudents, total: byStudent.size };
+    return {
+      quarter: `Q${q}`,
+      average: qGrades.length > 0
+        ? Math.round(qGrades.reduce((sum, g) => sum + toGradePoint(Number(g.grade)), 0) / qGrades.length * 100) / 100
+        : 0,
+      passing: passingStudents,
+      total: byStudent.size,
+    };
   });
 
   // Year Level Performance
   const yearLevelData = ['1st', '2nd', '3rd', '4th'].map(year => {
     const yearSubjects = subjects.filter(s => s.year_level === year);
     const yearGrades = filteredGrades.filter(g => yearSubjects.find(s => s.id === g.subject_id));
-    return { year: `${year} Year`, average: yearGrades.length > 0 ? Math.round(yearGrades.reduce((sum, g) => sum + g.grade, 0) / yearGrades.length * 100) / 100 : 0, count: yearGrades.length };
+    return {
+      year: `${year} Year`,
+      average: yearGrades.length > 0
+        ? Math.round(yearGrades.reduce((sum, g) => sum + toGradePoint(Number(g.grade)), 0) / yearGrades.length * 100) / 100
+        : 0,
+      count: yearGrades.length,
+    };
   });
 
   // Course Comparison
   const courseComparison = courses.map(course => {
     const courseSubjects = subjects.filter(s => s.course_id === course.id);
     const courseGrades = filteredGrades.filter(g => courseSubjects.find(s => s.id === g.subject_id));
-    return { name: course.name.substring(0, 12), average: courseGrades.length > 0 ? Math.round(courseGrades.reduce((sum, g) => sum + g.grade, 0) / courseGrades.length * 100) / 100 : 0 };
+    return {
+      name: course.name.substring(0, 12),
+      average: courseGrades.length > 0
+        ? Math.round(courseGrades.reduce((sum, g) => sum + toGradePoint(Number(g.grade)), 0) / courseGrades.length * 100) / 100
+        : 0,
+    };
   });
 
   // Top Performers
@@ -161,7 +187,7 @@ export default function AdminAnalyticsPage() {
       subjectCount,
       grades: studentGrades.length,
     };
-  }).filter(s => s.grades > 0).sort((a, b) => b.gwa - a.gwa).slice(0, 5);
+  }).filter(s => s.grades > 0).sort((a, b) => compareNumeric(a.gwa, b.gwa)).slice(0, 5);
 
   const deanListByCourse = courses.map((course) => {
     const courseStudents = filteredStudents.filter((student) => student.course_id === course.id);
@@ -174,7 +200,7 @@ export default function AdminAnalyticsPage() {
         gwa: calculateGWA(studentGrades),
         gradeCount: studentGrades.length,
       };
-    }).filter(Boolean).sort((a, b) => (b?.gwa || 0) - (a?.gwa || 0)) as Array<{
+    }).filter(Boolean).sort((a, b) => compareNumeric(a?.gwa || 0, b?.gwa || 0)) as Array<{
       id: string;
       name: string;
       gwa: number;
@@ -188,16 +214,26 @@ export default function AdminAnalyticsPage() {
   }).filter((row) => row.deanListStudents.length > 0);
 
   // Grade Heatmap Data (by quarter and subject)
-  const quarterSubjectData = [1, 2, 3, 4].map(q => {
-    const qGrades = filteredGrades.filter(g => g.quarter === q);
-    return { quarter: `Q${q}`, high: qGrades.filter(g => g.grade >= 85).length, mid: qGrades.filter(g => g.grade >= 75 && g.grade < 85).length, low: qGrades.filter(g => g.grade < 75).length };
+  const quarterSubjectData = [1, 2, 3, 4].map((q) => {
+    const qGrades = filteredGrades.filter((g) => g.quarter === q && g.grade_status !== 'inc');
+    return {
+      quarter: `Q${q}`,
+      excellent: qGrades.filter((g) => toGradePoint(Number(g.grade)) <= 1.5).length,
+      satisfactory: qGrades.filter((g) => {
+        const gp = toGradePoint(Number(g.grade));
+        return gp > 1.5 && gp <= 2.5;
+      }).length,
+      fair: qGrades.filter((g) => toGradePoint(Number(g.grade)) === 2.75).length,
+      passing: qGrades.filter((g) => toGradePoint(Number(g.grade)) === 3.0).length,
+      failed: qGrades.filter((g) => toGradePoint(Number(g.grade)) >= 5.0).length,
+    };
   });
 
   const subjectPassFailData = subjects.map((sub) => {
     const subjectGrades = grades.filter((g) => g.subject_id === sub.id);
     const byStudent = new Map<string, number[]>();
     subjectGrades.forEach((grade) => {
-      const numericGrade = Number(grade.grade);
+      const numericGrade = toGradePoint(Number(grade.grade));
       if (!Number.isFinite(numericGrade)) return;
       const list = byStudent.get(grade.student_id) || [];
       list.push(numericGrade);
@@ -214,7 +250,9 @@ export default function AdminAnalyticsPage() {
     };
   }).filter((row) => row.total > 0).slice(0, 20);
 
-  const overallAverage = filteredGrades.length > 0 ? Math.round(filteredGrades.reduce((sum, g) => sum + g.grade, 0) / filteredGrades.length * 100) / 100 : 0;
+  const overallAverage = filteredGrades.length > 0
+    ? Math.round(filteredGrades.reduce((sum, g) => sum + toGradePoint(Number(g.grade)), 0) / filteredGrades.length * 100) / 100
+    : 0;
   const passRate = studentPassRows.length > 0 ? Math.round((passingCount / studentPassRows.length) * 100) : 0;
 
   const hasActiveCourseFilter = selectedCourse !== 'all';
@@ -274,7 +312,10 @@ export default function AdminAnalyticsPage() {
               setAnimated(false);
               setTimeout(() => setAnimated(true), 100);
             }}
-            options={[{ value: 'all', label: 'All Courses' }, ...courses.map((c) => ({ value: c.id, label: c.name }))]}
+            options={sortSelectOptions(
+              [{ value: 'all', label: 'All Courses' }, ...sortByName(courses).map((c) => ({ value: c.id, label: c.name || '' }))],
+              ['all']
+            )}
             className="w-full sm:max-w-xs"
           />
           <p className="mt-4 text-xs text-gray-500 sm:text-sm">
@@ -289,7 +330,7 @@ export default function AdminAnalyticsPage() {
           { label: 'Total Students', value: filteredStudents.length, Icon: Users, color: '#800000' },
           { label: 'Total Subjects', value: subjects.length, Icon: BookOpen, color: '#d4af37' },
           { label: 'Overall Pass Rate (Student GWA)', value: `${passRate}%`, Icon: CheckCircle2, color: '#4CAF50' },
-          { label: 'Average Grade', value: overallAverage, Icon: ChartLine, color: '#2196F3' },
+          { label: 'Average GWA', value: overallAverage, Icon: ChartLine, color: '#2196F3' },
         ].map((stat, i) => (
           <GlassCard key={i} className={`p-3 sm:p-4 text-center animate-delay-${i * 100} animate-in fade-in slide-in-from-bottom duration-500 opacity-100`}>
             <div className="text-3xl mb-2">
@@ -346,7 +387,7 @@ export default function AdminAnalyticsPage() {
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={subjectPerformance} layout="vertical">
               <CartesianGrid {...chartGrid} />
-              <XAxis type="number" domain={[0, 100]} {...chartAxis} />
+              <XAxis type="number" domain={[1, 5]} reversed {...chartAxis} />
               <YAxis type="category" dataKey="name" width={100} {...chartAxis} />
               <Tooltip formatter={(value) => [value, 'Average']} {...chartTooltip} />
               <Bar dataKey="average" fill="#800000" radius={[0, 4, 4, 0]} animationDuration={1500} animationBegin={500} />
@@ -363,9 +404,9 @@ export default function AdminAnalyticsPage() {
             <AreaChart data={quarterlyData}>
               <CartesianGrid {...chartGrid} />
               <XAxis dataKey="quarter" {...chartAxis} />
-              <YAxis domain={[0, 100]} {...chartAxis} />
+              <YAxis domain={[1, 5]} reversed {...chartAxis} />
               <Tooltip {...chartTooltip} />
-              <Area type="monotone" dataKey="average" stroke="#d4af37" fill="url(#gradient)" strokeWidth={2} animationDuration={1500} animationBegin={600} />
+              <Area type="monotone" dataKey="average" stroke="#d4af37" fill="url(#gradient)" strokeWidth={2} animationDuration={1500} animationBegin={600} name="Avg GWA" />
               <Area type="monotone" dataKey="passing" stroke="#4CAF50" fill="transparent" strokeWidth={2} />
               <Legend {...chartLegend} />
               <defs>
@@ -390,9 +431,9 @@ export default function AdminAnalyticsPage() {
             <ComposedChart data={yearLevelData}>
               <CartesianGrid {...chartGrid} />
               <XAxis dataKey="year" {...chartAxis} />
-              <YAxis domain={[0, 100]} {...chartAxis} />
+              <YAxis domain={[1, 5]} reversed {...chartAxis} />
               <Tooltip {...chartTooltip} />
-              <Bar dataKey="average" fill="#800000" radius={[4, 4, 0, 0]} animationDuration={1500} />
+              <Bar dataKey="average" fill="#800000" radius={[4, 4, 0, 0]} animationDuration={1500} name="Avg GWA" />
             </ComposedChart>
           </ResponsiveContainer>
         </GlassCard>
@@ -406,9 +447,9 @@ export default function AdminAnalyticsPage() {
             <BarChart data={courseComparison}>
               <CartesianGrid {...chartGrid} />
               <XAxis dataKey="name" {...chartAxis} />
-              <YAxis domain={[0, 100]} {...chartAxis} />
+              <YAxis domain={[1, 5]} reversed {...chartAxis} />
               <Tooltip {...chartTooltip} />
-              <Bar dataKey="average" fill="#d4af37" radius={[4, 4, 0, 0]} animationDuration={1500} />
+              <Bar dataKey="average" fill="#d4af37" radius={[4, 4, 0, 0]} animationDuration={1500} name="Avg GWA" />
             </BarChart>
           </ResponsiveContainer>
         </GlassCard>
@@ -425,9 +466,11 @@ export default function AdminAnalyticsPage() {
               <YAxis {...chartAxis} />
               <Tooltip {...chartTooltip} />
               <Legend {...chartLegend} />
-              <Bar dataKey="high" stackId="a" fill="#4CAF50" name="High (85+)" />
-              <Bar dataKey="mid" stackId="a" fill="#2196F3" name="Mid (75-84)" />
-              <Bar dataKey="low" stackId="a" fill="#f44336" name="Low (<75)" />
+              <Bar dataKey="excellent" stackId="a" fill="#800000" name="Excellent / Very Good" />
+              <Bar dataKey="satisfactory" stackId="a" fill="#4CAF50" name="Satisfactory" />
+              <Bar dataKey="fair" stackId="a" fill="#2196F3" name="Fair" />
+              <Bar dataKey="passing" stackId="a" fill="#9C27B0" name="Passing" />
+              <Bar dataKey="failed" stackId="a" fill="#f44336" name="Failed" />
             </BarChart>
           </ResponsiveContainer>
         </GlassCard>

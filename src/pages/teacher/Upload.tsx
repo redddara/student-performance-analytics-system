@@ -15,6 +15,7 @@ import {
   type ExistingGradeLite,
   type EnrolledStudentLite,
 } from '../../lib/bulkGradeUploadPreview';
+import { sortByLabel, sortByName } from '../../lib/sortUtils';
 
 export default function TeacherUploadPage() {
   const { user } = useAuthStore();
@@ -290,7 +291,9 @@ export default function TeacherUploadPage() {
                 label="Select Subject"
                 value={selectedSubject}
                 onChange={(e) => setSelectedSubject(e.target.value)}
-                options={mySubjects.map((s) => ({ value: s.id, label: `${s.name} - ${s.course?.name}` }))}
+                options={sortByLabel(
+                  sortByName(mySubjects).map((s) => ({ value: s.id, label: `${s.name} - ${s.course?.name || ''}` }))
+                )}
               />
               <Select
                 label="Semester"

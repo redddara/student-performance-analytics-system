@@ -3,6 +3,13 @@ import { Users, ArrowRightLeft, ArrowUpRight, Plus } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { supabase } from '../../lib/supabase';
 import {
+  courseSelectOptions,
+  sectionSelectOptions,
+  sortByName,
+  sortByStudentName,
+  sortSelectOptions,
+} from '../../lib/sortUtils';
+import {
   Button,
   GlassCard,
   Input,
@@ -71,7 +78,6 @@ export default function AdminSectionsPage() {
   const [newSectionYearLevel, setNewSectionYearLevel] = useState('1st');
   const [newSectionCode, setNewSectionCode] = useState('');
 
-  const [selectedSectionId, setSelectedSectionId] = useState('');
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
 
   const [transferToSectionId, setTransferToSectionId] = useState('');
@@ -93,7 +99,7 @@ export default function AdminSectionsPage() {
     try {
       const [courseRes, sectionRes, studentRes] = await Promise.all([
         supabase.from('courses').select('id,name').order('name', { ascending: true }),
-        supabase.from('sections').select('*').order('created_at', { ascending: false }),
+        supabase.from('sections').select('*').order('name', { ascending: true }),
         supabase
           .from('students')
           .select('id,first_name,last_name,course_id,grade_level,section_id,section')
@@ -116,17 +122,15 @@ export default function AdminSectionsPage() {
     void load();
   }, []);
 
-  const courseOptions = useMemo(
-    () => [{ value: '', label: 'All courses' }, ...courses.map((c) => ({ value: c.id, label: c.name }))],
-    [courses]
-  );
+  const courseOptions = useMemo(() => courseSelectOptions(courses), [courses]);
 
   const filteredSections = useMemo(() => {
-    return sections.filter((s) => {
+    const filtered = sections.filter((s) => {
       if (filterCourseId && (s.course_id || '') !== filterCourseId) return false;
       if (filterYearLevel && (s.year_level || '') !== filterYearLevel) return false;
       return true;
     });
+    return sortByName(filtered);
   }, [sections, filterCourseId, filterYearLevel]);
 
   const sectionsById = useMemo(() => {
@@ -135,21 +139,21 @@ export default function AdminSectionsPage() {
     return m;
   }, [sections]);
 
-  const sectionOptions = useMemo(() => {
-    const base = filteredSections.map((s) => ({ value: s.id, label: s.name }));
-    return [{ value: '', label: 'Select a section' }, ...base];
-  }, [filteredSections]);
+  const sectionOptions = useMemo(
+    () => sectionSelectOptions(filteredSections, 'Select a section'),
+    [filteredSections]
+  );
 
   const studentsInSelectedSection = useMemo(() => {
     const term = filterStudentSearch.trim().toLowerCase();
-    return students.filter((st) => {
+    const filtered = students.filter((st) => {
       if (filterCourseId && (st.course_id || '') !== filterCourseId) return false;
       if (filterYearLevel && (st.grade_level || '') !== filterYearLevel) return false;
       if (filterStudentSectionId !== 'all') {
         if (filterStudentSectionId === 'unassigned') {
           if (st.section_id) return false;
-        } else {
-          if ((st.section_id || '') !== filterStudentSectionId) return false;
+        } else if ((st.section_id || '') !== filterStudentSectionId) {
+          return false;
         }
       }
       if (!term) return true;
@@ -157,6 +161,7 @@ export default function AdminSectionsPage() {
       const legacy = String(st.section || '').toLowerCase();
       return name.includes(term) || legacy.includes(term);
     });
+    return sortByStudentName(filtered);
   }, [students, filterCourseId, filterYearLevel, filterStudentSearch, filterStudentSectionId]);
 
   const toggleStudent = (id: string) => {
@@ -201,10 +206,14 @@ export default function AdminSectionsPage() {
     if (!sectionId || selectedStudentIds.length === 0 || assigningSection) return;
     setAssigningSection(true);
     try {
+      const isTransfer = selectedStudentIds.some((id) => {
+        const st = students.find((s) => s.id === id);
+        return Boolean(st?.section_id);
+      });
       const { error } = await supabase.rpc('assign_students_to_section', {
         p_student_ids: selectedStudentIds,
         p_section_id: sectionId,
-        p_reason: selectedSectionId ? 'transfer' : 'assign',
+        p_reason: isTransfer ? 'transfer' : 'assign',
       });
       if (error) throw error;
       setAppMessage({ title: 'Updated', message: 'Students assigned to section.', variant: 'success' });
@@ -249,7 +258,6 @@ export default function AdminSectionsPage() {
     );
   }
 
-  const selectedSection = selectedSectionId ? sectionsById.get(selectedSectionId) : null;
   const visibleIds = studentsInSelectedSection.map((s) => s.id);
   const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedStudentIds.includes(id));
 
@@ -270,7 +278,10 @@ export default function AdminSectionsPage() {
                 label="Course"
                 value={newSectionCourseId}
                 onChange={(e) => setNewSectionCourseId(e.target.value)}
-                options={[{ value: '', label: 'Unlinked' }, ...courses.map((c) => ({ value: c.id, label: c.name }))]}
+                options={sortSelectOptions(
+                  [{ value: '', label: 'Unlinked' }, ...courses.map((c) => ({ value: c.id, label: c.name || '' }))],
+                  ['']
+                )}
               />
               <Select
                 label="Year level"
@@ -315,21 +326,7 @@ export default function AdminSectionsPage() {
           <Table variant="light" headers={['Section', 'Course', 'Year', 'Status']}>
             {filteredSections.map((s) => (
               <tr key={s.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3">
-                  <button
-                    type="button"
-                    className="font-semibold text-[#800000] hover:underline"
-                    onClick={() => {
-                      setSelectedSectionId(s.id);
-                      setSelectedStudentIds([]);
-                      setTransferToSectionId('');
-                      setPromoteToSectionId('');
-                    }}
-                    title="Set as current context"
-                  >
-                    {s.name}
-                  </button>
-                </td>
+                <td className="px-4 py-3 font-semibold text-[#800000]">{s.name}</td>
                 <td className="px-4 py-3 text-sm text-gray-700">
                   {courses.find((c) => c.id === s.course_id)?.name || '—'}
                 </td>
@@ -344,18 +341,6 @@ export default function AdminSectionsPage() {
 
         <GlassCard variant="plain" className="p-4 sm:p-6">
           <h2 className="mb-3 text-xl font-semibold text-[#800000]">Student assignment & promotion</h2>
-          <p className="mb-4 text-sm text-gray-600">
-            {selectedSection ? `Current context: ${selectedSection.name}` : 'Tip: you can bulk assign even without selecting a context section.'}
-          </p>
-
-          <div className="mb-4">
-            <Select
-              label="Context section (optional)"
-              value={selectedSectionId}
-              onChange={(e) => setSelectedSectionId(e.target.value)}
-              options={sectionOptions}
-            />
-          </div>
 
           <div className="mb-4 grid grid-cols-1 gap-3">
             <Input
@@ -467,4 +452,3 @@ export default function AdminSectionsPage() {
     </DashboardLayout>
   );
 }
-

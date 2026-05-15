@@ -1,4 +1,4 @@
-import { getGradeRemarks, getGradeStatus } from './supabase';
+import { getGradeRemarks, getGradeStatus, parseGradeInput, toGradePoint } from './supabase';
 
 export interface GradeSpreadsheetRow {
   student_name?: string;
@@ -101,10 +101,11 @@ function formatStudentDisplay(s: EnrolledStudentLite): string {
 }
 
 function parseGradeValue(raw: unknown): number | null {
-  if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
   if (raw === '' || raw == null) return null;
-  const v = parseFloat(String(raw));
-  return Number.isFinite(v) ? v : null;
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    return parseGradeInput(raw);
+  }
+  return parseGradeInput(String(raw));
 }
 
 /** Build preview rows — no database writes. */
@@ -157,9 +158,9 @@ export function buildBulkGradePreview(
     }
 
     const numericGrade = parseGradeValue(row.grade);
-    if (ok && (numericGrade == null || numericGrade < 0 || numericGrade > 100)) {
+    if (ok && numericGrade == null) {
       ok = false;
-      errorMessage = `Invalid grade (must be 0–100)`;
+      errorMessage = `Invalid grade (use grade point 1.00–5.00 or percentage 0–100)`;
     }
 
     let remarks: string | null = null;
@@ -168,8 +169,9 @@ export function buildBulkGradePreview(
     let existingGradeDisplay: number | string | null = null;
 
     if (ok && studentId != null && numericGrade != null) {
-      remarks = getGradeRemarks(numericGrade);
-      gradeStatus = getGradeStatus(numericGrade);
+      const gradePoint = toGradePoint(numericGrade);
+      remarks = getGradeRemarks(gradePoint);
+      gradeStatus = getGradeStatus(gradePoint);
 
       const existing = existingLookup.get(existingKey(studentId, resolvedSemester, resolvedQuarter));
       if (existing) {
@@ -191,7 +193,7 @@ export function buildBulkGradePreview(
       resolvedName,
       semester: resolvedSemester,
       quarter: resolvedQuarter,
-      numericGrade,
+      numericGrade: numericGrade != null ? toGradePoint(numericGrade) : null,
       remarks,
       gradeStatus,
       ok,

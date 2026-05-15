@@ -1,3 +1,5 @@
+import { sortByLabel } from '../lib/sortUtils';
+
 /** Section codes shown in UI as shortcuts only (e.g. 1m1, 2n2). */
 export const SCHOOL_SECTION_CODES = [
   '1m1',
@@ -24,8 +26,8 @@ export const DEFAULT_SCHOOL_SECTION: SchoolSectionCode = '1m1';
 
 export const SCHOOL_SECTION_IS_VALID = new Set<string>(SCHOOL_SECTION_CODES);
 
-export const SCHOOL_SECTION_SELECT_OPTIONS: { value: string; label: string }[] = SCHOOL_SECTION_CODES.map(
-  (code) => ({ value: code, label: code })
+export const SCHOOL_SECTION_SELECT_OPTIONS: { value: string; label: string }[] = sortByLabel(
+  SCHOOL_SECTION_CODES.map((code) => ({ value: code, label: code }))
 );
 
 export function normalizeSchoolSection(value: string | null | undefined): string {

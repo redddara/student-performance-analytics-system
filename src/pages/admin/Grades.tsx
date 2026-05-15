@@ -5,8 +5,14 @@ import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { PageIntro } from '../../components/layouts/PageIntro';
 import { Button, GlassCard, Modal, Select, Table, PageSkeletonLoader } from '../../components/ui';
 import { useAuthStore } from '../../store';
-import { supabase, getGradeRemarks, getGradeStatus } from '../../lib/supabase';
+import { supabase, getGradeRemarks, getGradeStatus, parseGradeInput, toGradePoint, formatGradeDisplay } from '../../lib/supabase';
 import { useSupabaseLiveReload } from '../../lib/useSupabaseLiveReload';
+import {
+  compareAlphabetical,
+  courseSelectOptions,
+  sortByLabel,
+  subjectSelectOptions,
+} from '../../lib/sortUtils';
 
 type FinalAverageRow = {
   key: string;
@@ -182,10 +188,14 @@ export default function AdminGradesPage() {
       });
     }
 
-    return rows.sort((a, b) =>
-      `${a.student_name}`.toLowerCase().localeCompare(`${b.student_name}`.toLowerCase())
-    );
+    return rows.sort((a, b) => compareAlphabetical(a.student_name, b.student_name));
   }, [filtered, students, subjects, courses]);
+
+  const sortedCourses = useMemo(() => courseSelectOptions(courses), [courses]);
+  const sortedSchoolYears = useMemo(
+    () => sortByLabel((schoolYears || []).map((sy) => ({ value: sy.id, label: sy.name || '' }))),
+    [schoolYears]
+  );
 
   const exportCsv = () => {
     const rows = finalRows.map((r) => {
@@ -225,14 +235,16 @@ export default function AdminGradesPage() {
 
   const saveEdit = async () => {
     if (!editRow) return;
-    const n = Number(editGrade);
-    if (editStatus !== 'inc' && (Number.isNaN(n) || n < 0 || n > 100)) return;
-    if (editStatus === 'passed' && n < 75) return;
-    if (editStatus === 'failed' && n >= 75) return;
+    const gradePoint = parseGradeInput(editGrade);
+    if (editStatus !== 'inc' && gradePoint == null) return;
     const payload =
       editStatus === 'inc'
         ? { grade_status: 'inc', grade: 0, remarks: 'INC' }
-        : { grade_status: editStatus, grade: n, remarks: getGradeRemarks(n) };
+        : {
+            grade_status: editStatus,
+            grade: gradePoint!,
+            remarks: getGradeRemarks(gradePoint!),
+          };
 
     await supabase
       .from('grades')
@@ -305,7 +317,7 @@ export default function AdminGradesPage() {
           options={[
             { value: 'active', label: activeSchoolYearId ? 'Active school year' : 'Active school year (none)' },
             { value: 'all', label: 'All school years' },
-            ...(schoolYears || []).map((sy) => ({ value: sy.id, label: sy.name })),
+            ...sortedSchoolYears,
           ]}
         />
         <Select
@@ -318,15 +330,13 @@ export default function AdminGradesPage() {
           label="Subject"
           value={subjectId}
           onChange={(e) => setSubjectId(e.target.value)}
-          options={[{ value: '', label: 'All subjects' }, ...subjects.map((s) => ({ value: s.id, label: s.name }))]
-          }
+          options={subjectSelectOptions(subjects)}
         />
         <Select
           label="Course"
           value={courseId}
           onChange={(e) => setCourseId(e.target.value)}
-          options={[{ value: '', label: 'All courses' }, ...courses.map((c) => ({ value: c.id, label: c.name }))]
-          }
+          options={sortedCourses}
         />
         <Select
           label="Year level"

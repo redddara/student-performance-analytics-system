@@ -2,11 +2,21 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Check, Download, Save, Search, Users } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { GlassCard, Select, Button, MessageModal, PageSkeletonLoader, type AppMessagePayload } from '../../components/ui';
+import {
+  compareAlphabetical,
+  compareNumeric,
+  sortByLabel,
+  sortByName,
+  sortByStudentName,
+  sortSelectOptions,
+} from '../../lib/sortUtils';
 import { useAuthStore } from '../../store';
 import { supabase } from '../../lib/supabase';
 import { useSupabaseLiveReload } from '../../lib/useSupabaseLiveReload';
 import { useInitialPageLoading } from '../../lib/useInitialPageLoading';
-import { formatClassDaysLabel, isScheduledClassDay } from '../../lib/classSchedule';
+import { formatClassDaysLabel } from '../../lib/classSchedule';
+
+type AttendanceSessionType = 'class' | 'no_class';
 import { SCHOOL_SECTION_SELECT_OPTIONS, normalizeSchoolSection } from '../../constants/schoolSections';
 import { BarChart, Bar, CartesianGrid, LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
@@ -24,6 +34,8 @@ export default function TeacherAttendancePage() {
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [presentByStudent, setPresentByStudent] = useState<Record<string, boolean>>({});
   const [attendanceHistory, setAttendanceHistory] = useState<any[]>([]);
+  const [attendanceSessions, setAttendanceSessions] = useState<{ attendance_date: string; session_type: AttendanceSessionType }[]>([]);
+  const [dateSessionType, setDateSessionType] = useState<AttendanceSessionType>('class');
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const analyticsSubjectRef = useRef<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -53,11 +65,29 @@ export default function TeacherAttendancePage() {
     const enrollments = studentEnrollmentsRef.current;
     if (!sid) {
       setPresentByStudent({});
+      setDateSessionType('class');
       return;
     }
 
     const studentIds = rosterStudentIdsForSubject(sid, enrollments);
     if (!studentIds.length) {
+      setPresentByStudent({});
+      setDateSessionType('class');
+      return;
+    }
+
+    const { data: sessionRow } = await supabase
+      .from('attendance_sessions')
+      .select('session_type')
+      .eq('subject_id', sid)
+      .eq('attendance_date', d)
+      .maybeSingle();
+
+    const sessionType: AttendanceSessionType =
+      sessionRow?.session_type === 'no_class' ? 'no_class' : 'class';
+    setDateSessionType(sessionType);
+
+    if (sessionType === 'no_class') {
       setPresentByStudent({});
       return;
     }
@@ -105,20 +135,28 @@ export default function TeacherAttendancePage() {
 
     const showAnalyticsSpinner = analyticsSubjectRef.current !== sid;
     if (showAnalyticsSpinner) setAnalyticsLoading(true);
-    const { data, error } = await supabase
-      .from('attendance_records')
-      .select('student_id, is_present, attendance_date')
-      .eq('subject_id', sid)
-      .in('student_id', studentIds)
-      .order('attendance_date', { ascending: true });
+    const [recordsRes, sessionsRes] = await Promise.all([
+      supabase
+        .from('attendance_records')
+        .select('student_id, is_present, attendance_date')
+        .eq('subject_id', sid)
+        .in('student_id', studentIds)
+        .order('attendance_date', { ascending: true }),
+      supabase
+        .from('attendance_sessions')
+        .select('attendance_date, session_type')
+        .eq('subject_id', sid),
+    ]);
 
-    if (error) {
+    if (recordsRes.error || sessionsRes.error) {
       setAttendanceHistory([]);
+      setAttendanceSessions([]);
       setAnalyticsLoading(false);
       return;
     }
 
-    setAttendanceHistory(data || []);
+    setAttendanceSessions((sessionsRes.data || []) as { attendance_date: string; session_type: AttendanceSessionType }[]);
+    setAttendanceHistory(recordsRes.data || []);
     analyticsSubjectRef.current = sid;
     setAnalyticsLoading(false);
   }, []);
@@ -176,7 +214,7 @@ export default function TeacherAttendancePage() {
       await loadAttendanceAnalytics();
     }, [loadData, loadAttendanceForDate, loadAttendanceAnalytics]),
     user?.id ? `live:teacher-attendance:${user.id}` : null,
-    ['attendance_records', 'student_subjects', 'subjects', 'students']
+    ['attendance_records', 'attendance_sessions', 'student_subjects', 'subjects', 'students']
   );
 
   const courseOptions = useMemo(() => {
@@ -187,7 +225,7 @@ export default function TeacherAttendancePage() {
         courses.set(student.course_id, student.course.name);
       }
     });
-    return Array.from(courses.entries()).map(([value, label]) => ({ value, label }));
+    return sortByLabel(Array.from(courses.entries()).map(([value, label]) => ({ value, label })));
   }, [studentEnrollments]);
 
   const studentsForSelectedSubject = useMemo(() => {
@@ -204,7 +242,7 @@ export default function TeacherAttendancePage() {
         }
       });
 
-    return Array.from(byId.values());
+    return sortByStudentName(Array.from(byId.values()));
   }, [studentEnrollments, selectedSubjectId]);
 
   useEffect(() => {
@@ -221,20 +259,26 @@ export default function TeacherAttendancePage() {
     [mySubjects, selectedSubjectId]
   );
 
-  const isClassDayForSelectedDate = useMemo(
-    () => isScheduledClassDay(selectedDate, selectedSubject?.class_days),
-    [selectedDate, selectedSubject?.class_days]
+  const noClassDates = useMemo(
+    () =>
+      new Set(
+        attendanceSessions
+          .filter((session) => session.session_type === 'no_class')
+          .map((session) => session.attendance_date)
+      ),
+    [attendanceSessions]
   );
 
-  const scheduledAttendanceHistory = useMemo(() => {
-    const pattern = selectedSubject?.class_days;
-    if (!pattern) return attendanceHistory;
-    return attendanceHistory.filter((record) => isScheduledClassDay(record.attendance_date, pattern));
-  }, [attendanceHistory, selectedSubject?.class_days]);
+  const isNoClassDay = dateSessionType === 'no_class';
+
+  const activeAttendanceHistory = useMemo(
+    () => attendanceHistory.filter((record) => !noClassDates.has(record.attendance_date)),
+    [attendanceHistory, noClassDates]
+  );
 
   const filteredStudents = useMemo(() => {
     const q = filterSearch.trim().toLowerCase();
-    return studentsForSelectedSubject.filter((student: any) => {
+    const filtered = studentsForSelectedSubject.filter((student: any) => {
       const fullName = `${student.first_name || ''} ${student.last_name || ''}`.trim().toLowerCase();
       if (q && !fullName.includes(q)) return false;
       if (filterCourseId && student.course_id !== filterCourseId) return false;
@@ -242,6 +286,7 @@ export default function TeacherAttendancePage() {
       if (filterSection && normalizeSchoolSection(student.section) !== filterSection) return false;
       return true;
     });
+    return sortByStudentName(filtered);
   }, [studentsForSelectedSubject, filterSearch, filterCourseId, filterYear, filterSection]);
 
   const presentCount = useMemo(() => {
@@ -254,18 +299,18 @@ export default function TeacherAttendancePage() {
   }, [presentCount, filteredStudents.length]);
 
   const overallAttendanceRate = useMemo(() => {
-    if (!scheduledAttendanceHistory.length) return 0;
-    const present = scheduledAttendanceHistory.filter((record) => Boolean(record.is_present)).length;
-    return Math.round((present / scheduledAttendanceHistory.length) * 1000) / 10;
-  }, [scheduledAttendanceHistory]);
+    if (!activeAttendanceHistory.length) return 0;
+    const present = activeAttendanceHistory.filter((record) => Boolean(record.is_present)).length;
+    return Math.round((present / activeAttendanceHistory.length) * 1000) / 10;
+  }, [activeAttendanceHistory]);
 
   const totalSessions = useMemo(() => {
-    return new Set(scheduledAttendanceHistory.map((record) => record.attendance_date)).size;
-  }, [scheduledAttendanceHistory]);
+    return new Set(activeAttendanceHistory.map((record) => record.attendance_date)).size;
+  }, [activeAttendanceHistory]);
 
   const attendanceTrend = useMemo(() => {
     const byDate = new Map<string, { date: string; present: number; total: number }>();
-    scheduledAttendanceHistory.forEach((record) => {
+    activeAttendanceHistory.forEach((record) => {
       const key = record.attendance_date;
       const existing = byDate.get(key) || { date: key, present: 0, total: 0 };
       existing.total += 1;
@@ -279,10 +324,10 @@ export default function TeacherAttendancePage() {
         dateLabel: row.date.slice(5),
       }))
       .slice(-8);
-  }, [scheduledAttendanceHistory]);
+  }, [activeAttendanceHistory]);
 
   const attendanceByCourse = useMemo(() => {
-    if (!scheduledAttendanceHistory.length) return [];
+    if (!activeAttendanceHistory.length) return [];
 
     const studentById = new Map<string, any>();
     studentsForSelectedSubject.forEach((student: any) => {
@@ -290,7 +335,7 @@ export default function TeacherAttendancePage() {
     });
 
     const courseMap = new Map<string, { course: string; present: number; total: number }>();
-    scheduledAttendanceHistory.forEach((record) => {
+    activeAttendanceHistory.forEach((record) => {
       const student = studentById.get(record.student_id);
       const courseName = student?.course?.name || 'No course';
       const bucket = courseMap.get(courseName) || { course: courseName, present: 0, total: 0 };
@@ -304,11 +349,11 @@ export default function TeacherAttendancePage() {
         ...row,
         rate: row.total > 0 ? Math.round((row.present / row.total) * 1000) / 10 : 0,
       }))
-      .sort((a, b) => b.rate - a.rate);
-  }, [scheduledAttendanceHistory, studentsForSelectedSubject]);
+      .sort((a, b) => compareNumeric(b.rate, a.rate));
+  }, [activeAttendanceHistory, studentsForSelectedSubject]);
 
   const atRiskStudents = useMemo(() => {
-    if (!scheduledAttendanceHistory.length) return [];
+    if (!activeAttendanceHistory.length) return [];
 
     const studentById = new Map<string, any>();
     studentsForSelectedSubject.forEach((student: any) => {
@@ -316,7 +361,7 @@ export default function TeacherAttendancePage() {
     });
 
     const byStudent = new Map<string, { present: number; total: number }>();
-    scheduledAttendanceHistory.forEach((record) => {
+    activeAttendanceHistory.forEach((record) => {
       const bucket = byStudent.get(record.student_id) || { present: 0, total: 0 };
       bucket.total += 1;
       if (record.is_present) bucket.present += 1;
@@ -338,12 +383,12 @@ export default function TeacherAttendancePage() {
       })
       .filter((row) => row.total >= 3)
       .filter((row) => row.rate < 75)
-      .sort((a, b) => a.rate - b.rate)
+      .sort((a, b) => compareNumeric(a.rate, b.rate))
       .slice(0, 6);
-  }, [scheduledAttendanceHistory, studentsForSelectedSubject]);
+  }, [activeAttendanceHistory, studentsForSelectedSubject]);
 
   const attendanceBySection = useMemo(() => {
-    if (!scheduledAttendanceHistory.length) return [];
+    if (!activeAttendanceHistory.length) return [];
 
     const studentById = new Map<string, any>();
     studentsForSelectedSubject.forEach((student: any) => {
@@ -351,7 +396,7 @@ export default function TeacherAttendancePage() {
     });
 
     const sectionMap = new Map<string, { section: string; present: number; total: number }>();
-    scheduledAttendanceHistory.forEach((record) => {
+    activeAttendanceHistory.forEach((record) => {
       const student = studentById.get(record.student_id);
       const sectionName = normalizeSchoolSection(student?.section) || 'No section';
       const bucket = sectionMap.get(sectionName) || { section: sectionName, present: 0, total: 0 };
@@ -365,12 +410,12 @@ export default function TeacherAttendancePage() {
         ...row,
         rate: row.total > 0 ? Math.round((row.present / row.total) * 1000) / 10 : 0,
       }))
-      .sort((a, b) => b.rate - a.rate);
-  }, [scheduledAttendanceHistory, studentsForSelectedSubject]);
+      .sort((a, b) => compareNumeric(b.rate, a.rate));
+  }, [activeAttendanceHistory, studentsForSelectedSubject]);
 
   const monthlyAttendanceHeatmap = useMemo(() => {
     const byMonth = new Map<string, { key: string; present: number; total: number }>();
-    scheduledAttendanceHistory.forEach((record) => {
+    activeAttendanceHistory.forEach((record) => {
       const key = String(record.attendance_date || '').slice(0, 7);
       if (!key) return;
       const bucket = byMonth.get(key) || { key, present: 0, total: 0 };
@@ -392,8 +437,8 @@ export default function TeacherAttendancePage() {
           label,
         };
       })
-      .sort((a, b) => a.key.localeCompare(b.key));
-  }, [scheduledAttendanceHistory]);
+      .sort((a, b) => compareAlphabetical(a.key, b.key));
+  }, [activeAttendanceHistory]);
 
   const getHeatLevelClass = (rate: number) => {
     if (rate >= 95) return 'bg-green-700 text-white border-green-800';
@@ -475,12 +520,84 @@ export default function TeacherAttendancePage() {
     }));
   };
 
+  const upsertSessionType = async (sessionType: AttendanceSessionType) => {
+    const { error } = await supabase.from('attendance_sessions').upsert(
+      {
+        subject_id: selectedSubjectId,
+        attendance_date: selectedDate,
+        session_type: sessionType,
+        marked_by: user?.id || null,
+      },
+      { onConflict: 'subject_id,attendance_date' }
+    );
+    if (error) throw error;
+  };
+
+  const markAsNoClass = async () => {
+    if (!selectedSubjectId) return;
+    setSaving(true);
+    try {
+      await upsertSessionType('no_class');
+      const studentIds = rosterStudentIdsForSubject(selectedSubjectId, studentEnrollments);
+      if (studentIds.length) {
+        await supabase
+          .from('attendance_records')
+          .delete()
+          .eq('subject_id', selectedSubjectId)
+          .eq('attendance_date', selectedDate)
+          .in('student_id', studentIds);
+      }
+      setDateSessionType('no_class');
+      setPresentByStudent({});
+      await loadAttendanceAnalytics();
+      setAppMessage({
+        title: 'No class saved',
+        message: `${selectedDate} is recorded as no class. It will not affect attendance rates.`,
+        variant: 'success',
+      });
+    } catch (error: any) {
+      setAppMessage({
+        title: 'Could not save',
+        message: error?.message?.includes('attendance_sessions')
+          ? 'Run the latest Supabase migration (attendance_sessions), then try again.'
+          : error?.message || 'Please try again.',
+        variant: 'error',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const markAsClassDay = async () => {
+    if (!selectedSubjectId) return;
+    setSaving(true);
+    try {
+      await upsertSessionType('class');
+      setDateSessionType('class');
+      await loadAttendanceForDate();
+      await loadAttendanceAnalytics();
+      setAppMessage({
+        title: 'Class day',
+        message: `You can now mark attendance for ${selectedDate}.`,
+        variant: 'success',
+      });
+    } catch (error: any) {
+      setAppMessage({
+        title: 'Could not save',
+        message: error?.message || 'Please try again.',
+        variant: 'error',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const saveAttendance = async () => {
     if (!selectedSubjectId) return;
-    if (!isClassDayForSelectedDate) {
+    if (isNoClassDay) {
       setAppMessage({
-        title: 'No class today',
-        message: `This subject meets on ${formatClassDaysLabel(selectedSubject?.class_days)} only. Pick a scheduled class day to mark attendance.`,
+        title: 'No class day',
+        message: 'This date is marked as no class. Click "Mark as class day" first if you need to take attendance.',
         variant: 'warning',
       });
       return;
@@ -492,6 +609,8 @@ export default function TeacherAttendancePage() {
 
     setSaving(true);
     try {
+      await upsertSessionType('class');
+
       const payload = studentsForSelectedSubject.map((student: any) => ({
         subject_id: selectedSubjectId,
         student_id: student.id,
@@ -506,6 +625,7 @@ export default function TeacherAttendancePage() {
 
       if (error) throw error;
 
+      await loadAttendanceAnalytics();
       setAppMessage({
         title: 'Attendance saved',
         message: `Attendance for ${selectedDate} has been saved.`,
@@ -542,10 +662,12 @@ export default function TeacherAttendancePage() {
             onChange={(e) => setSelectedSubjectId(e.target.value)}
             options={
               mySubjects.length
-                ? mySubjects.map((subject: any) => ({
-                    value: subject.id,
-                    label: `${subject.name} - ${subject.course?.name || 'No course'}`,
-                  }))
+                ? sortByLabel(
+                    sortByName(mySubjects).map((subject: any) => ({
+                      value: subject.id,
+                      label: `${subject.name} - ${subject.course?.name || 'No course'}`,
+                    }))
+                  )
                 : [{ value: '', label: 'No subjects assigned' }]
             }
           />
@@ -553,7 +675,7 @@ export default function TeacherAttendancePage() {
             label="Course"
             value={filterCourseId}
             onChange={(e) => setFilterCourseId(e.target.value)}
-            options={[{ value: '', label: 'All courses' }, ...courseOptions]}
+            options={sortSelectOptions([{ value: '', label: 'All courses' }, ...courseOptions], [''])}
           />
           <Select
             label="Grade level"
@@ -571,7 +693,7 @@ export default function TeacherAttendancePage() {
             label="Section"
             value={filterSection}
             onChange={(e) => setFilterSection(e.target.value)}
-            options={[{ value: '', label: 'All sections' }, ...SCHOOL_SECTION_SELECT_OPTIONS]}
+            options={sortSelectOptions([{ value: '', label: 'All sections' }, ...SCHOOL_SECTION_SELECT_OPTIONS], [''])}
           />
           <div className="space-y-1">
             <label htmlFor="attendance-search" className="ml-1 block text-sm font-medium text-gray-700">
@@ -609,11 +731,6 @@ export default function TeacherAttendancePage() {
             Class schedule: <span className="font-semibold text-[#800000]">{formatClassDaysLabel(selectedSubject.class_days)}</span>
           </p>
         )}
-        {!isClassDayForSelectedDate && selectedSubject?.class_days && (
-          <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-            {selectedDate} is not a scheduled class day for this subject. Attendance marking is disabled; analytics only count scheduled class days.
-          </p>
-        )}
       </GlassCard>
 
       <GlassCard variant="plain" className="p-4 sm:p-6">
@@ -627,10 +744,19 @@ export default function TeacherAttendancePage() {
         <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-2xl border border-gray-200 bg-white p-4">
             <p className="text-sm text-gray-600">Selected date attendance</p>
-            <p className="text-2xl font-bold text-[#800000]">{attendanceRateForVisible}%</p>
-            <p className="text-xs text-gray-500">
-              {presentCount} present, {Math.max(filteredStudents.length - presentCount, 0)} absent
-            </p>
+            {isNoClassDay ? (
+              <>
+                <p className="text-2xl font-bold text-gray-600">No class</p>
+                <p className="text-xs text-gray-500">Not counted in attendance rates</p>
+              </>
+            ) : (
+              <>
+                <p className="text-2xl font-bold text-[#800000]">{attendanceRateForVisible}%</p>
+                <p className="text-xs text-gray-500">
+                  {presentCount} present, {Math.max(filteredStudents.length - presentCount, 0)} absent
+                </p>
+              </>
+            )}
           </div>
           <div className="rounded-2xl border border-gray-200 bg-white p-4">
             <p className="text-sm text-gray-600">Overall subject attendance</p>
@@ -745,26 +871,50 @@ export default function TeacherAttendancePage() {
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold text-[#800000]">Class attendance table</h2>
-            <p className="text-sm text-gray-600">
-              Present: <span className="font-semibold text-[#800000]">{presentCount}</span> / {filteredStudents.length}
-            </p>
+            {isNoClassDay ? (
+              <p className="text-sm text-gray-600">
+                This date is marked as <span className="font-semibold text-gray-800">No class</span>.
+              </p>
+            ) : (
+              <p className="text-sm text-gray-600">
+                Present: <span className="font-semibold text-[#800000]">{presentCount}</span> / {filteredStudents.length}
+              </p>
+            )}
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button type="button" disabled={!isClassDayForSelectedDate} onClick={() => setPresentForVisible(true)}>
-              <Check className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
-              Present All
-            </Button>
-            <Button type="button" variant="secondary" disabled={!isClassDayForSelectedDate} onClick={() => setPresentForVisible(false)}>
-              Clear all
-            </Button>
-            <Button type="button" disabled={saving || !isClassDayForSelectedDate} onClick={() => void saveAttendance()}>
-              <Save className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
-              {saving ? 'Saving...' : 'Save attendance'}
-            </Button>
+            {isNoClassDay ? (
+              <Button type="button" disabled={saving} onClick={() => void markAsClassDay()}>
+                Mark as class day
+              </Button>
+            ) : (
+              <>
+                <Button type="button" onClick={() => setPresentForVisible(true)}>
+                  <Check className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
+                  Present All
+                </Button>
+                <Button type="button" variant="secondary" onClick={() => setPresentForVisible(false)}>
+                  Clear all
+                </Button>
+                <Button type="button" variant="secondary" disabled={saving} onClick={() => void markAsNoClass()}>
+                  No class
+                </Button>
+                <Button type="button" disabled={saving} onClick={() => void saveAttendance()}>
+                  <Save className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
+                  {saving ? 'Saving...' : 'Save attendance'}
+                </Button>
+              </>
+            )}
           </div>
         </div>
 
-        {filteredStudents.length === 0 ? (
+        {isNoClassDay ? (
+          <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-8 text-center">
+            <p className="text-base font-semibold text-gray-800">No class for {selectedDate}</p>
+            <p className="mt-2 text-sm text-gray-600">
+              Use this on days without class (e.g. Tuesday for an MWF subject). Click &quot;Mark as class day&quot; when you need to take attendance.
+            </p>
+          </div>
+        ) : filteredStudents.length === 0 ? (
           <p className="py-8 text-center text-gray-500">No students match your selected subject and filters.</p>
         ) : (
           <div className="-mx-1 overflow-x-auto rounded-xl [scrollbar-width:thin] sm:mx-0">
@@ -799,7 +949,6 @@ export default function TeacherAttendancePage() {
                           <input
                             type="checkbox"
                             checked={isPresent}
-                            disabled={!isClassDayForSelectedDate}
                             onChange={(e) => togglePresent(student.id, e.target.checked)}
                             className="h-4 w-4 rounded border-gray-300 text-[#800000] focus:ring-[#800000] disabled:cursor-not-allowed disabled:opacity-50"
                           />

@@ -4,23 +4,48 @@ import { ListFilter, RefreshCw, Search } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { GlassCard, Select, Table, Button, PageSkeletonLoader } from '../../components/ui';
 import { useAuthStore } from '../../store';
-import { supabase, calculateGWA } from '../../lib/supabase';
+import { supabase, calculateGWA, formatGradeDisplay, toGradePoint } from '../../lib/supabase';
+import { compareAlphabetical, sortByLabel } from '../../lib/sortUtils';
+import {
+  computeSubjectFinalGrade,
+  getSubjectInsights,
+  type GradeRecord,
+} from '../../lib/studentGradeInsights';
 
 /** Grades with no school_year_id (legacy rows) */
 const LEGACY_SCHOOL_YEAR_SCOPE = '__legacy__';
 
-type GradeRow = {
+const INSIGHT_HEADERS = ['Strength', 'Areas to Improve', 'Suggestion'] as const;
+
+type GradeRow = GradeRecord & {
   subject_id?: string;
-  semester?: number;
-  quarter?: number;
-  school_year_id?: string | null;
-  subject?: { name?: string; semester?: string; course?: { name?: string } };
+  subject?: { name?: string; code?: string; semester?: string; course?: { name?: string }; year_level?: string };
   school_year?: { id?: string; name?: string };
-  grade_status?: string;
-  grade?: number;
   is_locked?: boolean;
   workflow_status?: string;
 };
+
+type SubjectRow = { subject_id: string; subject: GradeRow['subject'] };
+
+function scopeKeyFromGrade(g: GradeRow): string {
+  return g.school_year_id ? g.school_year_id : LEGACY_SCHOOL_YEAR_SCOPE;
+}
+
+function InsightCellHover({ label, reason }: { label: string; reason: string }) {
+  if (label === '—') {
+    return <td className="px-4 py-3 text-gray-400">—</td>;
+  }
+  return (
+    <td className="group relative px-4 py-3">
+      <span className="cursor-help border-b border-dotted border-gray-400 text-sm text-gray-700">
+        {label}
+      </span>
+      <div className="pointer-events-none absolute left-0 bottom-full z-30 mb-2 hidden w-64 rounded-lg border border-gray-200 bg-white p-3 text-xs leading-relaxed text-gray-700 shadow-lg group-hover:block">
+        {reason}
+      </div>
+    </td>
+  );
+}
 
 export default function StudentGradesPage() {
   const { user } = useAuthStore();
@@ -68,7 +93,6 @@ export default function StudentGradesPage() {
               ? (active?.id ?? null)
               : (schoolYearFilter || null);
       } catch {
-        // Backward-compat: if school_years isn't available, show all years.
         setSchoolYears([]);
         setActiveSchoolYearId(null);
         setActiveSchoolYearName('All years');
@@ -117,140 +141,172 @@ export default function StudentGradesPage() {
     }
     const rows = [...byId.entries()]
       .map(([id, name]) => ({ id, name: name && name.trim() ? name : `Unknown school year (${id.slice(0, 8)}...)` }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-    return [{ value: '', label: 'All school years' }, ...rows.map((r) => ({ value: r.id, label: r.name }))];
+      .sort((a, b) => compareAlphabetical(a.name, b.name));
+    return [{ value: '', label: 'All school years' }, ...sortByLabel(rows.map((r) => ({ value: r.id, label: r.name })))];
   }, [myGrades, activeSchoolYearId, activeSchoolYearName]);
 
-  const yearIdsForGrouping = useMemo(() => {
-    const ids = [
-      ...new Set(
-        myGrades
-          .filter((g) => g.semester === selectedSemester)
-          .map((g) => g.school_year_id)
-          .filter(Boolean)
-      ),
-    ] as string[];
-    const nameFor = (id: string) => myGrades.find((g) => g.school_year_id === id)?.school_year?.name || id;
-    return ids.sort((a, b) => nameFor(b).localeCompare(nameFor(a)));
-  }, [myGrades, selectedSemester]);
-
-  const semesterLabel = selectedSemester === 1 ? '1st Sem' : '2nd Sem';
-
-  const yearScopesForGrouping = useMemo(() => {
+  const allYearScopes = useMemo(() => {
     const scopes: { key: string; label: string }[] = [];
-    if (myGrades.some((g) => !g.school_year_id && g.semester === selectedSemester)) {
+    const seen = new Set<string>();
+    if (myGrades.some((g) => !g.school_year_id)) {
       scopes.push({ key: LEGACY_SCHOOL_YEAR_SCOPE, label: 'Unassigned school year' });
+      seen.add(LEGACY_SCHOOL_YEAR_SCOPE);
     }
-    for (const id of yearIdsForGrouping) {
+    const yearIds = [
+      ...new Set(myGrades.map((g) => g.school_year_id).filter(Boolean)),
+    ] as string[];
+    for (const id of yearIds.sort((a, b) => {
+      const nameA = myGrades.find((g) => g.school_year_id === a)?.school_year?.name || a;
+      const nameB = myGrades.find((g) => g.school_year_id === b)?.school_year?.name || b;
+      return compareAlphabetical(nameA, nameB);
+    })) {
+      if (seen.has(id)) continue;
+      seen.add(id);
       const label = myGrades.find((g) => g.school_year_id === id)?.school_year?.name || 'School year';
       scopes.push({ key: id, label });
     }
     return scopes;
-  }, [myGrades, yearIdsForGrouping, selectedSemester]);
+  }, [myGrades]);
+
+  const semesterLabelFor = (semester: number) => (semester === 1 ? '1st Sem' : '2nd Sem');
 
   const buildSubjectRows = useCallback(
-    (scopeKey: string) => {
+    (scopeKey: string, semester: number) => {
       const gradeInScope = myGrades.filter((g) => {
         const yMatch =
           scopeKey === LEGACY_SCHOOL_YEAR_SCOPE ? !g.school_year_id : g.school_year_id === scopeKey;
-        if (!yMatch) return false;
-        return g.semester === selectedSemester;
+        return yMatch && g.semester === semester;
       });
-      const map = new Map<string, { subject_id: string; subject: any }>();
+      const map = new Map<string, SubjectRow>();
       for (const g of gradeInScope) {
         if (g.subject_id && g.subject && !map.has(g.subject_id)) {
           map.set(g.subject_id, { subject_id: g.subject_id, subject: g.subject });
         }
       }
+      const semLabel = semesterLabelFor(semester);
       const scopeIsActiveYear =
         Boolean(activeSchoolYearId && scopeKey === activeSchoolYearId && scopeKey !== LEGACY_SCHOOL_YEAR_SCOPE);
       if (scopeIsActiveYear) {
         for (const ss of mySubjects) {
-          if (ss.subject?.semester === semesterLabel && ss.subject_id && !map.has(ss.subject_id)) {
+          if (ss.subject?.semester === semLabel && ss.subject_id && !map.has(ss.subject_id)) {
             map.set(ss.subject_id, { subject_id: ss.subject_id, subject: ss.subject });
           }
         }
       }
       return [...map.values()];
     },
-    [myGrades, mySubjects, selectedSemester, semesterLabel, activeSchoolYearId]
+    [myGrades, mySubjects, activeSchoolYearId],
   );
 
-  const getFilteredGrades = (scopeKey: string) => {
-    return myGrades.filter((g) => {
-      const yMatch =
-        scopeKey === LEGACY_SCHOOL_YEAR_SCOPE ? !g.school_year_id : g.school_year_id === scopeKey;
-      if (!yMatch) return false;
-      return (
-        g.semester === selectedSemester &&
-        (!selectedQuarter || g.quarter?.toString() === selectedQuarter)
-      );
-    });
-  };
+  const getFilteredGrades = useCallback(
+    (scopeKey: string, semester: number) => {
+      return myGrades.filter((g) => {
+        const yMatch =
+          scopeKey === LEGACY_SCHOOL_YEAR_SCOPE ? !g.school_year_id : g.school_year_id === scopeKey;
+        if (!yMatch) return false;
+        return (
+          g.semester === semester &&
+          (!selectedQuarter || g.quarter?.toString() === selectedQuarter)
+        );
+      });
+    },
+    [myGrades, selectedQuarter],
+  );
 
-  const getSubjectGrade = (subjectId: string, quarter: number, scopeKey: string) => {
-    const grade = getFilteredGrades(scopeKey).find(
-      (g) => g.subject_id === subjectId.toString() && g.quarter === quarter
+  const getSubjectGrade = (subjectId: string, quarter: number, scopeKey: string, semester: number) => {
+    const grade = getFilteredGrades(scopeKey, semester).find(
+      (g) => g.subject_id === subjectId.toString() && g.quarter === quarter,
     );
     if (!grade) return '-';
-    const base = grade.grade_status === 'inc' ? 'INC' : grade.grade?.toString() || '-';
+    const base =
+      grade.grade_status === 'inc'
+        ? 'INC'
+        : grade.grade != null
+          ? formatGradeDisplay(toGradePoint(Number(grade.grade)))
+          : '-';
     if (grade.is_locked) return `${base} (L)`;
     if (grade.workflow_status === 'for_review') return `${base} (R)`;
     return base;
   };
 
-  const getSubjectAverage = (subjectId: string, scopeKey: string) => {
-    const subjectGrades = getFilteredGrades(scopeKey).filter(
-      (g) => g.subject_id === subjectId && g.grade_status !== 'inc'
+  const getSubjectFinalDisplay = (subjectId: string, scopeKey: string, semester: number) => {
+    const subjectGrades = getFilteredGrades(scopeKey, semester).filter(
+      (g) => g.subject_id === subjectId && g.grade_status !== 'inc',
     );
-    if (subjectGrades.length === 0) return '-';
-    const avg = calculateGWA(subjectGrades as any[]);
-    return avg.toFixed(2).toString();
+    const final = computeSubjectFinalGrade(subjectGrades);
+    if (final == null) return '-';
+    return final.toFixed(2);
   };
 
-  const calculateSemesterGWA = (scopeKey: string) => {
-    const semesterGrades = getFilteredGrades(scopeKey);
+  const calculateSemesterGWA = (scopeKey: string, semester: number) => {
+    const semesterGrades = getFilteredGrades(scopeKey, semester);
     if (semesterGrades.length === 0) return '-';
-    return calculateGWA(semesterGrades as any[]).toFixed(2);
+    return calculateGWA(semesterGrades as { grade: number }[]).toFixed(2);
   };
 
   const subjectMatchesSearchAndYear = useCallback(
-    (ss: { subject?: { name?: string; course?: { name?: string }; year_level?: string } }) => {
+    (ss: { subject?: { name?: string; code?: string; course?: { name?: string }; year_level?: string } }) => {
       const q = filterSearch.trim().toLowerCase();
       const name = String(ss.subject?.name || '').toLowerCase();
+      const code = String(ss.subject?.code || '').toLowerCase();
       const course = String(ss.subject?.course?.name || '').toLowerCase();
-      if (q && !name.includes(q) && !course.includes(q)) return false;
+      if (q && !name.includes(q) && !code.includes(q) && !course.includes(q)) return false;
       if (filterYearLevel && (ss.subject?.year_level || '') !== filterYearLevel) return false;
       return true;
     },
-    [filterSearch, filterYearLevel]
+    [filterSearch, filterYearLevel],
   );
 
   const semesterSubjects = useMemo(
-    () => (selectedSchoolYearId ? buildSubjectRows(selectedSchoolYearId) : []),
-    [selectedSchoolYearId, buildSubjectRows]
+    () => (selectedSchoolYearId ? buildSubjectRows(selectedSchoolYearId, selectedSemester) : []),
+    [selectedSchoolYearId, selectedSemester, buildSubjectRows],
   );
 
-  const filteredSemesterSubjects = useMemo(() => {
-    return semesterSubjects.filter(subjectMatchesSearchAndYear);
-  }, [semesterSubjects, subjectMatchesSearchAndYear]);
+  const filteredSemesterSubjects = useMemo(
+    () => semesterSubjects.filter(subjectMatchesSearchAndYear),
+    [semesterSubjects, subjectMatchesSearchAndYear],
+  );
 
   const groupedGradePanels = useMemo(() => {
     if (selectedSchoolYearId) return null;
-    return yearScopesForGrouping.map(({ key, label }) => {
-      const rows = buildSubjectRows(key);
-      const filtered = rows.filter(subjectMatchesSearchAndYear);
-      return { scopeKey: key, title: label, rows, filtered };
+    return allYearScopes.map(({ key, label }) => {
+      const semestersInScope = [
+        ...new Set(
+          myGrades
+            .filter((g) => scopeKeyFromGrade(g) === key)
+            .map((g) => g.semester)
+            .filter((s): s is number => s === 1 || s === 2),
+        ),
+      ].sort();
+      const semesterPanels = semestersInScope.map((semester) => {
+          const rows = buildSubjectRows(key, semester);
+          const filtered = rows.filter(subjectMatchesSearchAndYear);
+          return { semester, rows, filtered };
+        });
+      return { scopeKey: key, title: label, semesterPanels };
     });
-  }, [selectedSchoolYearId, yearScopesForGrouping, buildSubjectRows, subjectMatchesSearchAndYear]);
+  }, [
+    selectedSchoolYearId,
+    allYearScopes,
+    myGrades,
+    selectedSemester,
+    buildSubjectRows,
+    subjectMatchesSearchAndYear,
+  ]);
 
   const subjectCountSummary = useMemo(() => {
     if (selectedSchoolYearId) {
       return { shown: filteredSemesterSubjects.length, total: semesterSubjects.length, grouped: false };
     }
     const panels = groupedGradePanels || [];
-    const total = panels.reduce((a, p) => a + p.rows.length, 0);
-    const shown = panels.reduce((a, p) => a + p.filtered.length, 0);
+    const total = panels.reduce(
+      (a, p) => a + p.semesterPanels.reduce((s, sp) => s + sp.rows.length, 0),
+      0,
+    );
+    const shown = panels.reduce(
+      (a, p) => a + p.semesterPanels.reduce((s, sp) => s + sp.filtered.length, 0),
+      0,
+    );
     return { shown, total, grouped: true };
   }, [selectedSchoolYearId, filteredSemesterSubjects, semesterSubjects, groupedGradePanels]);
 
@@ -277,14 +333,44 @@ export default function StudentGradesPage() {
       : schoolYearOptions.find((o) => o.value === selectedSchoolYearId)?.label ||
         activeSchoolYearName;
 
+  const tableHeaders = [
+    'Code',
+    'Subject',
+    'Prelim',
+    'Midterm',
+    'Pre-Finals',
+    'Finals',
+    'Final Grade',
+    ...INSIGHT_HEADERS,
+  ];
+
+  const renderSubjectRow = (ss: SubjectRow, scopeKey: string, semester: number, rowKey: string) => {
+    const subjectGrades = getFilteredGrades(scopeKey, semester).filter((g) => g.subject_id === ss.subject_id);
+    const insights = getSubjectInsights(subjectGrades, ss.subject?.name || 'Subject');
+    return (
+      <tr key={rowKey} className="hover:bg-white/20">
+        <td className="px-4 py-3 font-mono text-sm text-gray-600">{ss.subject?.code || '—'}</td>
+        <td className="px-4 py-3 font-medium text-gray-800">{ss.subject?.name}</td>
+        <td className="px-4 py-3 text-gray-600">{getSubjectGrade(ss.subject_id, 1, scopeKey, semester)}</td>
+        <td className="px-4 py-3 text-gray-600">{getSubjectGrade(ss.subject_id, 2, scopeKey, semester)}</td>
+        <td className="px-4 py-3 text-gray-600">{getSubjectGrade(ss.subject_id, 3, scopeKey, semester)}</td>
+        <td className="px-4 py-3 text-gray-600">{getSubjectGrade(ss.subject_id, 4, scopeKey, semester)}</td>
+        <td className="px-4 py-3 font-semibold text-[#800000]">
+          {getSubjectFinalDisplay(ss.subject_id, scopeKey, semester)}
+        </td>
+        <InsightCellHover label={insights.strength} reason={insights.strengthReason} />
+        <InsightCellHover label={insights.improve} reason={insights.improveReason} />
+        <InsightCellHover label={insights.suggestion} reason={insights.suggestionReason} />
+      </tr>
+    );
+  };
+
   if (loading) {
     return <DashboardLayout title="My Grades"><PageSkeletonLoader rows={4} /></DashboardLayout>;
   }
 
   return (
     <DashboardLayout title="My Grades">
-      
-
       <div className="mb-5 w-full max-w-2xl">
         <label htmlFor="student-grade-subject-search" className="sr-only">
           Search subjects
@@ -297,7 +383,7 @@ export default function StudentGradesPage() {
             id="student-grade-subject-search"
             type="search"
             autoComplete="off"
-            placeholder="Search subject or course…"
+            placeholder="Search subject, code, or course…"
             value={filterSearch}
             onChange={(e) => setFilterSearch(e.target.value)}
             className="w-full rounded-2xl border border-white/70 bg-white/55 py-3.5 pl-12 pr-4 text-base text-gray-900 shadow-[0_8px_32px_rgba(128,0,0,0.1),inset_0_1px_0_rgba(255,255,255,0.9)] backdrop-blur-xl placeholder:text-gray-500 focus:border-maroon-500 focus:outline-none focus:ring-2 focus:ring-maroon-500/35"
@@ -340,17 +426,17 @@ export default function StudentGradesPage() {
             )}
           </div>
           <p className="mb-4 text-sm leading-relaxed text-gray-600">
-            Use the search bar above to filter subjects by name or course. Adjust semester and quarter here.
+            Use the search bar above to filter subjects by name, code, or course. Adjust semester and quarter here.
           </p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Select
               label="School year"
               value={schoolYearFilter}
-              onChange={(e) => setSchoolYearFilter(e.target.value as any)}
+              onChange={(e) => setSchoolYearFilter(e.target.value as 'active' | 'all' | string)}
               options={[
                 { value: 'active', label: activeSchoolYearId ? 'Active school year' : 'Active school year (none)' },
                 { value: 'all', label: 'All school years' },
-                ...(schoolYears || []).map((sy: any) => ({ value: sy.id, label: sy.name })),
+                ...(schoolYears || []).map((sy: { id: string; name: string }) => ({ value: sy.id, label: sy.name })),
               ]}
             />
             <Select
@@ -401,30 +487,25 @@ export default function StudentGradesPage() {
         />
       </div>
 
-      <GlassCard className="p-4 sm:p-6">
+      <GlassCard className="p-4 sm:p-6 overflow-x-auto">
         <h2 className="text-xl font-semibold text-[#800000] mb-4">
           {selectedSemester === 1 ? '1st' : '2nd'} Semester Grades
         </h2>
         <p className="mb-3 text-sm text-gray-600">
           School Year: <span className="font-semibold text-[#800000]">{displaySchoolYearLabel}</span>
         </p>
+        <p className="mb-4 text-xs text-gray-500">
+          Hover Strength, Areas to Improve, or Suggestion for a short explanation. Final Grade is the average of all
+          quarters for that subject.
+        </p>
 
         {selectedSchoolYearId ? (
           <>
             {filteredSemesterSubjects.length > 0 && (
-              <Table headers={['Subject', 'Prelim', 'Midterm', 'Pre-Finals', 'Finals', 'Average']}>
-                {filteredSemesterSubjects.map((ss) => (
-                  <tr key={ss.subject_id} className="hover:bg-white/20">
-                    <td className="px-4 py-3 font-medium text-gray-800">{ss.subject?.name}</td>
-                    <td className="px-4 py-3 text-gray-600">{getSubjectGrade(ss.subject_id, 1, selectedSchoolYearId)}</td>
-                    <td className="px-4 py-3 text-gray-600">{getSubjectGrade(ss.subject_id, 2, selectedSchoolYearId)}</td>
-                    <td className="px-4 py-3 text-gray-600">{getSubjectGrade(ss.subject_id, 3, selectedSchoolYearId)}</td>
-                    <td className="px-4 py-3 text-gray-600">{getSubjectGrade(ss.subject_id, 4, selectedSchoolYearId)}</td>
-                    <td className="px-4 py-3 font-semibold text-[#800000]">
-                      {getSubjectAverage(ss.subject_id, selectedSchoolYearId)}
-                    </td>
-                  </tr>
-                ))}
+              <Table headers={tableHeaders}>
+                {filteredSemesterSubjects.map((ss) =>
+                  renderSubjectRow(ss, selectedSchoolYearId, selectedSemester, ss.subject_id),
+                )}
               </Table>
             )}
 
@@ -440,49 +521,62 @@ export default function StudentGradesPage() {
               <div className="mt-6 p-4 rounded-xl bg-gradient-to-r from-[#800000] to-[#d4af37] text-white">
                 <div className="flex flex-col gap-1 sm:flex-row sm:justify-between sm:items-center">
                   <span className="font-semibold">Semester GWA:</span>
-                  <span className="text-2xl font-bold">{calculateSemesterGWA(selectedSchoolYearId)}</span>
+                  <span className="text-2xl font-bold">{calculateSemesterGWA(selectedSchoolYearId, selectedSemester)}</span>
                 </div>
               </div>
             )}
           </>
         ) : (
           <>
-            {(groupedGradePanels || []).map((panel) => (
-              <div key={panel.scopeKey} className="mb-8 last:mb-0">
-                <h3 className="text-lg font-medium text-[#800000] mb-3">{panel.title}</h3>
-                {panel.filtered.length > 0 ? (
-                  <Table headers={['Subject', 'Prelim', 'Midterm', 'Pre-Finals', 'Finals', 'Average']}>
-                    {panel.filtered.map((ss) => (
-                      <tr key={`${panel.scopeKey}-${ss.subject_id}`} className="hover:bg-white/20">
-                        <td className="px-4 py-3 font-medium text-gray-800">{ss.subject?.name}</td>
-                        <td className="px-4 py-3 text-gray-600">{getSubjectGrade(ss.subject_id, 1, panel.scopeKey)}</td>
-                        <td className="px-4 py-3 text-gray-600">{getSubjectGrade(ss.subject_id, 2, panel.scopeKey)}</td>
-                        <td className="px-4 py-3 text-gray-600">{getSubjectGrade(ss.subject_id, 3, panel.scopeKey)}</td>
-                        <td className="px-4 py-3 text-gray-600">{getSubjectGrade(ss.subject_id, 4, panel.scopeKey)}</td>
-                        <td className="px-4 py-3 font-semibold text-[#800000]">
-                          {getSubjectAverage(ss.subject_id, panel.scopeKey)}
-                        </td>
-                      </tr>
-                    ))}
-                  </Table>
-                ) : panel.rows.length === 0 ? (
-                  <p className="text-sm text-gray-500 py-2">No grades for this semester in this school year.</p>
-                ) : (
-                  <p className="text-sm text-gray-500 py-2">No subjects match your search.</p>
-                )}
-
-                {panel.filtered.length > 0 && (
-                  <div className="mt-4 p-4 rounded-xl bg-gradient-to-r from-[#800000] to-[#d4af37] text-white">
-                    <div className="flex flex-col gap-1 sm:flex-row sm:justify-between sm:items-center">
-                      <span className="font-semibold">Semester GWA ({panel.title}):</span>
-                      <span className="text-2xl font-bold">{calculateSemesterGWA(panel.scopeKey)}</span>
+            {(groupedGradePanels || []).map((panel) => {
+              const hasContent = panel.semesterPanels.some((sp) => sp.filtered.length > 0 || sp.rows.length > 0);
+              if (!hasContent) return null;
+              return (
+                <div key={panel.scopeKey} className="mb-8 last:mb-0">
+                  <h3 className="text-lg font-medium text-[#800000] mb-3">{panel.title}</h3>
+                  {panel.semesterPanels.map((sp) => (
+                    <div key={`${panel.scopeKey}-${sp.semester}`} className="mb-6 last:mb-0">
+                      <h4 className="text-sm font-semibold text-gray-700 mb-2">
+                        {sp.semester === 1 ? '1st' : '2nd'} Semester
+                      </h4>
+                      {sp.filtered.length > 0 ? (
+                        <>
+                          <Table headers={tableHeaders}>
+                            {sp.filtered.map((ss) =>
+                              renderSubjectRow(
+                                ss,
+                                panel.scopeKey,
+                                sp.semester,
+                                `${panel.scopeKey}-${sp.semester}-${ss.subject_id}`,
+                              ),
+                            )}
+                          </Table>
+                          <div className="mt-4 p-4 rounded-xl bg-gradient-to-r from-[#800000] to-[#d4af37] text-white">
+                            <div className="flex flex-col gap-1 sm:flex-row sm:justify-between sm:items-center">
+                              <span className="font-semibold">Semester GWA ({panel.title}):</span>
+                              <span className="text-2xl font-bold">
+                                {calculateSemesterGWA(panel.scopeKey, sp.semester)}
+                              </span>
+                            </div>
+                          </div>
+                        </>
+                      ) : sp.rows.length === 0 ? (
+                        <p className="text-sm text-gray-500 py-2">No grades for this semester in this school year.</p>
+                      ) : (
+                        <p className="text-sm text-gray-500 py-2">No subjects match your search.</p>
+                      )}
                     </div>
-                  </div>
-                )}
-              </div>
-            ))}
-            {yearScopesForGrouping.length === 0 && (
-              <p className="text-center text-gray-500 py-8">No grades recorded for this semester yet.</p>
+                  ))}
+                </div>
+              );
+            })}
+            {allYearScopes.length === 0 && (
+              <p className="text-center text-gray-500 py-8">No grades recorded yet.</p>
+            )}
+            {allYearScopes.length > 0 && subjectCountSummary.shown === 0 && (
+              <p className="text-center text-gray-500 py-8">
+                No grades for the selected semester. Try switching to 2nd Semester in filters.
+              </p>
             )}
           </>
         )}

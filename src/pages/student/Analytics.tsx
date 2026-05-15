@@ -7,6 +7,7 @@ import { useAuthStore } from '../../store';
 import { supabase, isPassing, calculateGWA } from '../../lib/supabase';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { chartAxis, chartGrid, chartTooltip } from '../../lib/chartTheme';
+import { compareAlphabetical } from '../../lib/sortUtils';
 
 type GradeRow = {
   subject_id?: string;
@@ -99,7 +100,7 @@ export default function StudentAnalyticsPage() {
         byId.set(activeSchoolYearId, activeSchoolYearName);
       }
     }
-    const rows = [...byId.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+    const rows = [...byId.entries()].sort((a, b) => compareAlphabetical(a[1], b[1]));
     return [{ value: '', label: 'All school years' }, ...rows.map(([value, label]) => ({ value, label }))];
   }, [myGrades, activeSchoolYearId, activeSchoolYearName]);
 

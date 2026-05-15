@@ -23,7 +23,7 @@ import { ConfirmModal } from './components/ui';
 // Auth Pages
 import LoginPage from './pages/auth/Login';
 import ChangePasswordPage from './pages/auth/ChangePassword';
-import ForgotPasswordPage from './pages/auth/ForgotPassword';
+import ForgotPasswordRedirect from './pages/auth/ForgotPassword';
 import ResetPasswordPage from './pages/auth/ResetPassword';
 
 // Admin Pages
@@ -343,7 +343,7 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/change-password" element={<ChangePasswordPage />} />
-          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordRedirect />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
 
           <Route

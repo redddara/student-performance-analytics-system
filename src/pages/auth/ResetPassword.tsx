@@ -92,10 +92,11 @@ export default function ResetPasswordPage() {
             </p>
           </GlassCard>
           <Link
-            to="/forgot-password"
+            to="/login"
+            state={{ openForgotPassword: true }}
             className="inline-flex w-full items-center justify-center rounded-xl border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
           >
-            Request New Link
+            Request password reset
           </Link>
         </div>
       </AuthLayout>

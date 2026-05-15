@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { ChevronRight, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Button, MessageModal, type AppMessagePayload } from '../../components/ui';
 import { useAuthStore } from '../../store';
@@ -13,6 +13,7 @@ import {
   LOGIN_MAX_ATTEMPTS,
 } from '../../lib/loginLock';
 import logoSpas from '../../assets/LOGO SPAS.png';
+import { ForgotPasswordModal } from '../../components/auth/ForgotPasswordModal';
 
 function PillField({
   label,
@@ -88,6 +89,8 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [authTab, setAuthTab] = useState<'login' | 'signup'>('login');
   const [loginModal, setLoginModal] = useState<AppMessagePayload | null>(null);
+  const [forgotModalOpen, setForgotModalOpen] = useState(false);
+  const [forgotLegacyNotice, setForgotLegacyNotice] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -110,6 +113,14 @@ export default function LoginPage() {
       window.removeEventListener('pageshow', clearCredentials);
     };
   }, []);
+
+  useEffect(() => {
+    const s = location.state as { openForgotPassword?: boolean; forgotLegacyLink?: boolean } | null;
+    if (!s?.openForgotPassword) return;
+    setForgotModalOpen(true);
+    setForgotLegacyNotice(Boolean(s.forgotLegacyLink));
+    navigate('.', { replace: true, state: {} });
+  }, [location.state, navigate]);
 
   useEffect(() => {
     if (showExpiredNotice) {
@@ -391,12 +402,16 @@ export default function LoginPage() {
                     </span>
                   </label>
                   <div className="text-right">
-                    <Link
-                      to="/forgot-password"
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setForgotLegacyNotice(false);
+                        setForgotModalOpen(true);
+                      }}
                       className="text-sm font-medium text-maroon-700 transition-colors hover:text-maroon-900 hover:underline"
                     >
                       Forgot password?
-                    </Link>
+                    </button>
                   </div>
 
                   <button
@@ -423,6 +438,25 @@ export default function LoginPage() {
           </div>
         </div>
       </div>
+
+      <ForgotPasswordModal
+        isOpen={forgotModalOpen}
+        onClose={() => {
+          setForgotModalOpen(false);
+          setForgotLegacyNotice(false);
+        }}
+        showLegacyLinkNotice={forgotLegacyNotice}
+        onSuccess={() => {
+          setForgotModalOpen(false);
+          setForgotLegacyNotice(false);
+          setLoginModal({
+            title: 'Check your email',
+            message:
+              'A temporary password was sent to your email. Sign in and change your password right away.',
+            variant: 'success',
+          });
+        }}
+      />
 
       {loginModal && (
         <MessageModal

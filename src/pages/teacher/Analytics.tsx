@@ -97,24 +97,6 @@ export default function TeacherAnalyticsPage() {
   const mySubjectIds = mySubjects.map(s => s.id);
   const myGrades = grades.filter(g => mySubjectIds.includes(g.subject_id));
 
-  // Grade Distribution
-  const gradeDistribution = [0, 0, 0, 0, 0];
-  myGrades.forEach(g => {
-    if (g.grade >= 90) gradeDistribution[0]++;
-    else if (g.grade >= 85) gradeDistribution[1]++;
-    else if (g.grade >= 80) gradeDistribution[2]++;
-    else if (g.grade >= 75) gradeDistribution[3]++;
-    else gradeDistribution[4]++;
-  });
-
-  const pieData = [
-    { name: 'Excellent (90+)', value: gradeDistribution[0] },
-    { name: 'Good (85-89)', value: gradeDistribution[1] },
-    { name: 'Fair (80-84)', value: gradeDistribution[2] },
-    { name: 'Passing (75-79)', value: gradeDistribution[3] },
-    { name: 'Below 75', value: gradeDistribution[4] },
-  ].filter(d => d.value > 0);
-
   const studentPerformance = useMemo(() => {
     const byStudent = new Map<string, { student_id: string; student_name: string; year_level: string; section: string; grades: any[] }>();
     students.forEach((student: any) => {
@@ -137,6 +119,25 @@ export default function TeacherAnalyticsPage() {
         gwa: calculateGWA(entry.grades),
       }));
   }, [students, myGrades]);
+
+  // Grade distribution by student general average (not per quarter)
+  const gradeDistribution = [0, 0, 0, 0, 0];
+  studentPerformance.forEach((entry) => {
+    const avg = entry.gwa;
+    if (avg >= 90) gradeDistribution[0]++;
+    else if (avg >= 85) gradeDistribution[1]++;
+    else if (avg >= 80) gradeDistribution[2]++;
+    else if (avg >= 75) gradeDistribution[3]++;
+    else gradeDistribution[4]++;
+  });
+
+  const pieData = [
+    { name: 'Excellent (90+)', value: gradeDistribution[0] },
+    { name: 'Good (85-89)', value: gradeDistribution[1] },
+    { name: 'Fair (80-84)', value: gradeDistribution[2] },
+    { name: 'Passing (75-79)', value: gradeDistribution[3] },
+    { name: 'Below 75', value: gradeDistribution[4] },
+  ].filter(d => d.value > 0);
 
   // Pass/Fail (student GWA based)
   const passingCount = studentPerformance.filter(s => isPassing(s.gwa)).length;
@@ -244,7 +245,7 @@ export default function TeacherAnalyticsPage() {
     
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-8">
         <GlassCard className="p-4 sm:p-6">
-          <h3 className="text-lg font-semibold text-[#800000] mb-4">Grade Distribution</h3>
+          <h3 className="text-lg font-semibold text-[#800000] mb-4">Grade Distribution (General Average)</h3>
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
               <Pie data={pieData} cx="50%" cy="50%" labelLine={false} label={({ name, percent }) => percent ? `${name} (${(percent * 100).toFixed(0)}%)` : name} outerRadius={60} fill="#8884d8" dataKey="value">

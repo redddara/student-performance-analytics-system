@@ -17,6 +17,7 @@ import {
 } from '../../components/ui';
 import { useDataStore } from '../../store';
 import { supabase } from '../../lib/supabase';
+import { CLASS_DAY_PRESET_OPTIONS } from '../../lib/classSchedule';
 
 const TEACHER_UNASSIGNED = '__unassigned__';
 
@@ -47,6 +48,7 @@ export default function AdminSubjectsPage() {
     year_level: '1st',
     semester: '1st Sem',
     teacher_id: '',
+    class_days: '',
   });
 
   useEffect(() => {
@@ -88,6 +90,7 @@ export default function AdminSubjectsPage() {
       year_level: formData.year_level,
       semester: formData.semester,
       teacher_id: teacherId,
+      class_days: formData.class_days?.trim() || null,
     };
 
     try {
@@ -123,7 +126,7 @@ export default function AdminSubjectsPage() {
       }
 
       setShowModal(false);
-      setFormData({ name: '', course_id: '', year_level: '1st', semester: '1st Sem', teacher_id: '' });
+      setFormData({ name: '', course_id: '', year_level: '1st', semester: '1st Sem', teacher_id: '', class_days: '' });
       setEditingSubject(null);
       loadData();
     } catch (err: any) {
@@ -145,6 +148,7 @@ export default function AdminSubjectsPage() {
       year_level: subject.year_level || '1st',
       semester: subject.semester || '1st Sem',
       teacher_id: subject.teacher_id || '',
+      class_days: subject.class_days || '',
     });
     setShowModal(true);
   };
@@ -359,7 +363,7 @@ export default function AdminSubjectsPage() {
         )}
       </GlassCard>
 
-      <Modal isOpen={showModal} onClose={() => { setShowModal(false); setFormData({ name: '', course_id: '', year_level: '1st', semester: '1st Sem', teacher_id: '' }); setEditingSubject(null); }} title={editingSubject ? 'Edit Subject' : 'Add Subject'}>
+      <Modal isOpen={showModal} onClose={() => { setShowModal(false); setFormData({ name: '', course_id: '', year_level: '1st', semester: '1st Sem', teacher_id: '', class_days: '' }); setEditingSubject(null); }} title={editingSubject ? 'Edit Subject' : 'Add Subject'}>
         <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
           <Input
             label="Subject Name"
@@ -387,6 +391,12 @@ export default function AdminSubjectsPage() {
             <Select label="Semester" value={formData.semester} onChange={e => setFormData({ ...formData, semester: e.target.value })} options={[{ value: '1st Sem', label: '1st Sem' }, { value: '2nd Sem', label: '2nd Sem' }]} />
           </div>
           <Select label="Teacher (Optional)" value={formData.teacher_id} onChange={e => setFormData({ ...formData, teacher_id: e.target.value })} options={[{ value: '', label: 'No Teacher' }, ...teachers.map(t => ({ value: t.id, label: t.name || `${t.first_name} ${t.last_name}` || t.username }))]} />
+          <Select
+            label="Class days (attendance schedule)"
+            value={formData.class_days}
+            onChange={(e) => setFormData({ ...formData, class_days: e.target.value })}
+            options={CLASS_DAY_PRESET_OPTIONS.map((opt) => ({ value: opt.value, label: opt.label }))}
+          />
           <div className="flex gap-4 pt-4">
             <Button
               type="button"
@@ -400,6 +410,7 @@ export default function AdminSubjectsPage() {
                   year_level: '1st',
                   semester: '1st Sem',
                   teacher_id: '',
+                  class_days: '',
                 });
                 setEditingSubject(null);
               }}

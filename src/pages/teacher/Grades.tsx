@@ -48,6 +48,9 @@ export default function TeacherGradesPage() {
   const [entryStudentSearch, setEntryStudentSearch] = useState('');
   const [uploadResults, setUploadResults] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const subjectInitializedRef = useRef(false);
+  const selectedSubjectRef = useRef(selectedSubject);
+  selectedSubjectRef.current = selectedSubject;
   const [appMessage, setAppMessage] = useState<AppMessagePayload | null>(null);
   const [requestingUnlock, setRequestingUnlock] = useState(false);
   const [submittingForReview, setSubmittingForReview] = useState(false);
@@ -105,17 +108,22 @@ export default function TeacherGradesPage() {
       setMySubjects(teacherSubjects);
       const subjectIds = teacherSubjects.map((s) => s.id);
       if (teacherSubjects.length) {
-        const requestedSubjectId = searchParams.get('subject');
-        const hasRequestedSubject =
-          requestedSubjectId && requestedSubjectId !== 'all' && teacherSubjects.some((s) => s.id === requestedSubjectId);
-        const initialSubjectId = hasRequestedSubject ? (requestedSubjectId as string) : '';
-        setSelectedSubject(initialSubjectId);
-        if (initialSubjectId) {
-          setSearchParams({ subject: initialSubjectId }, { replace: true });
+        if (!subjectInitializedRef.current) {
+          subjectInitializedRef.current = true;
+          const requestedSubjectId = searchParams.get('subject');
+          const hasRequestedSubject =
+            requestedSubjectId && requestedSubjectId !== 'all' && teacherSubjects.some((s) => s.id === requestedSubjectId);
+          const initialSubjectId = hasRequestedSubject ? (requestedSubjectId as string) : '';
+          setSelectedSubject(initialSubjectId);
+          if (initialSubjectId) {
+            setSearchParams({ subject: initialSubjectId }, { replace: true });
+          } else {
+            setSearchParams({ subject: 'all' }, { replace: true });
+          }
+          await refreshEnrolledStudents(initialSubjectId, subjectIds);
         } else {
-          setSearchParams({ subject: 'all' }, { replace: true });
+          await refreshEnrolledStudents(selectedSubjectRef.current, subjectIds);
         }
-        await refreshEnrolledStudents(initialSubjectId, subjectIds);
       }
 
       if (subjectIds.length === 0) {
@@ -709,22 +717,30 @@ export default function TeacherGradesPage() {
       if (existing) {
         const { error } = await supabase.from('grades').update(payload).eq('id', existing.id);
         if (error) throw error;
+        setGrades((prev) =>
+          prev.map((g) => (g.id === existing.id ? { ...g, ...payload, grade: numeric } : g))
+        );
       } else {
-        const { error } = await supabase.from('grades').insert({
-          student_id: studentId,
-          subject_id: selectedSubject,
-          semester: selectedSemester,
-          quarter,
-          school_year_id: activeSchoolYearId,
-          ...payload,
-        });
+        const { data: inserted, error } = await supabase
+          .from('grades')
+          .insert({
+            student_id: studentId,
+            subject_id: selectedSubject,
+            semester: selectedSemester,
+            quarter,
+            school_year_id: activeSchoolYearId,
+            ...payload,
+          })
+          .select()
+          .single();
         if (error) throw error;
+        if (inserted) setGrades((prev) => [...prev, inserted]);
       }
-      setClassRecordDrafts((prev) => ({
-        ...prev,
-        [classRecordCellKey(studentId, quarter)]: String(numeric),
-      }));
-      await loadData();
+      setClassRecordDrafts((prev) => {
+        const next = { ...prev };
+        delete next[classRecordCellKey(studentId, quarter)];
+        return next;
+      });
       setAppMessage({ title: 'Saved', message: `Q${quarter} grade saved from class record.`, variant: 'success' });
     } catch (err: any) {
       setAppMessage({
@@ -1231,8 +1247,67 @@ export default function TeacherGradesPage() {
               {` `}If a record is locked, editing is disabled.
             </p>
 
-            <div className="overflow-hidden rounded-2xl border border-gray-200">
-              <table className="w-full min-w-max text-left text-xs sm:text-sm">
+            <div className="space-y-4 lg:hidden">
+              {classRecordRows.map((row) => (
+                <div
+                  key={`mobile-${row.id}`}
+                  className={`rounded-2xl border border-gray-200 bg-white p-4 ${row.locked ? 'opacity-90' : ''}`}
+                >
+                  <div className="mb-3 flex flex-wrap items-center gap-2">
+                    <p className="font-semibold text-gray-900">{row.name}</p>
+                    {selectedSubject && isBackSubjectForStudent(row.id, selectedSubject) && (
+                      <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                        Back Subject
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {[1, 2, 3, 4].map((quarter) => {
+                      const current =
+                        quarter === 1 ? row.q1 : quarter === 2 ? row.q2 : quarter === 3 ? row.q3 : row.q4;
+                      const cellKey = `${row.id}:${quarter}`;
+                      const draftValue = getClassRecordInputValue(row.id, quarter, current);
+                      return (
+                        <div key={cellKey} className="rounded-xl border border-gray-100 bg-gray-50/80 p-3">
+                          <p className="mb-2 text-xs font-semibold text-gray-600">Q{quarter}</p>
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                            <input
+                              type="number"
+                              min={0}
+                              max={100}
+                              step={0.01}
+                              value={draftValue}
+                              onChange={(e) => updateClassRecordDraft(row.id, quarter, e.target.value)}
+                              placeholder={current === 'INC' ? 'INC' : current === '—' ? '—' : String(current)}
+                              disabled={row.locked}
+                              className="w-full min-w-0 flex-1 rounded-xl border border-gray-300/70 bg-white px-3 py-2 text-sm text-gray-900 focus:border-maroon-500 focus:outline-none focus:ring-2 focus:ring-maroon-500/35 disabled:bg-gray-100"
+                            />
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="sm"
+                              className="w-full shrink-0 sm:w-auto"
+                              disabled={classRecordSavingKey === cellKey || row.locked}
+                              onClick={() => void saveClassRecordCell(row.id, quarter, current)}
+                            >
+                              {classRecordSavingKey === cellKey ? 'Saving…' : 'Save'}
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-3 text-sm text-gray-700">
+                    <span><span className="font-semibold">Final:</span> {row.finalGrade}</span>
+                    <span><span className="font-semibold">Remarks:</span> {row.remarks}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="hidden overflow-hidden rounded-2xl border border-gray-200 lg:block">
+              <div className="overflow-x-auto">
+              <table className="w-full min-w-[720px] text-left text-xs sm:text-sm">
                 <thead className="bg-gray-50">
                   <tr className="border-b border-gray-200">
                     {['Student', 'Q1', 'Q2', 'Q3', 'Q4', 'Final Grade', 'Remarks', 'Completion'].map((h) => (
@@ -1281,7 +1356,7 @@ export default function TeacherGradesPage() {
                                 onChange={(e) => updateClassRecordDraft(row.id, quarter, e.target.value)}
                                 placeholder={current === 'INC' ? 'INC' : current === '—' ? '—' : String(current)}
                                 disabled={row.locked}
-                                className="w-24 rounded-xl border border-gray-300/70 bg-white px-3 py-2 text-sm text-gray-900 focus:border-maroon-500 focus:outline-none focus:ring-2 focus:ring-maroon-500/35 disabled:bg-gray-100 disabled:text-gray-500"
+                                className="w-full min-w-[4.5rem] max-w-[6rem] rounded-xl border border-gray-300/70 bg-white px-3 py-2 text-sm text-gray-900 focus:border-maroon-500 focus:outline-none focus:ring-2 focus:ring-maroon-500/35 disabled:bg-gray-100 disabled:text-gray-500"
                               />
                               <Button
                                 type="button"
@@ -1333,6 +1408,7 @@ export default function TeacherGradesPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           </div>
         )}

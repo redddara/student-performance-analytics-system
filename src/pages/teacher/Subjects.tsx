@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useSupabaseLiveReload } from '../../lib/useSupabaseLiveReload';
+import { useInitialPageLoading } from '../../lib/useInitialPageLoading';
+import { formatClassDaysLabel } from '../../lib/classSchedule';
 import { ListFilter, RefreshCw } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { GlassCard, Button, Input, Select, PageSkeletonLoader } from '../../components/ui';
@@ -8,7 +10,7 @@ import { supabase } from '../../lib/supabase';
 
 export default function TeacherSubjectsPage() {
   const { user } = useAuthStore();
-  const [loading, setLoading] = useState(true);
+  const { loading, beginLoad, endLoad } = useInitialPageLoading();
   const [mySubjects, setMySubjects] = useState<any[]>([]);
   const [courses, setCourses] = useState<any[]>([]);
 
@@ -19,7 +21,7 @@ export default function TeacherSubjectsPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const loadData = useCallback(async () => {
-    setLoading(true);
+    beginLoad();
     try {
       const { data } = await supabase
         .from('subjects')
@@ -30,9 +32,9 @@ export default function TeacherSubjectsPage() {
       const { data: coursesData } = await supabase.from('courses').select('id, name').order('name');
       setCourses(coursesData || []);
     } finally {
-      setLoading(false);
+      endLoad();
     }
-  }, [user?.id]);
+  }, [user?.id, beginLoad, endLoad]);
 
   useEffect(() => {
     void loadData();
@@ -164,6 +166,7 @@ export default function TeacherSubjectsPage() {
                 <p><span className="font-semibold">Course:</span> {subject.course?.name || '-'}</p>
                 <p><span className="font-semibold">Year level:</span> {subject.year_level || '-'}</p>
                 <p><span className="font-semibold">Semester:</span> {subject.semester || '-'}</p>
+                <p><span className="font-semibold">Class days:</span> {formatClassDaysLabel(subject.class_days)}</p>
                 <p><span className="font-semibold">Teacher:</span> {(subject.teacher?.first_name || '') + ' ' + (subject.teacher?.last_name || '') || '-'}</p>
               </div>
             </div>

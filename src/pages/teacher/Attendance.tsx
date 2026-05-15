@@ -5,12 +5,14 @@ import { GlassCard, Select, Button, MessageModal, PageSkeletonLoader, type AppMe
 import { useAuthStore } from '../../store';
 import { supabase } from '../../lib/supabase';
 import { useSupabaseLiveReload } from '../../lib/useSupabaseLiveReload';
+import { useInitialPageLoading } from '../../lib/useInitialPageLoading';
+import { formatClassDaysLabel, isScheduledClassDay } from '../../lib/classSchedule';
 import { SCHOOL_SECTION_SELECT_OPTIONS, normalizeSchoolSection } from '../../constants/schoolSections';
 import { BarChart, Bar, CartesianGrid, LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 export default function TeacherAttendancePage() {
   const { user } = useAuthStore();
-  const [loading, setLoading] = useState(true);
+  const { loading, beginLoad, endLoad } = useInitialPageLoading();
   const [mySubjects, setMySubjects] = useState<any[]>([]);
   const [studentEnrollments, setStudentEnrollments] = useState<any[]>([]);
 
@@ -23,6 +25,7 @@ export default function TeacherAttendancePage() {
   const [presentByStudent, setPresentByStudent] = useState<Record<string, boolean>>({});
   const [attendanceHistory, setAttendanceHistory] = useState<any[]>([]);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const analyticsSubjectRef = useRef<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [appMessage, setAppMessage] = useState<AppMessagePayload | null>(null);
 
@@ -100,7 +103,8 @@ export default function TeacherAttendancePage() {
       return;
     }
 
-    setAnalyticsLoading(true);
+    const showAnalyticsSpinner = analyticsSubjectRef.current !== sid;
+    if (showAnalyticsSpinner) setAnalyticsLoading(true);
     const { data, error } = await supabase
       .from('attendance_records')
       .select('student_id, is_present, attendance_date')
@@ -115,11 +119,12 @@ export default function TeacherAttendancePage() {
     }
 
     setAttendanceHistory(data || []);
+    analyticsSubjectRef.current = sid;
     setAnalyticsLoading(false);
   }, []);
 
   const loadData = useCallback(async () => {
-    setLoading(true);
+    beginLoad();
     try {
       const { data: subjectsData } = await supabase
         .from('subjects')
@@ -155,9 +160,9 @@ export default function TeacherAttendancePage() {
       studentEnrollmentsRef.current = list;
       setStudentEnrollments(list);
     } finally {
-      setLoading(false);
+      endLoad();
     }
-  }, [user?.id]);
+  }, [user?.id, beginLoad, endLoad]);
 
   useEffect(() => {
     void loadData();
@@ -207,8 +212,25 @@ export default function TeacherAttendancePage() {
   }, [selectedSubjectId, selectedDate, studentsForSelectedSubject.length, loadAttendanceForDate]);
 
   useEffect(() => {
+    analyticsSubjectRef.current = null;
     void loadAttendanceAnalytics();
   }, [selectedSubjectId, studentsForSelectedSubject.length, loadAttendanceAnalytics]);
+
+  const selectedSubject = useMemo(
+    () => mySubjects.find((item: any) => item.id === selectedSubjectId) ?? null,
+    [mySubjects, selectedSubjectId]
+  );
+
+  const isClassDayForSelectedDate = useMemo(
+    () => isScheduledClassDay(selectedDate, selectedSubject?.class_days),
+    [selectedDate, selectedSubject?.class_days]
+  );
+
+  const scheduledAttendanceHistory = useMemo(() => {
+    const pattern = selectedSubject?.class_days;
+    if (!pattern) return attendanceHistory;
+    return attendanceHistory.filter((record) => isScheduledClassDay(record.attendance_date, pattern));
+  }, [attendanceHistory, selectedSubject?.class_days]);
 
   const filteredStudents = useMemo(() => {
     const q = filterSearch.trim().toLowerCase();
@@ -232,18 +254,18 @@ export default function TeacherAttendancePage() {
   }, [presentCount, filteredStudents.length]);
 
   const overallAttendanceRate = useMemo(() => {
-    if (!attendanceHistory.length) return 0;
-    const present = attendanceHistory.filter((record) => Boolean(record.is_present)).length;
-    return Math.round((present / attendanceHistory.length) * 1000) / 10;
-  }, [attendanceHistory]);
+    if (!scheduledAttendanceHistory.length) return 0;
+    const present = scheduledAttendanceHistory.filter((record) => Boolean(record.is_present)).length;
+    return Math.round((present / scheduledAttendanceHistory.length) * 1000) / 10;
+  }, [scheduledAttendanceHistory]);
 
   const totalSessions = useMemo(() => {
-    return new Set(attendanceHistory.map((record) => record.attendance_date)).size;
-  }, [attendanceHistory]);
+    return new Set(scheduledAttendanceHistory.map((record) => record.attendance_date)).size;
+  }, [scheduledAttendanceHistory]);
 
   const attendanceTrend = useMemo(() => {
     const byDate = new Map<string, { date: string; present: number; total: number }>();
-    attendanceHistory.forEach((record) => {
+    scheduledAttendanceHistory.forEach((record) => {
       const key = record.attendance_date;
       const existing = byDate.get(key) || { date: key, present: 0, total: 0 };
       existing.total += 1;
@@ -257,10 +279,10 @@ export default function TeacherAttendancePage() {
         dateLabel: row.date.slice(5),
       }))
       .slice(-8);
-  }, [attendanceHistory]);
+  }, [scheduledAttendanceHistory]);
 
   const attendanceByCourse = useMemo(() => {
-    if (!attendanceHistory.length) return [];
+    if (!scheduledAttendanceHistory.length) return [];
 
     const studentById = new Map<string, any>();
     studentsForSelectedSubject.forEach((student: any) => {
@@ -268,7 +290,7 @@ export default function TeacherAttendancePage() {
     });
 
     const courseMap = new Map<string, { course: string; present: number; total: number }>();
-    attendanceHistory.forEach((record) => {
+    scheduledAttendanceHistory.forEach((record) => {
       const student = studentById.get(record.student_id);
       const courseName = student?.course?.name || 'No course';
       const bucket = courseMap.get(courseName) || { course: courseName, present: 0, total: 0 };
@@ -283,10 +305,10 @@ export default function TeacherAttendancePage() {
         rate: row.total > 0 ? Math.round((row.present / row.total) * 1000) / 10 : 0,
       }))
       .sort((a, b) => b.rate - a.rate);
-  }, [attendanceHistory, studentsForSelectedSubject]);
+  }, [scheduledAttendanceHistory, studentsForSelectedSubject]);
 
   const atRiskStudents = useMemo(() => {
-    if (!attendanceHistory.length) return [];
+    if (!scheduledAttendanceHistory.length) return [];
 
     const studentById = new Map<string, any>();
     studentsForSelectedSubject.forEach((student: any) => {
@@ -294,7 +316,7 @@ export default function TeacherAttendancePage() {
     });
 
     const byStudent = new Map<string, { present: number; total: number }>();
-    attendanceHistory.forEach((record) => {
+    scheduledAttendanceHistory.forEach((record) => {
       const bucket = byStudent.get(record.student_id) || { present: 0, total: 0 };
       bucket.total += 1;
       if (record.is_present) bucket.present += 1;
@@ -318,10 +340,10 @@ export default function TeacherAttendancePage() {
       .filter((row) => row.rate < 75)
       .sort((a, b) => a.rate - b.rate)
       .slice(0, 6);
-  }, [attendanceHistory, studentsForSelectedSubject]);
+  }, [scheduledAttendanceHistory, studentsForSelectedSubject]);
 
   const attendanceBySection = useMemo(() => {
-    if (!attendanceHistory.length) return [];
+    if (!scheduledAttendanceHistory.length) return [];
 
     const studentById = new Map<string, any>();
     studentsForSelectedSubject.forEach((student: any) => {
@@ -329,7 +351,7 @@ export default function TeacherAttendancePage() {
     });
 
     const sectionMap = new Map<string, { section: string; present: number; total: number }>();
-    attendanceHistory.forEach((record) => {
+    scheduledAttendanceHistory.forEach((record) => {
       const student = studentById.get(record.student_id);
       const sectionName = normalizeSchoolSection(student?.section) || 'No section';
       const bucket = sectionMap.get(sectionName) || { section: sectionName, present: 0, total: 0 };
@@ -344,11 +366,11 @@ export default function TeacherAttendancePage() {
         rate: row.total > 0 ? Math.round((row.present / row.total) * 1000) / 10 : 0,
       }))
       .sort((a, b) => b.rate - a.rate);
-  }, [attendanceHistory, studentsForSelectedSubject]);
+  }, [scheduledAttendanceHistory, studentsForSelectedSubject]);
 
   const monthlyAttendanceHeatmap = useMemo(() => {
     const byMonth = new Map<string, { key: string; present: number; total: number }>();
-    attendanceHistory.forEach((record) => {
+    scheduledAttendanceHistory.forEach((record) => {
       const key = String(record.attendance_date || '').slice(0, 7);
       if (!key) return;
       const bucket = byMonth.get(key) || { key, present: 0, total: 0 };
@@ -371,7 +393,7 @@ export default function TeacherAttendancePage() {
         };
       })
       .sort((a, b) => a.key.localeCompare(b.key));
-  }, [attendanceHistory]);
+  }, [scheduledAttendanceHistory]);
 
   const getHeatLevelClass = (rate: number) => {
     if (rate >= 95) return 'bg-green-700 text-white border-green-800';
@@ -455,6 +477,14 @@ export default function TeacherAttendancePage() {
 
   const saveAttendance = async () => {
     if (!selectedSubjectId) return;
+    if (!isClassDayForSelectedDate) {
+      setAppMessage({
+        title: 'No class today',
+        message: `This subject meets on ${formatClassDaysLabel(selectedSubject?.class_days)} only. Pick a scheduled class day to mark attendance.`,
+        variant: 'warning',
+      });
+      return;
+    }
     if (!studentsForSelectedSubject.length) {
       setAppMessage({ title: 'No students', message: 'No enrolled students found for this subject.', variant: 'warning' });
       return;
@@ -574,6 +604,16 @@ export default function TeacherAttendancePage() {
             />
           </div>
         </div>
+        {selectedSubject?.class_days && (
+          <p className="mt-3 text-sm text-gray-600">
+            Class schedule: <span className="font-semibold text-[#800000]">{formatClassDaysLabel(selectedSubject.class_days)}</span>
+          </p>
+        )}
+        {!isClassDayForSelectedDate && selectedSubject?.class_days && (
+          <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+            {selectedDate} is not a scheduled class day for this subject. Attendance marking is disabled; analytics only count scheduled class days.
+          </p>
+        )}
       </GlassCard>
 
       <GlassCard variant="plain" className="p-4 sm:p-6">
@@ -710,14 +750,14 @@ export default function TeacherAttendancePage() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button type="button" onClick={() => setPresentForVisible(true)}>
+            <Button type="button" disabled={!isClassDayForSelectedDate} onClick={() => setPresentForVisible(true)}>
               <Check className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
               Present All
             </Button>
-            <Button type="button" variant="secondary" onClick={() => setPresentForVisible(false)}>
+            <Button type="button" variant="secondary" disabled={!isClassDayForSelectedDate} onClick={() => setPresentForVisible(false)}>
               Clear all
             </Button>
-            <Button type="button" disabled={saving} onClick={() => void saveAttendance()}>
+            <Button type="button" disabled={saving || !isClassDayForSelectedDate} onClick={() => void saveAttendance()}>
               <Save className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
               {saving ? 'Saving...' : 'Save attendance'}
             </Button>
@@ -759,8 +799,9 @@ export default function TeacherAttendancePage() {
                           <input
                             type="checkbox"
                             checked={isPresent}
+                            disabled={!isClassDayForSelectedDate}
                             onChange={(e) => togglePresent(student.id, e.target.checked)}
-                            className="h-4 w-4 rounded border-gray-300 text-[#800000] focus:ring-[#800000]"
+                            className="h-4 w-4 rounded border-gray-300 text-[#800000] focus:ring-[#800000] disabled:cursor-not-allowed disabled:opacity-50"
                           />
                           {isPresent ? 'Present' : 'Absent'}
                         </label>

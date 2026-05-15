@@ -71,7 +71,6 @@ export default function TeacherDashboard() {
   // Calculate stats - only teacher's subjects grades
   const mySubjectIds = mySubjects.map((s: any) => s.id);
   const myGrades = grades.filter((g: any) => mySubjectIds.includes(g.subject_id));
-  const totalGrades = myGrades.length;
   const studentGwa = myStudents.map((studentId: any) => {
     const studentGrades = myGrades.filter((g: any) => g.student_id === studentId);
     return {
@@ -87,7 +86,7 @@ export default function TeacherDashboard() {
     <DashboardLayout title="Teacher Dashboard">
       
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <GlassCard className="p-4 sm:p-6">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#800000] to-[#a52a2a] flex items-center justify-center text-white">
@@ -108,18 +107,6 @@ export default function TeacherDashboard() {
             <div>
               <p className="text-2xl font-bold text-[#d4af37]">{myStudents.length}</p>
               <p className="text-sm text-gray-500">Students</p>
-            </div>
-          </div>
-        </GlassCard>
-
-        <GlassCard className="p-4 sm:p-6">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-maroon-500 to-maroon-600 flex items-center justify-center text-white">
-              <UserPen className="h-6 w-6 shrink-0" strokeWidth={2} aria-hidden />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-maroon-600">{totalGrades}</p>
-              <p className="text-sm text-gray-500">Total Grades</p>
             </div>
           </div>
         </GlassCard>

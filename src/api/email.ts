@@ -9,16 +9,6 @@ function loginPageUrl(): string {
   return '#';
 }
 
-export function forgotPasswordConfirmUrl(token: string): string {
-  const encoded = encodeURIComponent(token);
-  const base = (import.meta.env.VITE_APP_URL as string | undefined)?.replace(/\/$/, '');
-  if (base) return `${base}/forgot-password?token=${encoded}`;
-  if (typeof window !== 'undefined' && window.location?.origin) {
-    return `${window.location.origin}/forgot-password?token=${encoded}`;
-  }
-  return `#/forgot-password?token=${encoded}`;
-}
-
 export async function sendEmail(
   email: string,
   subject: string,
@@ -116,11 +106,12 @@ export function generateStudentCredentialEmail(
   return { subject, html };
 }
 
-export function generatePasswordResetConfirmationEmail(
+export function generatePasswordResetOtpEmail(
   firstName: string,
-  confirmUrl: string
+  otp: string,
+  expiresInMinutes: number
 ): { subject: string; html: string } {
-  const subject = 'SAPAS - Confirm password reset';
+  const subject = 'SAPAS - Password reset verification code';
   const html = `
 <!DOCTYPE html>
 <html>
@@ -132,22 +123,23 @@ export function generatePasswordResetConfirmationEmail(
   <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
     <div style="background: linear-gradient(135deg, #800000 0%, #a52a2a 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
       <h1 style="color: white; margin: 0; font-size: 28px;">Edulytics PHILTECH</h1>
-      <p style="color: rgba(255,255,255,0.8); margin: 10px 0 0 0;">Password reset confirmation</p>
+      <p style="color: rgba(255,255,255,0.8); margin: 10px 0 0 0;">Password reset code</p>
     </div>
 
     <div style="background: white; padding: 30px; border-radius: 0 0 12px 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
       <h2 style="color: #800000; margin-top: 0;">Hello, ${firstName}</h2>
-      <p style="color: #333; line-height: 1.6;">We received a request to reset your password. Use the button below to continue. Nothing will change until you confirm.</p>
+      <p style="color: #333; line-height: 1.6;">Use this one-time code on the forgot password page to continue. It expires in <strong>${expiresInMinutes} minutes</strong>.</p>
 
-      <div style="text-align: center; margin-top: 25px;">
-        <a href="${confirmUrl}" style="display: inline-block; background: linear-gradient(135deg, #800000 0%, #a52a2a 100%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 25px; font-weight: bold;">Confirm password reset</a>
+      <div style="background: #f8f8f8; border: 2px solid #800000; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center;">
+        <p style="color: #666; margin: 0; font-size: 14px;">Your verification code</p>
+        <p style="color: #800000; font-weight: bold; font-size: 28px; font-family: monospace; letter-spacing: 0.25em; margin: 12px 0 0 0;">${otp}</p>
       </div>
 
-      <p style="color: #666; font-size: 13px; margin-top: 24px; line-height: 1.5;">If the button does not work, copy and paste this link into your browser:<br/><span style="word-break: break-all;">${confirmUrl}</span></p>
+      <p style="color: #b8860b; font-weight: bold; font-size: 14px;">If you did not request this, you can ignore this email.</p>
     </div>
 
     <div style="text-align: center; padding: 20px; color: #999; font-size: 12px;">
-      <p>If you did not request a password reset, you can ignore this email.</p>
+      <p>This is an automated message from Edulytics PHILTECH.</p>
     </div>
   </div>
 </body>

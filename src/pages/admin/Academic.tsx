@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
-import { Button, GlassCard, Input, MessageModal, Spinner, type AppMessagePayload } from '../../components/ui';
+import {
+  Button,
+  ConfirmModal,
+  GlassCard,
+  Input,
+  MessageModal,
+  Spinner,
+  type AppMessagePayload,
+} from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase } from '../../lib/supabase';
 import { useSupabaseLiveReload } from '../../lib/useSupabaseLiveReload';
@@ -21,6 +29,10 @@ export default function AdminAcademicPage() {
   const [announcementBody, setAnnouncementBody] = useState('');
   const [appMessage, setAppMessage] = useState<AppMessagePayload | null>(null);
   const [actionKey, setActionKey] = useState<string | null>(null);
+  const [deleteSchoolYearModal, setDeleteSchoolYearModal] = useState<{
+    row: SchoolYear;
+    gradeCount: number;
+  } | null>(null);
 
   const showError = (fallback: string, err: any) =>
     setAppMessage({
@@ -112,7 +124,7 @@ export default function AdminAcademicPage() {
     }
   };
 
-  const deleteSchoolYear = async (row: SchoolYear) => {
+  const openDeleteSchoolYearModal = async (row: SchoolYear) => {
     if (actionKey) return;
     if (row.is_active) {
       setAppMessage({
@@ -122,27 +134,34 @@ export default function AdminAcademicPage() {
       });
       return;
     }
-    setActionKey(`delete-school-year:${row.id}`);
+    setActionKey(`prepare-delete-school-year:${row.id}`);
     try {
       const { count, error: gradeCheckError } = await supabase
         .from('grades')
         .select('id', { count: 'exact', head: true })
         .eq('school_year_id', row.id);
       if (gradeCheckError) throw gradeCheckError;
-      if ((count || 0) > 0) {
-        setAppMessage({
-          title: 'Delete blocked',
-          message: 'This school year already has grade records. Archive it instead of deleting.',
-          variant: 'warning',
-        });
-        return;
-      }
+      setDeleteSchoolYearModal({ row, gradeCount: count || 0 });
+    } catch (err: any) {
+      showError('Could not check school year data.', err);
+    } finally {
+      setActionKey(null);
+    }
+  };
+
+  const performDeleteSchoolYear = async () => {
+    const row = deleteSchoolYearModal?.row;
+    if (!row) return;
+    setActionKey(`delete-school-year:${row.id}`);
+    try {
       const { error } = await supabase.from('school_years').delete().eq('id', row.id);
       if (error) throw error;
+      setDeleteSchoolYearModal(null);
       setAppMessage({ title: 'Deleted', message: 'School year removed.', variant: 'success' });
       await load();
     } catch (err: any) {
       showError('Could not delete school year.', err);
+      throw err;
     } finally {
       setActionKey(null);
     }
@@ -267,7 +286,7 @@ export default function AdminAcademicPage() {
                     type="button"
                     variant="danger"
                     size="sm"
-                    onClick={() => void deleteSchoolYear(sy)}
+                    onClick={() => void openDeleteSchoolYearModal(sy)}
                     disabled={Boolean(actionKey)}
                   >
                     {actionKey === `delete-school-year:${sy.id}` ? <Spinner size="sm" /> : null}
@@ -342,6 +361,24 @@ export default function AdminAcademicPage() {
           </div>
         </GlassCard>
       </div>
+      {deleteSchoolYearModal && (
+        <ConfirmModal
+          isOpen
+          onClose={() => setDeleteSchoolYearModal(null)}
+          onConfirm={performDeleteSchoolYear}
+          title={deleteSchoolYearModal.gradeCount > 0 ? 'Delete school year with data?' : 'Delete school year?'}
+          message={
+            deleteSchoolYearModal.gradeCount > 0
+              ? `"${deleteSchoolYearModal.row.name}" has ${deleteSchoolYearModal.gradeCount} grade record${
+                  deleteSchoolYearModal.gradeCount === 1 ? '' : 's'
+                }. Deleting removes this school year. Linked grades and other records will lose this year reference (they are not deleted). This cannot be undone.`
+              : `Permanently delete "${deleteSchoolYearModal.row.name}"? This cannot be undone.`
+          }
+          confirmText="Delete school year"
+          cancelText="Cancel"
+          variant={deleteSchoolYearModal.gradeCount > 0 ? 'warning' : 'danger'}
+        />
+      )}
       {appMessage && (
         <MessageModal
           isOpen

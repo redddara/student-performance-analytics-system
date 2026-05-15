@@ -9,6 +9,16 @@ function loginPageUrl(): string {
   return '#';
 }
 
+export function forgotPasswordConfirmUrl(token: string): string {
+  const encoded = encodeURIComponent(token);
+  const base = (import.meta.env.VITE_APP_URL as string | undefined)?.replace(/\/$/, '');
+  if (base) return `${base}/forgot-password?token=${encoded}`;
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return `${window.location.origin}/forgot-password?token=${encoded}`;
+  }
+  return `#/forgot-password?token=${encoded}`;
+}
+
 export async function sendEmail(
   email: string,
   subject: string,
@@ -97,6 +107,47 @@ export function generateStudentCredentialEmail(
 
     <div style="text-align: center; padding: 20px; color: #999; font-size: 12px;">
       <p>This is an automated message from Edulytics PHILTECH. Please do not reply to this email.</p>
+    </div>
+  </div>
+</body>
+</html>
+  `.trim();
+
+  return { subject, html };
+}
+
+export function generatePasswordResetConfirmationEmail(
+  firstName: string,
+  confirmUrl: string
+): { subject: string; html: string } {
+  const subject = 'SAPAS - Confirm password reset';
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f5f5f5;">
+  <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+    <div style="background: linear-gradient(135deg, #800000 0%, #a52a2a 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+      <h1 style="color: white; margin: 0; font-size: 28px;">Edulytics PHILTECH</h1>
+      <p style="color: rgba(255,255,255,0.8); margin: 10px 0 0 0;">Password reset confirmation</p>
+    </div>
+
+    <div style="background: white; padding: 30px; border-radius: 0 0 12px 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+      <h2 style="color: #800000; margin-top: 0;">Hello, ${firstName}</h2>
+      <p style="color: #333; line-height: 1.6;">We received a request to reset your password. Use the button below to continue. Nothing will change until you confirm.</p>
+
+      <div style="text-align: center; margin-top: 25px;">
+        <a href="${confirmUrl}" style="display: inline-block; background: linear-gradient(135deg, #800000 0%, #a52a2a 100%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 25px; font-weight: bold;">Confirm password reset</a>
+      </div>
+
+      <p style="color: #666; font-size: 13px; margin-top: 24px; line-height: 1.5;">If the button does not work, copy and paste this link into your browser:<br/><span style="word-break: break-all;">${confirmUrl}</span></p>
+    </div>
+
+    <div style="text-align: center; padding: 20px; color: #999; font-size: 12px;">
+      <p>If you did not request a password reset, you can ignore this email.</p>
     </div>
   </div>
 </body>

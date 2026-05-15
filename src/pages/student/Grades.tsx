@@ -27,12 +27,14 @@ export default function StudentGradesPage() {
   const [mySubjects, setMySubjects] = useState<any[]>([]);
   const [myGrades, setMyGrades] = useState<GradeRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [schoolYears, setSchoolYears] = useState<any[]>([]);
+  const [activeSchoolYearId, setActiveSchoolYearId] = useState<string | null>(null);
+  const [schoolYearFilter, setSchoolYearFilter] = useState<'active' | 'all' | string>('active');
   const [selectedSemester, setSelectedSemester] = useState(1);
   const [selectedQuarter, setSelectedQuarter] = useState('');
   const [filterSearch, setFilterSearch] = useState('');
   const [filterYearLevel, setFilterYearLevel] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [activeSchoolYearId, setActiveSchoolYearId] = useState<string | null>(null);
   const [activeSchoolYearName, setActiveSchoolYearName] = useState('All years');
   /** '' = all years (grouped tables); otherwise one school_years.id */
   const [selectedSchoolYearId, setSelectedSchoolYearId] = useState('');
@@ -47,25 +49,43 @@ export default function StudentGradesPage() {
 
       if (!studentData) return;
 
-      const [subjectsRes, activeSyRes, gradesRes] = await Promise.all([
-        supabase.from('student_subjects').select('*, subject:subjects(*, course:courses(*))').eq('student_id', studentData.id),
-        supabase.from('school_years').select('id,name').eq('is_active', true).maybeSingle(),
-        supabase
-          .from('grades')
-          .select('*, subject:subjects(*, course:courses(*)), school_year:school_years(id,name)')
-          .eq('student_id', studentData.id),
-      ]);
-
-      const activeSy = activeSyRes.data as { id?: string; name?: string } | null;
-      if (activeSyRes.error) {
+      let effectiveSchoolYearId: string | null = null;
+      try {
+        const syRes = await supabase
+          .from('school_years')
+          .select('id,name,is_active,created_at')
+          .order('created_at', { ascending: false });
+        if (syRes.error) throw syRes.error;
+        const list = syRes.data || [];
+        setSchoolYears(list);
+        const active = list.find((sy: any) => Boolean(sy.is_active)) || null;
+        setActiveSchoolYearId(active?.id ?? null);
+        setActiveSchoolYearName(active?.name || 'All years');
+        effectiveSchoolYearId =
+          schoolYearFilter === 'all'
+            ? null
+            : schoolYearFilter === 'active'
+              ? (active?.id ?? null)
+              : (schoolYearFilter || null);
+      } catch {
+        // Backward-compat: if school_years isn't available, show all years.
+        setSchoolYears([]);
         setActiveSchoolYearId(null);
         setActiveSchoolYearName('All years');
-      } else {
-        setActiveSchoolYearId(activeSy?.id ?? null);
-        setActiveSchoolYearName(activeSy?.name || 'All years');
-        if (activeSy?.id) setSelectedSchoolYearId(activeSy.id);
-        else setSelectedSchoolYearId('');
+        effectiveSchoolYearId = null;
       }
+
+      const [subjectsRes, gradesRes] = await Promise.all([
+        supabase.from('student_subjects').select('*, subject:subjects(*, course:courses(*))').eq('student_id', studentData.id),
+        (async () => {
+          let q = supabase
+            .from('grades')
+            .select('*, subject:subjects(*, course:courses(*)), school_year:school_years(id,name)')
+            .eq('student_id', studentData.id);
+          if (effectiveSchoolYearId) q = q.eq('school_year_id', effectiveSchoolYearId);
+          return q;
+        })(),
+      ]);
 
       setMySubjects(subjectsRes.data || []);
       setMyGrades((gradesRes.data as GradeRow[]) || []);
@@ -74,7 +94,7 @@ export default function StudentGradesPage() {
     } finally {
       setLoading(false);
     }
-  }, [user?.id]);
+  }, [user?.id, schoolYearFilter]);
 
   useEffect(() => {
     void loadData();
@@ -239,6 +259,7 @@ export default function StudentGradesPage() {
     Boolean(filterYearLevel) ||
     selectedSemester !== 1 ||
     selectedQuarter !== '' ||
+    schoolYearFilter !== 'active' ||
     (activeSchoolYearId ? selectedSchoolYearId !== activeSchoolYearId : selectedSchoolYearId !== '');
 
   const clearFilters = () => {
@@ -246,6 +267,7 @@ export default function StudentGradesPage() {
     setFilterYearLevel('');
     setSelectedSemester(1);
     setSelectedQuarter('');
+    setSchoolYearFilter('active');
     setSelectedSchoolYearId(activeSchoolYearId || '');
   };
 
@@ -321,6 +343,16 @@ export default function StudentGradesPage() {
             Use the search bar above to filter subjects by name or course. Adjust semester and quarter here.
           </p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <Select
+              label="School year"
+              value={schoolYearFilter}
+              onChange={(e) => setSchoolYearFilter(e.target.value as any)}
+              options={[
+                { value: 'active', label: activeSchoolYearId ? 'Active school year' : 'Active school year (none)' },
+                { value: 'all', label: 'All school years' },
+                ...(schoolYears || []).map((sy: any) => ({ value: sy.id, label: sy.name })),
+              ]}
+            />
             <Select
               label="Semester"
               value={`${selectedSemester}`}

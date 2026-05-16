@@ -6,6 +6,7 @@ import { GlassCard, Badge, Table, Button, Select, PageSkeletonLoader } from '../
 import { useAuthStore } from '../../store';
 import { supabase, getGradeStatus } from '../../lib/supabase';
 import { SCHOOL_SECTION_SELECT_OPTIONS, normalizeSchoolSection } from '../../constants/schoolSections';
+import { formatPersonDisplayName } from '../../lib/personName';
 import { compareNumeric, sortByLabel, sortByName, sortByStudentName, sortSelectOptions } from '../../lib/sortUtils';
 
 const yearLevelRank = (value?: string | null) => {
@@ -111,7 +112,7 @@ export default function TeacherStudentsPage() {
   const filteredStudents = useMemo(() => {
     const q = filterSearch.trim().toLowerCase();
     const filtered = students.filter((s: any) => {
-      const name = `${s.first_name || ''} ${s.last_name || ''}`.trim().toLowerCase();
+      const name = formatPersonDisplayName(s).toLowerCase();
       if (q && !name.includes(q)) return false;
       if (filterCourseId && s.course_id !== filterCourseId) return false;
       if (filterYear && (s.grade_level || '') !== filterYear) return false;
@@ -321,7 +322,7 @@ export default function TeacherStudentsPage() {
                       {student.first_name?.[0] || 'S'}
                     </div>
                     <span className="font-medium text-gray-800">
-                      {student.first_name} {student.last_name}
+                      {formatPersonDisplayName(student)}
                     </span>
                   </div>
                 </td>
@@ -360,7 +361,7 @@ export default function TeacherStudentsPage() {
                 <GlassCard key={`card-${student.id}`} className="p-4 sm:p-5">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-base font-semibold text-gray-800">{student.first_name} {student.last_name}</p>
+                      <p className="text-base font-semibold text-gray-800">{formatPersonDisplayName(student)}</p>
                       <p className="text-xs text-gray-500">
                         {student.course?.name || '-'} · {student.grade_level || '-'} · {student.section || '-'}
                       </p>

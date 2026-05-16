@@ -6,6 +6,7 @@ import { useAuthStore } from '../../store';
 import { supabase, isPassing, calculateGWA } from '../../lib/supabase';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import { chartAxis, chartGrid, chartTooltip } from '../../lib/chartTheme';
+import { formatPersonDisplayName } from '../../lib/personName';
 
 const COLORS = ['#800000', '#d4af37', '#4CAF50', '#f44336', '#2196F3'];
 
@@ -102,7 +103,7 @@ export default function TeacherAnalyticsPage() {
     students.forEach((student: any) => {
       byStudent.set(student.id, {
         student_id: student.id,
-        student_name: `${student.first_name || ''} ${student.last_name || ''}`.trim() || 'Unknown',
+        student_name: formatPersonDisplayName(student) || 'Unknown',
         year_level: student.grade_level || '-',
         section: student.section || '-',
         grades: [],
@@ -191,7 +192,7 @@ export default function TeacherAnalyticsPage() {
       const student = students.find((s: any) => s.id === studentId);
       const avg = gradeList.reduce((sum, value) => sum + value, 0) / gradeList.length;
       return {
-        studentName: `${student?.first_name || ''} ${student?.last_name || ''}`.trim() || 'Unknown',
+        studentName: formatPersonDisplayName(student || {}) || 'Unknown',
         yearLevel: student?.grade_level || '-',
         section: student?.section || '-',
         average: avg,

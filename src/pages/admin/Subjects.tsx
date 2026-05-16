@@ -18,13 +18,14 @@ import {
 } from '../../components/ui';
 import { useDataStore } from '../../store';
 import { supabase } from '../../lib/supabase';
+import { formatPersonDisplayName } from '../../lib/personName';
 import { compareAlphabetical, sortByName, sortSelectOptions } from '../../lib/sortUtils';
 import { CLASS_DAY_PRESET_OPTIONS } from '../../lib/classSchedule';
 
 const TEACHER_UNASSIGNED = '__unassigned__';
 
 function teacherLabel(t: { name?: string; first_name?: string; last_name?: string; username?: string }) {
-  return t.name || `${t.first_name || ''} ${t.last_name || ''}`.trim() || t.username || 'Teacher';
+  return formatPersonDisplayName(t) || t.username || 'Teacher';
 }
 
 export default function AdminSubjectsPage() {
@@ -416,7 +417,7 @@ export default function AdminSubjectsPage() {
               <td className="px-4 py-3 text-gray-600">{subject.year_level || '-'}</td>
               <td className="px-4 py-3 text-gray-600">{subject.semester || '-'}</td>
               <td className="px-4 py-3 text-gray-600">
-                {subject.teacher ? `${subject.teacher.first_name || ''} ${subject.teacher.last_name || ''}`.trim() || subject.teacher.name || '-' : '-'}
+                {subject.teacher ? formatPersonDisplayName(subject.teacher) || '-' : '-'}
               </td>
               <td className="px-4 py-3">
                 <div className="flex items-center gap-2">

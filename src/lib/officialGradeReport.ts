@@ -1,4 +1,5 @@
 import { computeSubjectFinalAverage, displayGradePercent, getGradeStatus, snapToGradePoint } from './gradingScale';
+import { formatTeacherOfficialLabel, normalizePersonNames } from './personName';
 import type { GradeRecord } from './studentGradeInsights';
 
 export type OfficialGradeReportRow = {
@@ -22,6 +23,7 @@ type SubjectMeta = {
     name?: string | null;
     first_name?: string | null;
     last_name?: string | null;
+    name_title?: string | null;
   } | null;
 };
 
@@ -39,17 +41,6 @@ function formatQuarterPercent(grade: GradeLike | undefined): string {
   return Number.isFinite(pct) ? pct.toFixed(2) : '—';
 }
 
-function formatTeacherLabel(teacher?: SubjectMeta['teacher']): string {
-  if (!teacher) return '—';
-  const last = String(teacher.last_name || teacher.name || '').trim();
-  const first = String(teacher.first_name || '').trim();
-  if (last) {
-    const title = first.toLowerCase().startsWith('maria') || first.toLowerCase().startsWith('mrs') ? 'MRS.' : 'MR.';
-    return `${title} ${last.toUpperCase()}`;
-  }
-  return String(teacher.name || '—').toUpperCase() || '—';
-}
-
 function formatRemarks(grades: GradeLike[]): string {
   if (grades.some((g) => g.grade_status === 'inc')) return 'INC';
   const summary = computeSubjectFinalAverage(grades);
@@ -62,8 +53,12 @@ export function formatOfficialStudentName(
   firstName?: string | null,
   lastName?: string | null
 ): string {
-  const last = String(lastName || '').trim().toUpperCase();
-  const first = String(firstName || '').trim().toUpperCase();
+  const { first_name, last_name } = normalizePersonNames({
+    first_name: firstName,
+    last_name: lastName,
+  });
+  const last = last_name.toUpperCase();
+  const first = first_name.toUpperCase();
   if (last && first) return `${last}, ${first}`;
   return last || first || '—';
 }
@@ -125,7 +120,7 @@ export function buildOfficialGradeReportRows(
       semestralGrade: semestralDisplay,
       gpa: gpaDisplay,
       remarks,
-      teacher: formatTeacherLabel(subject?.teacher),
+      teacher: formatTeacherOfficialLabel(subject?.teacher || {}),
     };
   });
 }

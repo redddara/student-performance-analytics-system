@@ -11,6 +11,7 @@ import {
   classifyStudentEnrollments,
   type SubjectPrerequisite,
 } from '../../lib/studentAcademicRules';
+import { formatTeacherDisplayName } from '../../lib/personName';
 import type { GradeRecord } from '../../lib/studentGradeInsights';
 
 export default function StudentDashboard() {
@@ -139,8 +140,7 @@ export default function StudentDashboard() {
                 {ss.subject?.teacher && (
                   <p className="text-xs text-gray-400 mt-2 break-words">
                     Teacher:{' '}
-                    {ss.subject.teacher.name ||
-                      `${ss.subject.teacher.first_name} ${ss.subject.teacher.last_name}`}
+                    {formatTeacherDisplayName(ss.subject.teacher)}
                   </p>
                 )}
               </div>

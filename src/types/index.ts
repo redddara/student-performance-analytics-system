@@ -8,6 +8,8 @@ export interface User {
   name?: string;
   first_name?: string;
   last_name?: string;
+  /** Teacher honorific: Mr., Mrs., or Ms. */
+  name_title?: string | null;
   year_level?: string;
   section?: string;
   course_id?: string;

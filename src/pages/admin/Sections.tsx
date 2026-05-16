@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Users, ArrowRightLeft, ArrowUpRight, ArrowDownLeft, Plus, Trash2 } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { supabase } from '../../lib/supabase';
+import { formatPersonDisplayName } from '../../lib/personName';
 import {
   courseSelectOptions,
   sectionSelectOptions,
@@ -173,7 +174,7 @@ export default function AdminSectionsPage() {
         }
       }
       if (!term) return true;
-      const name = `${st.first_name || ''} ${st.last_name || ''}`.trim().toLowerCase();
+      const name = formatPersonDisplayName(st).toLowerCase();
       const legacy = String(st.section || '').toLowerCase();
       return name.includes(term) || legacy.includes(term);
     });
@@ -276,7 +277,7 @@ export default function AdminSectionsPage() {
           const skipReasons =
             allowFailedBackSubjects && hardBlockers.length === 0 ? [] : allowFailedBackSubjects ? hardBlockers : blockers;
           if (skipReasons.length > 0) {
-            const name = `${student.first_name || ''} ${student.last_name || ''}`.trim() || studentId;
+            const name = formatPersonDisplayName(student) || studentId;
             blockedMessages.push(`${name}: ${skipReasons.join(', ')}`);
           }
         }
@@ -570,7 +571,7 @@ export default function AdminSectionsPage() {
             <Table variant="light" headers={['', 'Student', 'Year', 'Sem', 'Official section', 'Legacy']}>
               {studentsInSelectedSection.map((st) => {
                 const checked = selectedStudentIds.includes(st.id);
-                const name = `${st.first_name || ''} ${st.last_name || ''}`.trim() || 'Unnamed student';
+                const name = formatPersonDisplayName(st) || 'Unnamed student';
                 const official = st.section_id ? sectionsById.get(st.section_id)?.name || '—' : '—';
                 const semLabel = (st.current_semester ?? 1) === 2 ? '2nd' : '1st';
                 return (

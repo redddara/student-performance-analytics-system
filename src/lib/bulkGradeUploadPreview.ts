@@ -1,3 +1,4 @@
+import { formatPersonDisplayName } from './personName';
 import { getGradeRemarks, getGradeStatus, gradeValueForStorage } from './supabase';
 import {
   getSubjectGradeSemester,
@@ -96,9 +97,7 @@ export function resolveBulkGradeStudent(
   let byName: EnrolledStudentLite | undefined;
   if (strategy === 'full_name') {
     const n = rawName.toLowerCase();
-    byName = enrolled.find(
-      (s) => `${s.first_name ?? ''} ${s.last_name ?? ''}`.trim().toLowerCase() === n
-    );
+    byName = enrolled.find((s) => formatPersonDisplayName(s).toLowerCase() === n);
   } else {
     const nameParts = rawName.split(/\s+/).filter(Boolean);
     const firstName = nameParts[0] ?? '';
@@ -114,7 +113,7 @@ export function resolveBulkGradeStudent(
 }
 
 function formatStudentDisplay(s: EnrolledStudentLite): string {
-  return `${s.first_name ?? ''} ${s.last_name ?? ''}`.trim() || 'Student';
+  return formatPersonDisplayName(s) || 'Student';
 }
 
 function parseGradeValue(raw: unknown): number | null {

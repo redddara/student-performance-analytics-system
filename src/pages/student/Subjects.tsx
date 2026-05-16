@@ -6,6 +6,7 @@ import { StudentAcademicBanner } from '../../components/student/StudentAcademicB
 import { GlassCard, Select, Button, Input, PageSkeletonLoader } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase } from '../../lib/supabase';
+import { formatTeacherDisplayName } from '../../lib/personName';
 import { compareAlphabetical, sortSelectOptions } from '../../lib/sortUtils';
 import {
   classifyStudentEnrollments,
@@ -107,11 +108,7 @@ export default function StudentSubjectsPage() {
       const sub = ss.subject;
       const name = String(sub?.name || '').toLowerCase();
       const course = String(sub?.course?.name || '').toLowerCase();
-      const teacher = String(
-        sub?.teacher?.name || `${sub?.teacher?.first_name || ''} ${sub?.teacher?.last_name || ''}`
-      )
-        .trim()
-        .toLowerCase();
+      const teacher = formatTeacherDisplayName(sub?.teacher || {}).toLowerCase();
       if (q && !name.includes(q) && !course.includes(q) && !teacher.includes(q)) return false;
       if (filterCourseId && sub?.course?.id !== filterCourseId) return false;
       if (filterYear && (sub?.year_level || '') !== filterYear) return false;
@@ -300,9 +297,7 @@ export default function StudentSubjectsPage() {
                   <p><span className="font-semibold">Semester:</span> {ss.subject?.semester || '-'}</p>
                   <p>
                     <span className="font-semibold">Teacher:</span>{' '}
-                    {ss.subject?.teacher
-                      ? (ss.subject.teacher.name || `${ss.subject.teacher.first_name || ''} ${ss.subject.teacher.last_name || ''}`.trim())
-                      : '-'}
+                    {ss.subject?.teacher ? formatTeacherDisplayName(ss.subject.teacher) : '-'}
                   </p>
                 </div>
               </div>

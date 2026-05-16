@@ -27,6 +27,12 @@ import { useDataStore, useAuthStore } from '../../store';
 import { supabase, generateStudentUsername, generateTempPassword, hashPassword, isPassing, toGradePoint } from '../../lib/supabase';
 import { useSupabaseLiveReload } from '../../lib/useSupabaseLiveReload';
 import { sendEmail, generateStudentCredentialEmail } from '../../api/email';
+import {
+  formatPersonDisplayName,
+  normalizePersonNames,
+  normalizeTeacherTitle,
+  TEACHER_TITLE_SELECT_OPTIONS,
+} from '../../lib/personName';
 import type { Course } from '../../types';
 import { compareAlphabetical, sortByName, sortSelectOptions } from '../../lib/sortUtils';
 import {
@@ -118,7 +124,7 @@ export default function AdminDashboard() {
                 timeStyle: 'short',
               })
             : '—',
-          studentLabel: st ? `${st.first_name} ${st.last_name}` : '—',
+          studentLabel: st ? formatPersonDisplayName(st) : '—',
           subjectLabel: subjectMap.get(g.subject_id) ?? '—',
           grade: g.grade,
           semester: g.semester,
@@ -270,7 +276,7 @@ export default function AdminDashboard() {
                       {student.first_name[0]}
                     </div>
                     <div className="min-w-0">
-                      <p className="font-medium text-gray-800 truncate">{student.first_name} {student.last_name}</p>
+                      <p className="font-medium text-gray-800 truncate">{formatPersonDisplayName(student)}</p>
                       <p className="text-sm text-gray-500">
                         {student.grade_level} - {student.section}
                         {student.created_at && (
@@ -303,7 +309,7 @@ export default function AdminDashboard() {
                     <p className="text-sm text-gray-500">{subject.year_level} - {subject.semester}</p>
                   </div>
                   {subject.teacher && (
-                    <Badge variant="success" className="self-start sm:self-auto shrink-0 max-w-full truncate">{subject.teacher.name || `${subject.teacher.first_name} ${subject.teacher.last_name}`}</Badge>
+                    <Badge variant="success" className="self-start sm:self-auto shrink-0 max-w-full truncate">{formatPersonDisplayName(subject.teacher || {})}</Badge>
                   )}
                 </div>
               ))}
@@ -436,6 +442,7 @@ function CreateUserModal({ isOpen, onClose, type, courses, onFeedback }: CreateU
     first_name: '',
     last_name: '',
     email: '',
+    name_title: '',
     course_id: '',
     grade_level: '1st',
     section: DEFAULT_SCHOOL_SECTION,
@@ -447,10 +454,25 @@ function CreateUserModal({ isOpen, onClose, type, courses, onFeedback }: CreateU
     setLoading(true);
 
     try {
+      const { first_name: normalizedFirstName, last_name: normalizedLastName } = normalizePersonNames({
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+      });
       const tempPassword = generateTempPassword();
       const passwordHash = await hashPassword(tempPassword);
 
       if (type === 'teacher') {
+        const normalizedTeacherTitle = normalizeTeacherTitle(formData.name_title);
+        if (!normalizedTeacherTitle) {
+          onFeedback({
+            title: 'Title required',
+            message: 'Select Mr., Mrs., or Ms. for the teacher.',
+            variant: 'warning',
+          });
+          setLoading(false);
+          return;
+        }
+
         const { error: teacherUserError } = await supabase.from('users').insert({
           email: formData.email,
           password_hash: passwordHash,
@@ -458,8 +480,9 @@ function CreateUserModal({ isOpen, onClose, type, courses, onFeedback }: CreateU
           username: null,
           is_temp_password: true,
           temp_password_visible: tempPassword,
-          first_name: formData.first_name,
-          last_name: formData.last_name,
+          first_name: normalizedFirstName,
+          last_name: normalizedLastName,
+          name_title: normalizedTeacherTitle,
           course_id: formData.course_id || null,
           year_level: null,
           section: null,
@@ -470,7 +493,7 @@ function CreateUserModal({ isOpen, onClose, type, courses, onFeedback }: CreateU
         let emailNote = '';
         if (formData.email) {
           const emailData = generateStudentCredentialEmail(
-            formData.first_name,
+            normalizedFirstName,
             formData.email,
             tempPassword,
             'teacher'
@@ -541,8 +564,8 @@ function CreateUserModal({ isOpen, onClose, type, courses, onFeedback }: CreateU
             username,
             is_temp_password: true,
             temp_password_visible: tempPassword,
-            first_name: formData.first_name,
-            last_name: formData.last_name,
+            first_name: normalizedFirstName,
+            last_name: normalizedLastName,
             course_id: formData.course_id,
             year_level: formData.grade_level,
             section: formData.section,
@@ -555,8 +578,8 @@ function CreateUserModal({ isOpen, onClose, type, courses, onFeedback }: CreateU
         const { data: studentData, error: studentError } = await supabase
           .from('students')
           .insert({
-            first_name: formData.first_name,
-            last_name: formData.last_name,
+            first_name: normalizedFirstName,
+            last_name: normalizedLastName,
             grade_level: formData.grade_level,
             section: formData.section,
             course_id: formData.course_id,
@@ -588,7 +611,7 @@ function CreateUserModal({ isOpen, onClose, type, courses, onFeedback }: CreateU
         let emailNote = '';
         if (formData.email) {
           const emailData = generateStudentCredentialEmail(
-            formData.first_name,
+            normalizedFirstName,
             username,
             tempPassword,
             'student'
@@ -611,6 +634,7 @@ function CreateUserModal({ isOpen, onClose, type, courses, onFeedback }: CreateU
         first_name: '',
         last_name: '',
         email: '',
+        name_title: '',
         course_id: '',
         grade_level: '1st',
         section: DEFAULT_SCHOOL_SECTION,
@@ -651,15 +675,24 @@ function CreateUserModal({ isOpen, onClose, type, courses, onFeedback }: CreateU
         />
         
         {type === 'teacher' && (
-          <Select
-            label="Course (optional)"
-            value={formData.course_id}
-            onChange={e => setFormData({ ...formData, course_id: e.target.value })}
-            options={sortSelectOptions(
-              [{ value: '', label: 'None — not linked to a program' }, ...sortByName(courses).map((c) => ({ value: c.id, label: c.name || '' }))],
-              ['']
-            )}
-          />
+          <>
+            <Select
+              label="Title"
+              value={formData.name_title}
+              onChange={(e) => setFormData({ ...formData, name_title: e.target.value })}
+              options={TEACHER_TITLE_SELECT_OPTIONS}
+              required
+            />
+            <Select
+              label="Course (optional)"
+              value={formData.course_id}
+              onChange={e => setFormData({ ...formData, course_id: e.target.value })}
+              options={sortSelectOptions(
+                [{ value: '', label: 'None — not linked to a program' }, ...sortByName(courses).map((c) => ({ value: c.id, label: c.name || '' }))],
+                ['']
+              )}
+            />
+          </>
         )}
 
         {type === 'student' && (

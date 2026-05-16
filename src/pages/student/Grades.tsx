@@ -32,7 +32,7 @@ type GradeRow = GradeRecord & {
     semester?: string;
     course?: { name?: string };
     year_level?: string;
-    teacher?: { name?: string; first_name?: string; last_name?: string };
+    teacher?: { name?: string; first_name?: string; last_name?: string; name_title?: string | null };
   };
   school_year?: { id?: string; name?: string };
   is_locked?: boolean;
@@ -120,13 +120,13 @@ export default function StudentGradesPage() {
       const [subjectsRes, gradesRes, prereqRes] = await Promise.all([
         supabase
           .from('student_subjects')
-          .select('*, subject:subjects(*, course:courses(*), teacher:users(id, first_name, last_name, name))')
+          .select('*, subject:subjects(*, course:courses(*), teacher:users(id, first_name, last_name, name, name_title))')
           .eq('student_id', studentData.id),
         (async () => {
           let q = supabase
             .from('grades')
             .select(
-              '*, subject:subjects(*, course:courses(*), teacher:users(id, first_name, last_name, name)), school_year:school_years(id,name)',
+              '*, subject:subjects(*, course:courses(*), teacher:users(id, first_name, last_name, name, name_title)), school_year:school_years(id,name)',
             )
             .eq('student_id', studentData.id);
           if (effectiveSchoolYearId) q = q.eq('school_year_id', effectiveSchoolYearId);

@@ -19,6 +19,7 @@ import {
 } from '../../lib/supabase';
 import { useGradesAutoRefresh } from '../../lib/useGradesAutoRefresh';
 import { SCHOOL_SECTION_SELECT_OPTIONS, normalizeSchoolSection } from '../../constants/schoolSections';
+import { formatPersonDisplayName } from '../../lib/personName';
 import {
   compareNumeric,
   sortByName,
@@ -472,7 +473,7 @@ export default function TeacherGradesPage() {
     const q = filterSearch.trim().toLowerCase();
     return baseGrades.filter((g) => {
       const st = students.find((s) => s.id === g.student_id);
-      const name = `${st?.first_name || ''} ${st?.last_name || ''}`.trim().toLowerCase();
+      const name = formatPersonDisplayName(st || {}).toLowerCase();
       if (q && !name.includes(q)) return false;
       if (filterSection && normalizeSchoolSection(st?.section) !== filterSection) return false;
       return true;
@@ -482,7 +483,7 @@ export default function TeacherGradesPage() {
   const filteredEntryStudents = useMemo(() => {
     const q = entryStudentSearch.trim().toLowerCase();
     const filtered = enrolledStudents.filter((s: any) => {
-      const name = `${s.first_name || ''} ${s.last_name || ''}`.trim().toLowerCase();
+      const name = formatPersonDisplayName(s).toLowerCase();
       if (q && !name.includes(q)) return false;
       if (filterSection && normalizeSchoolSection(s.section) !== filterSection) return false;
       return true;
@@ -690,7 +691,7 @@ export default function TeacherGradesPage() {
 
     filteredGrades.forEach((grade) => {
       const st = students.find((s) => s.id === grade.student_id);
-      const studentName = st ? `${st.first_name} ${st.last_name}` : 'Unknown';
+      const studentName = st ? formatPersonDisplayName(st) : 'Unknown';
       const current = summary.get(grade.student_id) || {
         studentName,
         gradeLevel: st?.grade_level || '-',
@@ -750,7 +751,7 @@ export default function TeacherGradesPage() {
       const locked = [q1, q2, q3, q4].some((g: any) => Boolean(g?.is_locked));
       return {
         id: student.id,
-        name: `${student.first_name} ${student.last_name}`,
+        name: formatPersonDisplayName(student),
         q1: q1?.grade_status === 'inc' ? 'INC' : q1?.grade != null ? displayGradePercent(Number(q1.grade)) : '—',
         q2: q2?.grade_status === 'inc' ? 'INC' : q2?.grade != null ? displayGradePercent(Number(q2.grade)) : '—',
         q3: q3?.grade_status === 'inc' ? 'INC' : q3?.grade != null ? displayGradePercent(Number(q3.grade)) : '—',
@@ -897,7 +898,7 @@ export default function TeacherGradesPage() {
 
   const getStudentName = (id: string) => {
     const s = students.find((st) => st.id === id);
-    return s ? `${s.first_name} ${s.last_name}` : 'Unknown';
+    return s ? formatPersonDisplayName(s) : 'Unknown';
   };
 
   const getSubjectName = (id: string) => {
@@ -1091,7 +1092,7 @@ export default function TeacherGradesPage() {
               { value: '', label: filteredEntryStudents.length ? 'Select student' : 'No matching students' },
               ...filteredEntryStudents.map((s: any) => ({
                 value: s.id,
-                label: `${s.first_name || ''} ${s.last_name || ''}`.trim(),
+                label: formatPersonDisplayName(s),
               })),
             ]}
           />

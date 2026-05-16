@@ -7,13 +7,15 @@ import { GlassCard, Select, Table, Spinner, Badge, Button, MessageModal, PageSke
 import { useAuthStore } from '../../store';
 import {
   supabase,
+  computeSubjectFinalAverage,
   getGradeRemarks,
   getGradeStatus,
   isPassing,
-  parseGradeInput,
+  previewGradeInput,
+  displayGradePercent,
+  gradeValueForStorage,
   toGradePoint,
   formatGradeDisplay,
-  VALID_GRADE_POINTS,
 } from '../../lib/supabase';
 import { useGradesAutoRefresh } from '../../lib/useGradesAutoRefresh';
 import { SCHOOL_SECTION_SELECT_OPTIONS, normalizeSchoolSection } from '../../constants/schoolSections';
@@ -32,15 +34,34 @@ import {
   type ExistingGradeLite,
   type EnrolledStudentLite,
 } from '../../lib/bulkGradeUploadPreview';
+import {
+  getSubjectGradeSemester,
+  gradeSemesterMatchesSubject,
+  subjectSemesterMismatchMessage,
+} from '../../lib/subjectSemester';
+import { isBackSubjectForEnrollment } from '../../lib/studentAcademicRules';
 
-const yearLevelRank = (value?: string | null) => {
-  const normalized = String(value || '').trim().toLowerCase();
-  if (normalized.startsWith('1')) return 1;
-  if (normalized.startsWith('2')) return 2;
-  if (normalized.startsWith('3')) return 3;
-  if (normalized.startsWith('4')) return 4;
-  return 0;
-};
+const gradeMatchesScope = (
+  g: {
+    student_id?: string;
+    subject_id?: string;
+    semester?: number;
+    quarter?: number;
+    school_year_id?: string | null;
+  },
+  scope: {
+    studentId?: string;
+    subjectId: string;
+    semester: number;
+    quarter?: number;
+    schoolYearId?: string | null;
+  }
+) =>
+  g.subject_id === scope.subjectId &&
+  g.semester === scope.semester &&
+  (!scope.studentId || g.student_id === scope.studentId) &&
+  (scope.quarter == null || g.quarter === scope.quarter) &&
+  (!scope.schoolYearId || g.school_year_id === scope.schoolYearId);
 
 export default function TeacherGradesPage() {
   const { user } = useAuthStore();
@@ -194,10 +215,52 @@ export default function TeacherGradesPage() {
 
   useGradesAutoRefresh(loadData, user?.id ? `grades-live:teacher-grades:${user.id}` : null);
 
+  const selectedSubjectRecord = useMemo(
+    () => mySubjects.find((s) => s.id === selectedSubject) ?? null,
+    [mySubjects, selectedSubject]
+  );
+
+  const subjectCatalogSemester = useMemo(
+    () => getSubjectGradeSemester(selectedSubjectRecord),
+    [selectedSubjectRecord]
+  );
+
+  const semesterLockedToSubject = Boolean(selectedSubject && subjectCatalogSemester != null);
+
+  useEffect(() => {
+    if (subjectCatalogSemester != null) {
+      setSelectedSemester(subjectCatalogSemester);
+    }
+  }, [selectedSubject, subjectCatalogSemester]);
+
+  const applySubjectSelection = (subjectId: string) => {
+    setSelectedSubject(subjectId);
+    if (subjectId) {
+      const sub = mySubjects.find((s) => s.id === subjectId);
+      const sem = getSubjectGradeSemester(sub);
+      if (sem != null) setSelectedSemester(sem);
+      setSearchParams({ subject: subjectId }, { replace: true });
+    } else {
+      setSearchParams({ subject: 'all' }, { replace: true });
+    }
+    void refreshEnrolledStudents(subjectId, mySubjects.map((s) => s.id));
+  };
+
   const saveGradeEntry = async () => {
     if (!selectedSubject || !selectedStudentForEntry) return;
-    const gradePoint = parseGradeInput(entryGrade);
-    if (entryStatus !== 'inc' && gradePoint == null) {
+    if (
+      selectedSubjectRecord &&
+      !gradeSemesterMatchesSubject(selectedSemester, selectedSubjectRecord)
+    ) {
+      setAppMessage({
+        title: 'Wrong semester',
+        message: subjectSemesterMismatchMessage(selectedSubjectRecord, selectedSemester),
+        variant: 'warning',
+      });
+      return;
+    }
+    const gradeToStore = entryStatus !== 'inc' ? gradeValueForStorage(entryGrade) : null;
+    if (entryStatus !== 'inc' && gradeToStore == null) {
       setAppMessage({
         title: 'Invalid grade',
         message: 'Enter a grade point (1.00–5.00) or percentage (0–100).',
@@ -205,21 +268,18 @@ export default function TeacherGradesPage() {
       });
       return;
     }
-    const existing = grades.find(
-      (g) =>
-        g.student_id === selectedStudentForEntry &&
-        g.subject_id === selectedSubject &&
-        g.semester === selectedSemester &&
-        g.quarter.toString() === (selectedQuarter || '1')
-    );
-    const anyLockedForSubjectSemester = grades.some(
-      (g) =>
-        g.student_id === selectedStudentForEntry &&
-        g.subject_id === selectedSubject &&
-        g.semester === selectedSemester &&
-        Boolean(g.is_locked)
-    );
     const quarterValue = selectedQuarter ? parseInt(selectedQuarter, 10) : 1;
+    const gradeScope = {
+      studentId: selectedStudentForEntry,
+      subjectId: selectedSubject,
+      semester: selectedSemester,
+      quarter: quarterValue,
+      schoolYearId: activeSchoolYearId,
+    };
+    const existing = grades.find((g) => gradeMatchesScope(g, gradeScope));
+    const anyLockedForSubjectSemester = grades.some(
+      (g) => gradeMatchesScope(g, { ...gradeScope, quarter: undefined }) && Boolean(g.is_locked)
+    );
     if (existing?.is_locked || anyLockedForSubjectSemester) {
       setAppMessage({
         title: 'Grade is locked',
@@ -240,9 +300,9 @@ export default function TeacherGradesPage() {
       entryStatus === 'inc'
         ? { grade: 0, remarks: 'INC', grade_status: 'inc' as const }
         : {
-            grade: gradePoint!,
-            remarks: getGradeRemarks(gradePoint!),
-            grade_status: getGradeStatus(gradePoint!),
+            grade: gradeToStore!,
+            remarks: getGradeRemarks(gradeToStore!),
+            grade_status: getGradeStatus(gradeToStore!),
           };
     try {
       if (existing) {
@@ -441,6 +501,11 @@ export default function TeacherGradesPage() {
     );
   }, [grades, selectedSubject, selectedStudentForEntry, selectedSemester]);
 
+  const entryGradePreview = useMemo(() => {
+    if (entryStatus === 'inc' || !entryGrade.trim()) return null;
+    return previewGradeInput(entryGrade);
+  }, [entryGrade, entryStatus]);
+
   const totalGradePages = useMemo(
     () => Math.max(1, Math.ceil(filteredGrades.length / gradeTablePageSize)),
     [filteredGrades.length, gradeTablePageSize]
@@ -490,28 +555,46 @@ export default function TeacherGradesPage() {
       .eq('subject_id', selectedSubject);
 
     const enrolled: EnrolledStudentLite[] =
-      studentSubjects?.map((ss: { student?: EnrolledStudentLite }) => ss.student).filter(Boolean) || [];
+      studentSubjects?.flatMap((ss: { student?: EnrolledStudentLite }) =>
+        ss.student ? [ss.student] : []
+      ) ?? [];
 
-    const { data: existingGradeRows } = await supabase
+    let existingQuery = supabase
       .from('grades')
-      .select('id, student_id, semester, quarter, grade_status, grade')
+      .select('id, student_id, semester, quarter, school_year_id, grade_status, grade')
       .eq('subject_id', selectedSubject);
+    if (activeSchoolYearId) {
+      existingQuery = existingQuery.eq('school_year_id', activeSchoolYearId);
+    }
+    const { data: existingGradeRows } = await existingQuery;
 
-    const existingLookup = buildExistingGradesLookup(((existingGradeRows || []) as ExistingGradeLite[]) ?? []);
+    const existingLookup = buildExistingGradesLookup(
+      ((existingGradeRows || []) as ExistingGradeLite[]) ?? [],
+      { schoolYearId: activeSchoolYearId }
+    );
 
     const defaultQuarterNum = Number(selectedQuarter || '1');
     const preview = buildBulkGradePreview(rows, {
       enrolled,
       strategy: 'full_name',
-      defaultSemester: selectedSemester,
+      defaultSemester: subjectCatalogSemester ?? selectedSemester,
       defaultQuarter: defaultQuarterNum,
       existingLookup,
+      subject: selectedSubjectRecord,
+      schoolYearId: activeSchoolYearId,
     });
 
     setBulkPreviewRows(preview);
     setPreviewFilter('all');
     setUploadResults(null);
-  }, [selectedSubject, selectedSemester, selectedQuarter]);
+  }, [
+    selectedSubject,
+    selectedSemester,
+    selectedQuarter,
+    selectedSubjectRecord,
+    subjectCatalogSemester,
+    activeSchoolYearId,
+  ]);
 
   const discardBulkGradePreview = () => {
     setBulkPreviewRows(null);
@@ -616,7 +699,7 @@ export default function TeacherGradesPage() {
         count: 0,
         failingCount: 0,
       };
-      current.total += Number(grade.grade) || 0;
+      current.total += displayGradePercent(Number(grade.grade));
       current.count += 1;
       if (!isPassing(grade.grade)) current.failingCount += 1;
       summary.set(grade.student_id, current);
@@ -659,20 +742,29 @@ export default function TeacherGradesPage() {
       const q2 = byQuarter[2];
       const q3 = byQuarter[3];
       const q4 = byQuarter[4];
-      const values = [q1, q2, q3, q4].filter(Boolean).filter((g: any) => g.grade_status !== 'inc').map((g: any) => Number(g.grade));
-      const finalGrade = values.length ? Math.round((values.reduce((a: number, b: number) => a + b, 0) / values.length) * 100) / 100 : null;
+      const quarterGrades = [q1, q2, q3, q4].filter(Boolean);
+      const { averagePercent: finalPercent, gradePoint: finalGradePoint } =
+        computeSubjectFinalAverage(quarterGrades);
       const encodedCount = [q1, q2, q3, q4].filter(Boolean).length;
       const completionStatus = encodedCount === 0 ? 'none' : encodedCount < 4 ? 'partial' : 'complete';
       const locked = [q1, q2, q3, q4].some((g: any) => Boolean(g?.is_locked));
       return {
         id: student.id,
         name: `${student.first_name} ${student.last_name}`,
-        q1: q1?.grade_status === 'inc' ? 'INC' : q1?.grade ?? '—',
-        q2: q2?.grade_status === 'inc' ? 'INC' : q2?.grade ?? '—',
-        q3: q3?.grade_status === 'inc' ? 'INC' : q3?.grade ?? '—',
-        q4: q4?.grade_status === 'inc' ? 'INC' : q4?.grade ?? '—',
-        finalGrade: finalGrade ?? '—',
-        remarks: locked ? 'Locked' : finalGrade == null ? 'In Progress' : finalGrade >= 75 ? 'Passed' : 'Failed',
+        q1: q1?.grade_status === 'inc' ? 'INC' : q1?.grade != null ? displayGradePercent(Number(q1.grade)) : '—',
+        q2: q2?.grade_status === 'inc' ? 'INC' : q2?.grade != null ? displayGradePercent(Number(q2.grade)) : '—',
+        q3: q3?.grade_status === 'inc' ? 'INC' : q3?.grade != null ? displayGradePercent(Number(q3.grade)) : '—',
+        q4: q4?.grade_status === 'inc' ? 'INC' : q4?.grade != null ? displayGradePercent(Number(q4.grade)) : '—',
+        finalGrade:
+          finalPercent != null && finalGradePoint != null
+            ? `${finalPercent}% → ${finalGradePoint.toFixed(2)}`
+            : '—',
+        remarks:
+          locked
+            ? 'Locked'
+            : finalGradePoint == null
+              ? 'In Progress'
+              : getGradeRemarks(finalGradePoint),
         completionStatus,
         locked,
       };
@@ -686,7 +778,9 @@ export default function TeacherGradesPage() {
     const draft = classRecordDrafts[classRecordCellKey(studentId, quarter)];
     if (draft != null) return draft;
     if (current === '—' || current === 'INC') return '';
-    return String(current);
+    const num = Number(current);
+    if (!Number.isFinite(num)) return '';
+    return String(num);
   };
 
   const updateClassRecordDraft = (studentId: string, quarter: number, value: string) => {
@@ -696,15 +790,34 @@ export default function TeacherGradesPage() {
 
   const saveClassRecordCell = async (studentId: string, quarter: number, currentValue: string | number) => {
     if (!selectedSubject) return;
+    if (
+      selectedSubjectRecord &&
+      !gradeSemesterMatchesSubject(selectedSemester, selectedSubjectRecord)
+    ) {
+      setAppMessage({
+        title: 'Wrong semester',
+        message: subjectSemesterMismatchMessage(selectedSubjectRecord, selectedSemester),
+        variant: 'warning',
+      });
+      return;
+    }
     const key = `${studentId}:${quarter}`;
     const raw = getClassRecordInputValue(studentId, quarter, currentValue).trim();
     if (!raw) {
-      setAppMessage({ title: 'Invalid grade', message: 'Enter a numeric grade from 0 to 100.', variant: 'warning' });
+      setAppMessage({
+        title: 'Invalid grade',
+        message: 'Enter a percentage (0–100) or grade point (1.00–5.00).',
+        variant: 'warning',
+      });
       return;
     }
-    const numeric = Number(raw);
-    if (Number.isNaN(numeric) || numeric < 0 || numeric > 100) {
-      setAppMessage({ title: 'Invalid grade', message: 'Enter a numeric grade from 0 to 100.', variant: 'warning' });
+    const gradeToStore = gradeValueForStorage(raw);
+    if (gradeToStore == null) {
+      setAppMessage({
+        title: 'Invalid grade',
+        message: 'Enter a percentage (0–100) or grade point (1.00–5.00).',
+        variant: 'warning',
+      });
       return;
     }
 
@@ -726,40 +839,35 @@ export default function TeacherGradesPage() {
 
     setClassRecordSavingKey(key);
     try {
-      const existing = grades.find(
-        (g) =>
-          g.student_id === studentId &&
-          g.subject_id === selectedSubject &&
-          g.semester === selectedSemester &&
-          g.quarter === quarter
+      const existing = grades.find((g) =>
+        gradeMatchesScope(g, {
+          studentId,
+          subjectId: selectedSubject,
+          semester: selectedSemester,
+          quarter,
+          schoolYearId: activeSchoolYearId,
+        })
       );
       const payload = {
-        grade: numeric,
-        remarks: getGradeRemarks(numeric),
-        grade_status: getGradeStatus(numeric),
+        grade: gradeToStore,
+        remarks: getGradeRemarks(gradeToStore),
+        grade_status: getGradeStatus(gradeToStore),
       };
       if (existing) {
         const { error } = await supabase.from('grades').update(payload).eq('id', existing.id);
         if (error) throw error;
-        setGrades((prev) =>
-          prev.map((g) => (g.id === existing.id ? { ...g, ...payload, grade: numeric } : g))
-        );
       } else {
-        const { data: inserted, error } = await supabase
-          .from('grades')
-          .insert({
-            student_id: studentId,
-            subject_id: selectedSubject,
-            semester: selectedSemester,
-            quarter,
-            school_year_id: activeSchoolYearId,
-            ...payload,
-          })
-          .select()
-          .single();
+        const { error } = await supabase.from('grades').insert({
+          student_id: studentId,
+          subject_id: selectedSubject,
+          semester: selectedSemester,
+          quarter,
+          school_year_id: activeSchoolYearId,
+          ...payload,
+        });
         if (error) throw error;
-        if (inserted) setGrades((prev) => [...prev, inserted]);
       }
+      await loadData();
       setClassRecordDrafts((prev) => {
         const next = { ...prev };
         delete next[classRecordCellKey(studentId, quarter)];
@@ -801,11 +909,8 @@ export default function TeacherGradesPage() {
     const st = students.find((s) => s.id === studentId);
     const sub = mySubjects.find((s) => s.id === subjectId);
     if (!st || !sub) return false;
-    return (
-      yearLevelRank(sub.year_level) > 0 &&
-      yearLevelRank(st.grade_level) > 0 &&
-      yearLevelRank(sub.year_level) < yearLevelRank(st.grade_level)
-    );
+    const studentGrades = grades.filter((g) => g.student_id === studentId);
+    return isBackSubjectForEnrollment(st, sub, studentGrades, activeSchoolYearId);
   };
 
   if (loading) {
@@ -909,13 +1014,7 @@ export default function TeacherGradesPage() {
             <Select
               label="Subject"
               value={`${selectedSubject}`}
-              onChange={(e) => {
-                const v = e.target.value;
-                setSelectedSubject(v);
-                if (v) setSearchParams({ subject: v }, { replace: true });
-                else setSearchParams({ subject: 'all' }, { replace: true });
-                void refreshEnrolledStudents(v, mySubjects.map((s) => s.id));
-              }}
+              onChange={(e) => applySubjectSelection(e.target.value)}
               options={
                 mySubjects.length
                   ? sortSelectOptions(
@@ -929,9 +1028,10 @@ export default function TeacherGradesPage() {
               }
             />
             <Select
-              label="Semester"
+              label={semesterLockedToSubject ? 'Semester (from subject)' : 'Semester'}
               value={`${selectedSemester}`}
               onChange={(e) => setSelectedSemester(parseInt(e.target.value, 10))}
+              disabled={semesterLockedToSubject}
               options={[
                 { value: '1', label: '1st Semester' },
                 { value: '2', label: '2nd Semester' },
@@ -996,9 +1096,10 @@ export default function TeacherGradesPage() {
             ]}
           />
           <Select
-            label="Semester"
+            label={semesterLockedToSubject ? 'Semester (from subject)' : 'Semester'}
             value={`${selectedSemester}`}
             onChange={(e) => setSelectedSemester(parseInt(e.target.value, 10))}
+            disabled={semesterLockedToSubject}
             options={[
               { value: '1', label: '1st Semester' },
               { value: '2', label: '2nd Semester' },
@@ -1037,19 +1138,30 @@ export default function TeacherGradesPage() {
             </div>
             <input
               type="number"
-              min={1}
-              max={5}
-              step={0.25}
+              min={0}
+              max={100}
+              step={1}
               value={entryGrade}
               onChange={(e) => setEntryGrade(e.target.value)}
               disabled={quickEntryLocked || entryStatus === 'inc'}
-              placeholder={entryStatus === 'inc' ? 'Will be saved as INC' : 'Grade point e.g. 1.00'}
+              placeholder={entryStatus === 'inc' ? 'Will be saved as INC' : 'Percentage e.g. 92 or grade point 1.50'}
               className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-base text-gray-900"
             />
+            {entryGradePreview && (
+              <p className="mt-2 rounded-lg border border-[#800000]/20 bg-[#800000]/5 px-3 py-2 text-xs text-gray-800">
+                <span className="font-semibold text-[#800000]">Equivalent:</span>{' '}
+                {entryGradePreview.gradePoint.toFixed(2)} · {entryGradePreview.rangeLabel} ·{' '}
+                {entryGradePreview.remarks} ·{' '}
+                {entryGradePreview.status === 'passed' ? 'Passed' : 'Failed'}
+              </p>
+            )}
+            {entryGrade.trim() && entryStatus !== 'inc' && !entryGradePreview && (
+              <p className="mt-2 text-xs text-amber-800">Enter 0–100 (percent) or 1.00–5.00 (grade point).</p>
+            )}
           </div>
         </div>
         <div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-600">
-          {VALID_GRADE_POINTS.filter((gp) => gp <= 3).map((preset) => (
+          {[98, 95, 92, 88, 75].map((preset) => (
             <button
               key={preset}
               type="button"
@@ -1060,7 +1172,7 @@ export default function TeacherGradesPage() {
               }}
               disabled={quickEntryLocked}
             >
-              {preset}
+              {preset}%
             </button>
           ))}
         </div>
@@ -1074,8 +1186,8 @@ export default function TeacherGradesPage() {
       <GlassCard variant="plain" className="mb-6 p-4 sm:p-6">
         <h2 className="mb-2 text-lg font-semibold text-[#800000]">Upload grades (Excel/CSV)</h2>
         <p className="mb-4 text-sm text-gray-600">
-          Columns: `student_name`, `semester`, `quarter`, `grade`. Parsed rows are previewed first; nothing is saved
-          until you confirm.
+          Columns: `student_name`, `semester`, `quarter`, `grade`. Semester must match the selected subject (e.g. Thesis 1 → 1 only).
+          Parsed rows are previewed first; nothing is saved until you confirm.
         </p>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
           <input
@@ -1273,8 +1385,9 @@ export default function TeacherGradesPage() {
           <div className="mb-6 overflow-x-auto">
             <h3 className="mb-3 text-lg font-semibold text-[#800000]">Class record view</h3>
             <p className="mb-4 text-sm text-gray-600">
-              Spreadsheet-style encoding. Type a grade then click <span className="font-semibold">Save</span> per quarter.
-              {` `}If a record is locked, editing is disabled.
+              Spreadsheet-style encoding. Enter a percentage (0–100); your exact score is saved and the grade point /
+              remarks are computed from it. Click <span className="font-semibold">Save</span> per quarter. Locked records
+              cannot be edited.
             </p>
 
             <div className="space-y-4 lg:hidden">

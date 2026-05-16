@@ -15,6 +15,7 @@ import {
   type ExistingGradeLite,
   type EnrolledStudentLite,
 } from '../../lib/bulkGradeUploadPreview';
+import { getSubjectGradeSemester } from '../../lib/subjectSemester';
 import { sortByLabel, sortByName } from '../../lib/sortUtils';
 
 export default function TeacherUploadPage() {
@@ -35,12 +36,42 @@ export default function TeacherUploadPage() {
   const loadSubjects = async () => {
     const { data } = await supabase.from('subjects').select('*, course:courses(*)').eq('teacher_id', user?.id);
     setMySubjects(data || []);
-    if (data?.length) setSelectedSubject(data[0].id);
+    if (data?.length) {
+      const first = data[0];
+      setSelectedSubject(first.id);
+      const sem = getSubjectGradeSemester(first);
+      if (sem != null) setSelectedSemester(sem);
+    }
   };
 
   useEffect(() => {
     loadSubjects();
   }, [user?.id]);
+
+  const selectedSubjectRecord = useMemo(
+    () => mySubjects.find((s) => s.id === selectedSubject) ?? null,
+    [mySubjects, selectedSubject]
+  );
+
+  const subjectCatalogSemester = useMemo(
+    () => getSubjectGradeSemester(selectedSubjectRecord),
+    [selectedSubjectRecord]
+  );
+
+  const semesterLockedToSubject = Boolean(selectedSubject && subjectCatalogSemester != null);
+
+  useEffect(() => {
+    if (subjectCatalogSemester != null) {
+      setSelectedSemester(subjectCatalogSemester);
+    }
+  }, [selectedSubject, subjectCatalogSemester]);
+
+  const applySubjectSelection = (subjectId: string) => {
+    setSelectedSubject(subjectId);
+    const sub = mySubjects.find((s) => s.id === subjectId);
+    const sem = getSubjectGradeSemester(sub);
+    if (sem != null) setSelectedSemester(sem);
+  };
 
   useEffect(() => {
     setBulkPreviewRows(null);
@@ -69,23 +100,44 @@ export default function TeacherUploadPage() {
       .eq('subject_id', selectedSubject);
 
     const enrolledStudents: EnrolledStudentLite[] =
-      studentSubjects?.map((ss: { student?: EnrolledStudentLite }) => ss.student).filter(Boolean) || [];
+      studentSubjects?.flatMap((ss: { student?: EnrolledStudentLite }) =>
+        ss.student ? [ss.student] : []
+      ) ?? [];
 
-    const { data: existingGradeRows } = await supabase
+    let activeSchoolYearId: string | null = null;
+    try {
+      const { data: sy, error: syErr } = await supabase
+        .from('school_years')
+        .select('id')
+        .eq('is_active', true)
+        .maybeSingle();
+      if (!syErr && sy?.id) activeSchoolYearId = sy.id;
+    } catch {
+      activeSchoolYearId = null;
+    }
+
+    let existingQuery = supabase
       .from('grades')
-      .select('id, student_id, semester, quarter, grade_status, grade')
+      .select('id, student_id, semester, quarter, school_year_id, grade_status, grade')
       .eq('subject_id', selectedSubject);
+    if (activeSchoolYearId) {
+      existingQuery = existingQuery.eq('school_year_id', activeSchoolYearId);
+    }
+    const { data: existingGradeRows } = await existingQuery;
 
     const existingLookup = buildExistingGradesLookup(
-      ((existingGradeRows || []) as ExistingGradeLite[])
+      ((existingGradeRows || []) as ExistingGradeLite[]) ?? [],
+      { schoolYearId: activeSchoolYearId }
     );
 
     const preview = buildBulkGradePreview(jsonData, {
       enrolled: enrolledStudents,
       strategy: 'split_first_last',
-      defaultSemester: selectedSemester,
+      defaultSemester: subjectCatalogSemester ?? selectedSemester,
       defaultQuarter: selectedQuarter,
       existingLookup,
+      subject: selectedSubjectRecord,
+      schoolYearId: activeSchoolYearId,
     });
 
     setBulkPreviewRows(preview);
@@ -246,8 +298,9 @@ export default function TeacherUploadPage() {
       <GlassCard variant="plain" className="p-4 sm:p-6 mb-6">
         <h2 className="text-xl font-semibold text-[#800000] mb-1">Upload Excel file</h2>
         <p className="mb-4 text-sm leading-relaxed text-gray-600">
-          Columns: student_name, semester (1 or 2), quarter (1–4), grade (0–100). Use the filter icon to choose subject,
-          semester, and quarter for this upload. The file is parsed only; confirming on the preview step writes grades.
+          Columns: student_name, semester (1 or 2), quarter (1–4), grade (0–100). Semester follows the selected subject
+          (e.g. Thesis 1 → 1st sem only). Use the filter icon to choose subject and quarter. The file is parsed only;
+          confirming on the preview step writes grades.
         </p>
 
         <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -290,15 +343,16 @@ export default function TeacherUploadPage() {
               <Select
                 label="Select Subject"
                 value={selectedSubject}
-                onChange={(e) => setSelectedSubject(e.target.value)}
+                onChange={(e) => applySubjectSelection(e.target.value)}
                 options={sortByLabel(
                   sortByName(mySubjects).map((s) => ({ value: s.id, label: `${s.name} - ${s.course?.name || ''}` }))
                 )}
               />
               <Select
-                label="Semester"
+                label={semesterLockedToSubject ? 'Semester (from subject)' : 'Semester'}
                 value={`${selectedSemester}`}
                 onChange={(e) => setSelectedSemester(parseInt(e.target.value, 10))}
+                disabled={semesterLockedToSubject}
                 options={[
                   { value: '1', label: '1st Semester' },
                   { value: '2', label: '2nd Semester' },

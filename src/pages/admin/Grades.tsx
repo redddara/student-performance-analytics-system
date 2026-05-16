@@ -5,7 +5,12 @@ import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { PageIntro } from '../../components/layouts/PageIntro';
 import { Button, GlassCard, Modal, Select, Table, PageSkeletonLoader } from '../../components/ui';
 import { useAuthStore } from '../../store';
-import { supabase, getGradeRemarks, getGradeStatus, parseGradeInput, toGradePoint, formatGradeDisplay } from '../../lib/supabase';
+import {
+  supabase,
+  computeSubjectFinalAverage,
+  getGradeRemarks,
+  gradeValueForStorage,
+} from '../../lib/supabase';
 import { useSupabaseLiveReload } from '../../lib/useSupabaseLiveReload';
 import {
   compareAlphabetical,
@@ -25,6 +30,7 @@ type FinalAverageRow = {
   subject_name: string;
   quarter_count: number;
   final_average: number | null;
+  final_grade_point: number | null;
   status: 'passed' | 'failed' | 'inc';
   grade_ids: string[];
 };
@@ -93,15 +99,8 @@ export default function AdminGradesPage() {
       const [gradesRes, studentsRes, subjectsRes, coursesRes] = await Promise.all([
         (async () => {
           let query = supabase.from('grades').select('*').order('created_at', { ascending: false });
-          // Active-year view: include legacy rows missing school_year_id (bulk upload used to omit it).
           if (effectiveSchoolYearId) {
-            if (schoolYearFilter === 'active') {
-              query = query.or(
-                `school_year_id.eq.${effectiveSchoolYearId},school_year_id.is.null`
-              );
-            } else {
-              query = query.eq('school_year_id', effectiveSchoolYearId);
-            }
+            query = query.eq('school_year_id', effectiveSchoolYearId);
           }
           return query;
         })(),
@@ -165,13 +164,7 @@ export default function AdminGradesPage() {
       const st = students.find((s) => s.id === first.student_id);
       const sb = subjects.find((s) => s.id === first.subject_id);
       const cr = courses.find((c) => c.id === st?.course_id);
-      const hasInc = list.some((g) => g.grade_status === 'inc');
-      const numeric = list.filter((g) => g.grade_status !== 'inc').map((g) => Number(g.grade));
-      const avg =
-        numeric.length > 0
-          ? Math.round((numeric.reduce((sum, n) => sum + n, 0) / numeric.length) * 100) / 100
-          : null;
-      const status: 'passed' | 'failed' | 'inc' = hasInc ? 'inc' : getGradeStatus(avg ?? 0);
+      const summary = computeSubjectFinalAverage(list);
       rows.push({
         key,
         student_id: first.student_id,
@@ -181,9 +174,10 @@ export default function AdminGradesPage() {
         course_name: cr?.name || '',
         section: st?.section || '',
         subject_name: sb?.name || '',
-        quarter_count: list.length,
-        final_average: avg,
-        status,
+        quarter_count: summary.quarterCount,
+        final_average: summary.averagePercent,
+        final_grade_point: summary.gradePoint,
+        status: summary.status,
         grade_ids: list.map((g) => g.id),
       });
     }
@@ -206,7 +200,12 @@ export default function AdminGradesPage() {
         subject: r.subject_name,
         semester: r.semester,
         quarters_included: r.quarter_count,
-        final_average: r.status === 'inc' ? 'INC' : r.final_average,
+        final_average:
+          r.status === 'inc'
+            ? 'INC'
+            : r.final_average != null && r.final_grade_point != null
+              ? `${r.final_average}% → ${r.final_grade_point.toFixed(2)}`
+              : r.final_average,
         status: r.status.toUpperCase(),
       };
     });
@@ -235,15 +234,15 @@ export default function AdminGradesPage() {
 
   const saveEdit = async () => {
     if (!editRow) return;
-    const gradePoint = parseGradeInput(editGrade);
-    if (editStatus !== 'inc' && gradePoint == null) return;
+    const gradeToStore = gradeValueForStorage(editGrade);
+    if (editStatus !== 'inc' && gradeToStore == null) return;
     const payload =
       editStatus === 'inc'
         ? { grade_status: 'inc', grade: 0, remarks: 'INC' }
         : {
             grade_status: editStatus,
-            grade: gradePoint!,
-            remarks: getGradeRemarks(gradePoint!),
+            grade: gradeToStore!,
+            remarks: getGradeRemarks(gradeToStore!),
           };
 
     await supabase
@@ -382,7 +381,13 @@ export default function AdminGradesPage() {
                 <td className="px-4 py-3">{row.subject_name || '—'}</td>
                 <td className="px-4 py-3">{row.semester}</td>
                 <td className="px-4 py-3">{row.quarter_count}</td>
-                <td className="px-4 py-3">{row.status === 'inc' ? 'INC' : row.final_average ?? '—'}</td>
+                <td className="px-4 py-3">
+                  {row.status === 'inc'
+                    ? 'INC'
+                    : row.final_average != null && row.final_grade_point != null
+                      ? `${row.final_average}% → ${row.final_grade_point.toFixed(2)}`
+                      : row.final_average ?? '—'}
+                </td>
                 <td className="px-4 py-3">{row.status.toUpperCase()}</td>
                 <td className="px-4 py-3">
                   <span className="text-xs font-semibold">{workflowLabel}</span>

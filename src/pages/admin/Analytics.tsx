@@ -90,7 +90,6 @@ export default function AdminAnalyticsPage() {
     'VERY GOOD': 0,
     SATISFACTORY: 0,
     FAIR: 0,
-    PASSING: 0,
     'FAILED OR CONDITIONAL': 0,
   };
   filteredGrades.forEach((g) => {
@@ -104,7 +103,6 @@ export default function AdminAnalyticsPage() {
     { name: 'Very Good', value: remarkBuckets['VERY GOOD'], color: '#d4af37' },
     { name: 'Satisfactory', value: remarkBuckets.SATISFACTORY, color: '#4CAF50' },
     { name: 'Fair', value: remarkBuckets.FAIR, color: '#2196F3' },
-    { name: 'Passing', value: remarkBuckets.PASSING, color: '#9C27B0' },
     { name: 'Failed / Conditional', value: remarkBuckets['FAILED OR CONDITIONAL'], color: '#f44336' },
   ].filter((d) => d.value > 0);
 

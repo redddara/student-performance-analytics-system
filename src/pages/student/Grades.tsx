@@ -1,25 +1,39 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useGradesAutoRefresh } from '../../lib/useGradesAutoRefresh';
-import { ListFilter, RefreshCw, Search } from 'lucide-react';
+import { ListFilter, Printer, RefreshCw, Search } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
-import { GlassCard, Select, Table, Button, PageSkeletonLoader } from '../../components/ui';
+import { Select, Button, PageSkeletonLoader } from '../../components/ui';
 import { useAuthStore } from '../../store';
-import { supabase, calculateGWA, formatGradeDisplay, toGradePoint } from '../../lib/supabase';
+import { supabase } from '../../lib/supabase';
 import { compareAlphabetical, sortByLabel } from '../../lib/sortUtils';
+import type { GradeRecord } from '../../lib/studentGradeInsights';
+import { StudentAcademicBanner } from '../../components/student/StudentAcademicBanner';
+import { StudentOfficialGradeReport } from '../../components/student/StudentOfficialGradeReport';
 import {
-  computeSubjectFinalGrade,
-  getSubjectInsights,
-  type GradeRecord,
-} from '../../lib/studentGradeInsights';
+  buildOfficialGradeReportRows,
+  computeReportSemesterGpa,
+  formatOfficialStudentName,
+  formatReportTitle,
+} from '../../lib/officialGradeReport';
+import {
+  classifyStudentEnrollments,
+  type SubjectPrerequisite,
+} from '../../lib/studentAcademicRules';
+import { getSubjectGradeSemester } from '../../lib/subjectSemester';
 
 /** Grades with no school_year_id (legacy rows) */
 const LEGACY_SCHOOL_YEAR_SCOPE = '__legacy__';
 
-const INSIGHT_HEADERS = ['Strength', 'Areas to Improve', 'Suggestion'] as const;
-
 type GradeRow = GradeRecord & {
   subject_id?: string;
-  subject?: { name?: string; code?: string; semester?: string; course?: { name?: string }; year_level?: string };
+  subject?: {
+    name?: string;
+    code?: string;
+    semester?: string;
+    course?: { name?: string };
+    year_level?: string;
+    teacher?: { name?: string; first_name?: string; last_name?: string };
+  };
   school_year?: { id?: string; name?: string };
   is_locked?: boolean;
   workflow_status?: string;
@@ -31,26 +45,18 @@ function scopeKeyFromGrade(g: GradeRow): string {
   return g.school_year_id ? g.school_year_id : LEGACY_SCHOOL_YEAR_SCOPE;
 }
 
-function InsightCellHover({ label, reason }: { label: string; reason: string }) {
-  if (label === '—') {
-    return <td className="px-4 py-3 text-gray-400">—</td>;
-  }
-  return (
-    <td className="group relative px-4 py-3">
-      <span className="cursor-help border-b border-dotted border-gray-400 text-sm text-gray-700">
-        {label}
-      </span>
-      <div className="pointer-events-none absolute left-0 bottom-full z-30 mb-2 hidden w-64 rounded-lg border border-gray-200 bg-white p-3 text-xs leading-relaxed text-gray-700 shadow-lg group-hover:block">
-        {reason}
-      </div>
-    </td>
-  );
-}
-
 export default function StudentGradesPage() {
   const { user } = useAuthStore();
   const [mySubjects, setMySubjects] = useState<any[]>([]);
   const [myGrades, setMyGrades] = useState<GradeRow[]>([]);
+  const [prerequisites, setPrerequisites] = useState<SubjectPrerequisite[]>([]);
+  const [studentProfile, setStudentProfile] = useState({ grade_level: '', current_semester: 1 });
+  const [studentInfo, setStudentInfo] = useState({
+    firstName: '',
+    lastName: '',
+    courseName: '',
+    studentNumber: '',
+  });
   const [loading, setLoading] = useState(true);
   const [schoolYears, setSchoolYears] = useState<any[]>([]);
   const [activeSchoolYearId, setActiveSchoolYearId] = useState<string | null>(null);
@@ -68,11 +74,23 @@ export default function StudentGradesPage() {
     try {
       const { data: studentData } = await supabase
         .from('students')
-        .select('*')
+        .select('*, user:users(username, first_name, last_name), course:courses(name)')
         .eq('user_id', user?.id)
         .single();
 
       if (!studentData) return;
+
+      const linkedUser = studentData.user as { username?: string; first_name?: string; last_name?: string } | null;
+      setStudentProfile({
+        grade_level: studentData.grade_level || '',
+        current_semester: studentData.current_semester === 2 ? 2 : 1,
+      });
+      setStudentInfo({
+        firstName: studentData.first_name || linkedUser?.first_name || '',
+        lastName: studentData.last_name || linkedUser?.last_name || '',
+        courseName: (studentData.course as { name?: string } | null)?.name || '',
+        studentNumber: linkedUser?.username || user?.username || '',
+      });
 
       let effectiveSchoolYearId: string | null = null;
       try {
@@ -99,20 +117,27 @@ export default function StudentGradesPage() {
         effectiveSchoolYearId = null;
       }
 
-      const [subjectsRes, gradesRes] = await Promise.all([
-        supabase.from('student_subjects').select('*, subject:subjects(*, course:courses(*))').eq('student_id', studentData.id),
+      const [subjectsRes, gradesRes, prereqRes] = await Promise.all([
+        supabase
+          .from('student_subjects')
+          .select('*, subject:subjects(*, course:courses(*), teacher:users(id, first_name, last_name, name))')
+          .eq('student_id', studentData.id),
         (async () => {
           let q = supabase
             .from('grades')
-            .select('*, subject:subjects(*, course:courses(*)), school_year:school_years(id,name)')
+            .select(
+              '*, subject:subjects(*, course:courses(*), teacher:users(id, first_name, last_name, name)), school_year:school_years(id,name)',
+            )
             .eq('student_id', studentData.id);
           if (effectiveSchoolYearId) q = q.eq('school_year_id', effectiveSchoolYearId);
           return q;
         })(),
+        supabase.from('subject_prerequisites').select('subject_id, prerequisite_subject_id, minimum_grade'),
       ]);
 
       setMySubjects(subjectsRes.data || []);
       setMyGrades((gradesRes.data as GradeRow[]) || []);
+      setPrerequisites((prereqRes.data || []) as SubjectPrerequisite[]);
     } catch (error) {
       console.error('Error:', error);
     } finally {
@@ -123,6 +148,16 @@ export default function StudentGradesPage() {
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    setSelectedSemester(studentProfile.current_semester);
+  }, [studentProfile.current_semester]);
+
+  useEffect(() => {
+    if (activeSchoolYearId && selectedSchoolYearId === '') {
+      setSelectedSchoolYearId(activeSchoolYearId);
+    }
+  }, [activeSchoolYearId, selectedSchoolYearId]);
 
   useGradesAutoRefresh(loadData, user?.id ? `grades-live:student-grades:${user.id}` : null);
 
@@ -170,6 +205,26 @@ export default function StudentGradesPage() {
 
   const semesterLabelFor = (semester: number) => (semester === 1 ? '1st Sem' : '2nd Sem');
 
+  const academicView = useMemo(
+    () => classifyStudentEnrollments(studentProfile, mySubjects, myGrades, prerequisites),
+    [studentProfile, mySubjects, myGrades, prerequisites]
+  );
+
+  const visibleSubjectIds = useMemo(
+    () =>
+      new Set(
+        academicView.visible
+          .map((v) => v.enrollment.subject?.id || v.enrollment.subject_id)
+          .filter(Boolean) as string[]
+      ),
+    [academicView]
+  );
+
+  const hiddenPrerequisiteCount = useMemo(
+    () => academicView.hidden.filter((h) => h.hiddenReason === 'prerequisite').length,
+    [academicView]
+  );
+
   const buildSubjectRows = useCallback(
     (scopeKey: string, semester: number) => {
       const gradeInScope = myGrades.filter((g) => {
@@ -179,23 +234,24 @@ export default function StudentGradesPage() {
       });
       const map = new Map<string, SubjectRow>();
       for (const g of gradeInScope) {
-        if (g.subject_id && g.subject && !map.has(g.subject_id)) {
+        if (g.subject_id && g.subject && visibleSubjectIds.has(g.subject_id) && !map.has(g.subject_id)) {
           map.set(g.subject_id, { subject_id: g.subject_id, subject: g.subject });
         }
       }
-      const semLabel = semesterLabelFor(semester);
       const scopeIsActiveYear =
         Boolean(activeSchoolYearId && scopeKey === activeSchoolYearId && scopeKey !== LEGACY_SCHOOL_YEAR_SCOPE);
       if (scopeIsActiveYear) {
-        for (const ss of mySubjects) {
-          if (ss.subject?.semester === semLabel && ss.subject_id && !map.has(ss.subject_id)) {
-            map.set(ss.subject_id, { subject_id: ss.subject_id, subject: ss.subject });
-          }
+        for (const row of academicView.visible) {
+          const ss = row.enrollment;
+          const id = ss.subject?.id || ss.subject_id;
+          if (!id || !visibleSubjectIds.has(id) || map.has(id)) continue;
+          if (getSubjectGradeSemester(ss.subject) !== semester) continue;
+          map.set(id, { subject_id: id, subject: ss.subject });
         }
       }
-      return [...map.values()];
+      return [...map.values()].filter((row) => visibleSubjectIds.has(row.subject_id));
     },
-    [myGrades, mySubjects, activeSchoolYearId],
+    [myGrades, academicView.visible, activeSchoolYearId, visibleSubjectIds],
   );
 
   const getFilteredGrades = useCallback(
@@ -213,36 +269,20 @@ export default function StudentGradesPage() {
     [myGrades, selectedQuarter],
   );
 
-  const getSubjectGrade = (subjectId: string, quarter: number, scopeKey: string, semester: number) => {
-    const grade = getFilteredGrades(scopeKey, semester).find(
-      (g) => g.subject_id === subjectId.toString() && g.quarter === quarter,
-    );
-    if (!grade) return '-';
-    const base =
-      grade.grade_status === 'inc'
-        ? 'INC'
-        : grade.grade != null
-          ? formatGradeDisplay(toGradePoint(Number(grade.grade)))
-          : '-';
-    if (grade.is_locked) return `${base} (L)`;
-    if (grade.workflow_status === 'for_review') return `${base} (R)`;
-    return base;
-  };
-
-  const getSubjectFinalDisplay = (subjectId: string, scopeKey: string, semester: number) => {
-    const subjectGrades = getFilteredGrades(scopeKey, semester).filter(
-      (g) => g.subject_id === subjectId && g.grade_status !== 'inc',
-    );
-    const final = computeSubjectFinalGrade(subjectGrades);
-    if (final == null) return '-';
-    return final.toFixed(2);
-  };
-
-  const calculateSemesterGWA = (scopeKey: string, semester: number) => {
-    const semesterGrades = getFilteredGrades(scopeKey, semester);
-    if (semesterGrades.length === 0) return '-';
-    return calculateGWA(semesterGrades as { grade: number }[]).toFixed(2);
-  };
+  const buildOfficialRows = useCallback(
+    (scopeKey: string, semester: number, subjects: SubjectRow[]) => {
+      const schoolYearId = scopeKey === LEGACY_SCHOOL_YEAR_SCOPE ? null : scopeKey;
+      return buildOfficialGradeReportRows(
+        subjects,
+        myGrades,
+        scopeKey,
+        semester,
+        schoolYearId,
+        LEGACY_SCHOOL_YEAR_SCOPE,
+      );
+    },
+    [myGrades],
+  );
 
   const subjectMatchesSearchAndYear = useCallback(
     (ss: { subject?: { name?: string; code?: string; course?: { name?: string }; year_level?: string } }) => {
@@ -333,35 +373,27 @@ export default function StudentGradesPage() {
       : schoolYearOptions.find((o) => o.value === selectedSchoolYearId)?.label ||
         activeSchoolYearName;
 
-  const tableHeaders = [
-    'Code',
-    'Subject',
-    'Prelim',
-    'Midterm',
-    'Pre-Finals',
-    'Finals',
-    'Final Grade',
-    ...INSIGHT_HEADERS,
-  ];
+  const studentDisplayName = formatOfficialStudentName(studentInfo.firstName, studentInfo.lastName);
+  const studentNumber = studentInfo.studentNumber || user?.username || '—';
 
-  const renderSubjectRow = (ss: SubjectRow, scopeKey: string, semester: number, rowKey: string) => {
-    const subjectGrades = getFilteredGrades(scopeKey, semester).filter((g) => g.subject_id === ss.subject_id);
-    const insights = getSubjectInsights(subjectGrades, ss.subject?.name || 'Subject');
+  const renderOfficialReport = (scopeKey: string, semester: number, subjects: SubjectRow[], key: string) => {
+    const rows = buildOfficialRows(scopeKey, semester, subjects);
+    const semesterGpa = computeReportSemesterGpa(rows);
+    const schoolYearName =
+      scopeKey === LEGACY_SCHOOL_YEAR_SCOPE
+        ? 'Unassigned'
+        : myGrades.find((g) => g.school_year_id === scopeKey)?.school_year?.name || displaySchoolYearLabel;
+
     return (
-      <tr key={rowKey} className="hover:bg-white/20">
-        <td className="px-4 py-3 font-mono text-sm text-gray-600">{ss.subject?.code || '—'}</td>
-        <td className="px-4 py-3 font-medium text-gray-800">{ss.subject?.name}</td>
-        <td className="px-4 py-3 text-gray-600">{getSubjectGrade(ss.subject_id, 1, scopeKey, semester)}</td>
-        <td className="px-4 py-3 text-gray-600">{getSubjectGrade(ss.subject_id, 2, scopeKey, semester)}</td>
-        <td className="px-4 py-3 text-gray-600">{getSubjectGrade(ss.subject_id, 3, scopeKey, semester)}</td>
-        <td className="px-4 py-3 text-gray-600">{getSubjectGrade(ss.subject_id, 4, scopeKey, semester)}</td>
-        <td className="px-4 py-3 font-semibold text-[#800000]">
-          {getSubjectFinalDisplay(ss.subject_id, scopeKey, semester)}
-        </td>
-        <InsightCellHover label={insights.strength} reason={insights.strengthReason} />
-        <InsightCellHover label={insights.improve} reason={insights.improveReason} />
-        <InsightCellHover label={insights.suggestion} reason={insights.suggestionReason} />
-      </tr>
+      <StudentOfficialGradeReport
+        key={key}
+        reportTitle={formatReportTitle(studentProfile.grade_level, semester, schoolYearName)}
+        studentName={studentDisplayName}
+        studentNumber={studentNumber}
+        courseName={studentInfo.courseName || '—'}
+        rows={rows}
+        semesterGpa={semesterGpa}
+      />
     );
   };
 
@@ -371,6 +403,12 @@ export default function StudentGradesPage() {
 
   return (
     <DashboardLayout title="My Grades">
+      <div className="print:hidden">
+      <StudentAcademicBanner
+        currentSemester={studentProfile.current_semester}
+        backSubjectCount={academicView.backSubjects.length}
+        hiddenByPrerequisiteCount={hiddenPrerequisiteCount}
+      />
       <div className="mb-5 w-full max-w-2xl">
         <label htmlFor="student-grade-subject-search" className="sr-only">
           Search subjects
@@ -426,7 +464,9 @@ export default function StudentGradesPage() {
             )}
           </div>
           <p className="mb-4 text-sm leading-relaxed text-gray-600">
-            Use the search bar above to filter subjects by name, code, or course. Adjust semester and quarter here.
+            Use the search bar above to filter subjects by name, code, or course. Choose{' '}
+            <span className="font-semibold">1st Semester</span> to review previous-term subjects after you have been
+            advanced.
           </p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Select
@@ -478,95 +518,59 @@ export default function StudentGradesPage() {
         </div>
       )}
 
-      <div className="mb-5 w-full max-w-md">
-        <Select
-          label="School year"
-          value={selectedSchoolYearId}
-          onChange={(e) => setSelectedSchoolYearId(e.target.value)}
-          options={schoolYearOptions}
-        />
+      <div className="mb-5 flex flex-wrap items-end gap-4 max-w-lg">
+        <div className="min-w-[200px] flex-1">
+          <Select
+            label="School year (report)"
+            value={selectedSchoolYearId}
+            onChange={(e) => setSelectedSchoolYearId(e.target.value)}
+            options={schoolYearOptions}
+          />
+        </div>
+        <Button type="button" variant="secondary" className="shrink-0" onClick={() => window.print()}>
+          <Printer className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+          Print copy of grades
+        </Button>
+      </div>
       </div>
 
-      <GlassCard className="p-4 sm:p-6 overflow-x-auto">
-        <h2 className="text-xl font-semibold text-[#800000] mb-4">
-          {selectedSemester === 1 ? '1st' : '2nd'} Semester Grades
-        </h2>
-        <p className="mb-3 text-sm text-gray-600">
-          School Year: <span className="font-semibold text-[#800000]">{displaySchoolYearLabel}</span>
-        </p>
-        <p className="mb-4 text-xs text-gray-500">
-          Hover Strength, Areas to Improve, or Suggestion for a short explanation. Final Grade is the average of all
-          quarters for that subject.
-        </p>
-
+      <div id="student-grade-report" className="space-y-8">
         {selectedSchoolYearId ? (
           <>
-            {filteredSemesterSubjects.length > 0 && (
-              <Table headers={tableHeaders}>
-                {filteredSemesterSubjects.map((ss) =>
-                  renderSubjectRow(ss, selectedSchoolYearId, selectedSemester, ss.subject_id),
-                )}
-              </Table>
-            )}
+            {filteredSemesterSubjects.length > 0 &&
+              renderOfficialReport(
+                selectedSchoolYearId,
+                selectedSemester,
+                filteredSemesterSubjects,
+                `report-${selectedSchoolYearId}-${selectedSemester}`,
+              )}
 
             {semesterSubjects.length === 0 && (
-              <p className="text-center text-gray-500 py-8">No subjects for this semester</p>
+              <p className="text-center text-gray-500 py-8">No subjects for this semester.</p>
             )}
 
             {semesterSubjects.length > 0 && filteredSemesterSubjects.length === 0 && (
               <p className="text-center text-gray-500 py-8">No subjects match your search.</p>
             )}
 
-            {semesterSubjects.length > 0 && (
-              <div className="mt-6 p-4 rounded-xl bg-gradient-to-r from-[#800000] to-[#d4af37] text-white">
-                <div className="flex flex-col gap-1 sm:flex-row sm:justify-between sm:items-center">
-                  <span className="font-semibold">Semester GWA:</span>
-                  <span className="text-2xl font-bold">{calculateSemesterGWA(selectedSchoolYearId, selectedSemester)}</span>
-                </div>
-              </div>
-            )}
           </>
         ) : (
           <>
             {(groupedGradePanels || []).map((panel) => {
-              const hasContent = panel.semesterPanels.some((sp) => sp.filtered.length > 0 || sp.rows.length > 0);
+              const hasContent = panel.semesterPanels.some((sp) => sp.filtered.length > 0);
               if (!hasContent) return null;
               return (
-                <div key={panel.scopeKey} className="mb-8 last:mb-0">
-                  <h3 className="text-lg font-medium text-[#800000] mb-3">{panel.title}</h3>
-                  {panel.semesterPanels.map((sp) => (
-                    <div key={`${panel.scopeKey}-${sp.semester}`} className="mb-6 last:mb-0">
-                      <h4 className="text-sm font-semibold text-gray-700 mb-2">
-                        {sp.semester === 1 ? '1st' : '2nd'} Semester
-                      </h4>
-                      {sp.filtered.length > 0 ? (
-                        <>
-                          <Table headers={tableHeaders}>
-                            {sp.filtered.map((ss) =>
-                              renderSubjectRow(
-                                ss,
-                                panel.scopeKey,
-                                sp.semester,
-                                `${panel.scopeKey}-${sp.semester}-${ss.subject_id}`,
-                              ),
-                            )}
-                          </Table>
-                          <div className="mt-4 p-4 rounded-xl bg-gradient-to-r from-[#800000] to-[#d4af37] text-white">
-                            <div className="flex flex-col gap-1 sm:flex-row sm:justify-between sm:items-center">
-                              <span className="font-semibold">Semester GWA ({panel.title}):</span>
-                              <span className="text-2xl font-bold">
-                                {calculateSemesterGWA(panel.scopeKey, sp.semester)}
-                              </span>
-                            </div>
-                          </div>
-                        </>
-                      ) : sp.rows.length === 0 ? (
-                        <p className="text-sm text-gray-500 py-2">No grades for this semester in this school year.</p>
-                      ) : (
-                        <p className="text-sm text-gray-500 py-2">No subjects match your search.</p>
-                      )}
-                    </div>
-                  ))}
+                <div key={panel.scopeKey} className="space-y-6">
+                  {panel.semesterPanels.map(
+                    (sp) =>
+                      sp.filtered.length > 0 &&
+                      renderOfficialReport(
+                        panel.scopeKey,
+                        sp.semester,
+                        sp.filtered,
+                        `${panel.scopeKey}-${sp.semester}`,
+                      ),
+                  )}
                 </div>
               );
             })}
@@ -575,14 +579,13 @@ export default function StudentGradesPage() {
             )}
             {allYearScopes.length > 0 && subjectCountSummary.shown === 0 && (
               <p className="text-center text-gray-500 py-8">
-                No grades for the selected semester. Try switching to 2nd Semester in filters.
+                No grades for the selected filters. Try another semester or school year.
               </p>
             )}
           </>
         )}
 
-        <p className="mt-3 text-xs text-gray-500">Legend: `(L)` locked by admin, `(R)` for admin review.</p>
-      </GlassCard>
+      </div>
     </DashboardLayout>
   );
 }

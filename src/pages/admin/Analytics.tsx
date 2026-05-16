@@ -11,6 +11,7 @@ import {
 } from 'recharts';
 import { Users, BarChart3, TrendingUp, GraduationCap, BookOpen, CheckCircle2, ChartLine, Trophy, RefreshCw, ListFilter } from 'lucide-react';
 import { chartAxis, chartGrid, chartLegend, chartTooltip } from '../../lib/chartTheme';
+import { formatPersonDisplayName } from '../../lib/personName';
 import { compareNumeric, sortByName, sortSelectOptions } from '../../lib/sortUtils';
 
 export default function AdminAnalyticsPage() {
@@ -90,7 +91,6 @@ export default function AdminAnalyticsPage() {
     'VERY GOOD': 0,
     SATISFACTORY: 0,
     FAIR: 0,
-    PASSING: 0,
     'FAILED OR CONDITIONAL': 0,
   };
   filteredGrades.forEach((g) => {
@@ -104,7 +104,6 @@ export default function AdminAnalyticsPage() {
     { name: 'Very Good', value: remarkBuckets['VERY GOOD'], color: '#d4af37' },
     { name: 'Satisfactory', value: remarkBuckets.SATISFACTORY, color: '#4CAF50' },
     { name: 'Fair', value: remarkBuckets.FAIR, color: '#2196F3' },
-    { name: 'Passing', value: remarkBuckets.PASSING, color: '#9C27B0' },
     { name: 'Failed / Conditional', value: remarkBuckets['FAILED OR CONDITIONAL'], color: '#f44336' },
   ].filter((d) => d.value > 0);
 
@@ -182,7 +181,7 @@ export default function AdminAnalyticsPage() {
     const studentGrades = filteredGrades.filter(g => g.student_id === student.id);
     const subjectCount = new Set(studentGrades.map((g) => g.subject_id)).size;
     return {
-      name: `${student.first_name} ${student.last_name}`.substring(0, 15),
+      name: formatPersonDisplayName(student).substring(0, 15),
       gwa: calculateGWA(studentGrades),
       subjectCount,
       grades: studentGrades.length,
@@ -196,7 +195,7 @@ export default function AdminAnalyticsPage() {
       if (studentGrades.length === 0 || !isDeanListEligible(studentGrades)) return null;
       return {
         id: student.id,
-        name: `${student.first_name || ''} ${student.last_name || ''}`.trim() || 'Unknown Student',
+        name: formatPersonDisplayName(student) || 'Unknown Student',
         gwa: calculateGWA(studentGrades),
         gradeCount: studentGrades.length,
       };

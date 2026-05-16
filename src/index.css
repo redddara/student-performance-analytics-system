@@ -183,11 +183,33 @@ input[type="file"]::file-selector-button {
   color: #800000 !important;
 }
 
-.glass-card-content [data-sapas-modal] button,
-.glass-card-content [data-sapas-modal] label,
-.glass-card-content [data-sapas-modal] p,
-.glass-card-content [data-sapas-modal] span {
-  color: inherit;
+/* Modals use a white panel — restore readable dark form text (not glass-card white) */
+.glass-card-content [data-sapas-modal] {
+  color: rgb(17 24 39);
+}
+
+.glass-card-content [data-sapas-modal] label {
+  color: rgb(55 65 81) !important;
+}
+
+.glass-card-content [data-sapas-modal] [class*='text-gray-500'] {
+  color: rgb(107 114 128) !important;
+}
+
+.glass-card-content [data-sapas-modal] [class*='text-gray-600'] {
+  color: rgb(75 85 99) !important;
+}
+
+.glass-card-content [data-sapas-modal] [class*='text-gray-700'] {
+  color: rgb(55 65 81) !important;
+}
+
+.glass-card-content [data-sapas-modal] [class*='text-gray-800'] {
+  color: rgb(31 41 55) !important;
+}
+
+.glass-card-content [data-sapas-modal] [class*='text-gray-900'] {
+  color: rgb(17 24 39) !important;
 }
 
 /* Native <select> inside maroon cards: glass-card-content forces light text; keep dark text on white field + options */

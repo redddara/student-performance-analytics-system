@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../../store';
 import { supabase } from '../../lib/supabase';
+import { formatPersonDisplayName } from '../../lib/personName';
 import { useSupabaseLiveReload } from '../../lib/useSupabaseLiveReload';
 import logoSpas from '../../assets/LOGO SPAS.png';
 
@@ -137,10 +138,7 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
       if (error) throw error;
       const grouped = new Map<string, any>();
       (data || []).forEach((row: any) => {
-        const teacherName =
-          row?.subject?.teacher?.name ||
-          `${row?.subject?.teacher?.first_name || ''} ${row?.subject?.teacher?.last_name || ''}`.trim() ||
-          'Teacher';
+        const teacherName = formatPersonDisplayName(row?.subject?.teacher || {}) || 'Teacher';
         const kind = row.unlock_requested ? 'unlock' : 'review';
         const groupKey = `${kind}:${row.subject_id}:${row.semester}:${teacherName}`;
         const existing = grouped.get(groupKey) || {
@@ -289,7 +287,7 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-maroon-100 truncate">
-                {user?.name || `${user?.first_name} ${user?.last_name}` || 'User'}
+                {formatPersonDisplayName(user || {}) || 'User'}
               </p>
               <p className="text-xs text-maroon-200 capitalize">{role}</p>
             </div>

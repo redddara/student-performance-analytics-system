@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Check, Download, Save, Search, Users } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { GlassCard, Select, Button, MessageModal, PageSkeletonLoader, type AppMessagePayload } from '../../components/ui';
+import { formatPersonDisplayName } from '../../lib/personName';
 import {
   compareAlphabetical,
   compareNumeric,
@@ -279,7 +280,7 @@ export default function TeacherAttendancePage() {
   const filteredStudents = useMemo(() => {
     const q = filterSearch.trim().toLowerCase();
     const filtered = studentsForSelectedSubject.filter((student: any) => {
-      const fullName = `${student.first_name || ''} ${student.last_name || ''}`.trim().toLowerCase();
+      const fullName = formatPersonDisplayName(student).toLowerCase();
       if (q && !fullName.includes(q)) return false;
       if (filterCourseId && student.course_id !== filterCourseId) return false;
       if (filterYear && (student.grade_level || '') !== filterYear) return false;
@@ -374,7 +375,7 @@ export default function TeacherAttendancePage() {
         const rate = stats.total > 0 ? Math.round((stats.present / stats.total) * 1000) / 10 : 0;
         return {
           studentId,
-          name: `${student?.first_name || ''} ${student?.last_name || ''}`.trim() || 'Unknown student',
+          name: formatPersonDisplayName(student || {}) || 'Unknown student',
           yearLevel: student?.grade_level || '-',
           section: student?.section || '-',
           rate,
@@ -482,7 +483,7 @@ export default function TeacherAttendancePage() {
         return [
           subjectName,
           record.attendance_date,
-          `${student?.first_name || ''} ${student?.last_name || ''}`.trim(),
+          formatPersonDisplayName(student || {}),
           student?.course?.name || '',
           student?.grade_level || '',
           normalizeSchoolSection(student?.section) || '',
@@ -937,7 +938,7 @@ export default function TeacherAttendancePage() {
                         <div className="flex items-center gap-2">
                           <Users className="h-4 w-4 shrink-0 text-[#800000]" strokeWidth={2} aria-hidden />
                           <span className="font-medium">
-                            {student.first_name} {student.last_name}
+                            {formatPersonDisplayName(student)}
                           </span>
                         </div>
                       </td>

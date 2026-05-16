@@ -1,4 +1,10 @@
-import { getGradeRemarks, getGradeStatus, parseGradeInput, toGradePoint } from './supabase';
+import { formatPersonDisplayName } from './personName';
+import { getGradeRemarks, getGradeStatus, gradeValueForStorage } from './supabase';
+import {
+  getSubjectGradeSemester,
+  gradeSemesterMatchesSubject,
+  subjectSemesterMismatchMessage,
+} from './subjectSemester';
 
 export interface GradeSpreadsheetRow {
   student_name?: string;
@@ -19,6 +25,7 @@ export interface ExistingGradeLite {
   student_id: string;
   semester: number;
   quarter: number;
+  school_year_id?: string | null;
   grade_status?: string | null;
   grade?: number | null;
 }
@@ -48,14 +55,25 @@ export function quarterLabel(quarter: number): string {
   return labels[quarter] || `Q${quarter}`;
 }
 
-function existingKey(studentId: string, semester: number, quarter: number) {
-  return `${studentId}|${semester}|${quarter}`;
+function existingKey(
+  studentId: string,
+  semester: number,
+  quarter: number,
+  schoolYearId?: string | null
+) {
+  const base = `${studentId}|${semester}|${quarter}`;
+  return schoolYearId ? `${base}|${schoolYearId}` : base;
 }
 
-export function buildExistingGradesLookup(rows: ExistingGradeLite[]): Map<string, ExistingGradeLite> {
+export function buildExistingGradesLookup(
+  rows: ExistingGradeLite[],
+  options?: { schoolYearId?: string | null }
+): Map<string, ExistingGradeLite> {
   const m = new Map<string, ExistingGradeLite>();
+  const scopedYear = options?.schoolYearId;
   for (const r of rows) {
-    m.set(existingKey(r.student_id, r.semester, r.quarter), r);
+    const yearKey = scopedYear ?? r.school_year_id ?? null;
+    m.set(existingKey(r.student_id, r.semester, r.quarter, yearKey), r);
   }
   return m;
 }
@@ -79,9 +97,7 @@ export function resolveBulkGradeStudent(
   let byName: EnrolledStudentLite | undefined;
   if (strategy === 'full_name') {
     const n = rawName.toLowerCase();
-    byName = enrolled.find(
-      (s) => `${s.first_name ?? ''} ${s.last_name ?? ''}`.trim().toLowerCase() === n
-    );
+    byName = enrolled.find((s) => formatPersonDisplayName(s).toLowerCase() === n);
   } else {
     const nameParts = rawName.split(/\s+/).filter(Boolean);
     const firstName = nameParts[0] ?? '';
@@ -97,15 +113,15 @@ export function resolveBulkGradeStudent(
 }
 
 function formatStudentDisplay(s: EnrolledStudentLite): string {
-  return `${s.first_name ?? ''} ${s.last_name ?? ''}`.trim() || 'Student';
+  return formatPersonDisplayName(s) || 'Student';
 }
 
 function parseGradeValue(raw: unknown): number | null {
   if (raw === '' || raw == null) return null;
   if (typeof raw === 'number' && Number.isFinite(raw)) {
-    return parseGradeInput(raw);
+    return gradeValueForStorage(raw);
   }
-  return parseGradeInput(String(raw));
+  return gradeValueForStorage(String(raw));
 }
 
 /** Build preview rows — no database writes. */
@@ -117,9 +133,14 @@ export function buildBulkGradePreview(
     defaultSemester: number;
     defaultQuarter: number;
     existingLookup: Map<string, ExistingGradeLite>;
+    /** When set, rows with a different semester are rejected. */
+    subject?: { name?: string; semester?: string | null } | null;
+    schoolYearId?: string | null;
   }
 ): BulkGradePreviewRow[] {
-  const { enrolled, strategy, defaultSemester, defaultQuarter, existingLookup } = opts;
+  const { enrolled, strategy, defaultSemester, defaultQuarter, existingLookup, subject, schoolYearId } =
+    opts;
+  const subjectGradeSemester = subject != null ? getSubjectGradeSemester(subject) : null;
   const out: BulkGradePreviewRow[] = [];
 
   for (let i = 0; i < spreadsheetRows.length; i++) {
@@ -131,7 +152,12 @@ export function buildBulkGradePreview(
         .join(' · ') || '—';
 
     const semester = Number(row.semester);
-    const resolvedSemester = Number.isFinite(semester) && semester > 0 ? semester : defaultSemester;
+    const resolvedSemester =
+      subjectGradeSemester != null
+        ? subjectGradeSemester
+        : Number.isFinite(semester) && semester > 0
+          ? semester
+          : defaultSemester;
     const quarterRaw = Number(row.quarter);
     const resolvedQuarter =
       Number.isFinite(quarterRaw) && quarterRaw > 0 ? quarterRaw : defaultQuarter;
@@ -157,6 +183,18 @@ export function buildBulkGradePreview(
       studentId = null;
     }
 
+    if (
+      ok &&
+      subject &&
+      subjectGradeSemester != null &&
+      Number.isFinite(semester) &&
+      semester > 0 &&
+      !gradeSemesterMatchesSubject(semester, subject)
+    ) {
+      ok = false;
+      errorMessage = subjectSemesterMismatchMessage(subject, semester);
+    }
+
     const numericGrade = parseGradeValue(row.grade);
     if (ok && numericGrade == null) {
       ok = false;
@@ -169,11 +207,12 @@ export function buildBulkGradePreview(
     let existingGradeDisplay: number | string | null = null;
 
     if (ok && studentId != null && numericGrade != null) {
-      const gradePoint = toGradePoint(numericGrade);
-      remarks = getGradeRemarks(gradePoint);
-      gradeStatus = getGradeStatus(gradePoint);
+      remarks = getGradeRemarks(numericGrade);
+      gradeStatus = getGradeStatus(numericGrade);
 
-      const existing = existingLookup.get(existingKey(studentId, resolvedSemester, resolvedQuarter));
+      const existing = existingLookup.get(
+        existingKey(studentId, resolvedSemester, resolvedQuarter, schoolYearId)
+      );
       if (existing) {
         existingGradeId = existing.id;
         existingGradeDisplay = existing.grade_status === 'inc' ? 'INC' : existing.grade ?? null;
@@ -193,7 +232,7 @@ export function buildBulkGradePreview(
       resolvedName,
       semester: resolvedSemester,
       quarter: resolvedQuarter,
-      numericGrade: numericGrade != null ? toGradePoint(numericGrade) : null,
+      numericGrade: numericGrade != null ? numericGrade : null,
       remarks,
       gradeStatus,
       ok,

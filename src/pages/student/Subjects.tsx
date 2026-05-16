@@ -2,25 +2,28 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSupabaseLiveReload } from '../../lib/useSupabaseLiveReload';
 import { ListFilter, RefreshCw, Search } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
+import { StudentAcademicBanner } from '../../components/student/StudentAcademicBanner';
 import { GlassCard, Select, Button, Input, PageSkeletonLoader } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase } from '../../lib/supabase';
+import { formatTeacherDisplayName } from '../../lib/personName';
 import { compareAlphabetical, sortSelectOptions } from '../../lib/sortUtils';
-
-const yearLevelRank = (value?: string | null) => {
-  const normalized = String(value || '').trim().toLowerCase();
-  if (normalized.startsWith('1')) return 1;
-  if (normalized.startsWith('2')) return 2;
-  if (normalized.startsWith('3')) return 3;
-  if (normalized.startsWith('4')) return 4;
-  return 0;
-};
+import {
+  classifyStudentEnrollments,
+  type SubjectPrerequisite,
+} from '../../lib/studentAcademicRules';
+import type { GradeRecord } from '../../lib/studentGradeInsights';
 
 export default function StudentSubjectsPage() {
   const { user } = useAuthStore();
   const [mySubjects, setMySubjects] = useState<any[]>([]);
   const [courses, setCourses] = useState<{ id: string; name: string }[]>([]);
-  const [studentYearLevel, setStudentYearLevel] = useState('');
+  const [studentProfile, setStudentProfile] = useState<{ grade_level: string; current_semester: number }>({
+    grade_level: '',
+    current_semester: 1,
+  });
+  const [myGrades, setMyGrades] = useState<GradeRecord[]>([]);
+  const [prerequisites, setPrerequisites] = useState<SubjectPrerequisite[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterSearch, setFilterSearch] = useState('');
   const [filterCourseId, setFilterCourseId] = useState('');
@@ -33,18 +36,28 @@ export default function StudentSubjectsPage() {
       const { data: studentData } = await supabase.from('students').select('*').eq('user_id', user?.id).single();
 
       if (!studentData) return;
-      setStudentYearLevel(studentData.grade_level || '');
+      setStudentProfile({
+        grade_level: studentData.grade_level || '',
+        current_semester: studentData.current_semester === 2 ? 2 : 1,
+      });
 
-      const [{ data: studentSubjects }, { data: courseRows }] = await Promise.all([
+      const [{ data: studentSubjects }, { data: courseRows }, gradesRes, prereqRes] = await Promise.all([
         supabase
           .from('student_subjects')
           .select('*, subject:subjects(*, course:courses(*), teacher:users(*))')
           .eq('student_id', studentData.id),
         supabase.from('courses').select('id,name'),
+        supabase
+          .from('grades')
+          .select('subject_id, grade, grade_status, quarter, semester, school_year_id, subject:subjects(id,name,year_level,semester,course_id)')
+          .eq('student_id', studentData.id),
+        supabase.from('subject_prerequisites').select('subject_id, prerequisite_subject_id, minimum_grade'),
       ]);
 
       setMySubjects(studentSubjects || []);
       setCourses((courseRows || []) as { id: string; name: string }[]);
+      setMyGrades((gradesRes.data || []) as GradeRecord[]);
+      setPrerequisites((prereqRes.data || []) as SubjectPrerequisite[]);
     } catch (error) {
       console.error('Error:', error);
     } finally {
@@ -61,19 +74,41 @@ export default function StudentSubjectsPage() {
     'subjects',
     'users',
     'students',
+    'grades',
+    'subject_prerequisites',
   ]);
+
+  const academicView = useMemo(
+    () =>
+      classifyStudentEnrollments(
+        {
+          grade_level: studentProfile.grade_level,
+          current_semester: studentProfile.current_semester,
+        },
+        mySubjects,
+        myGrades,
+        prerequisites
+      ),
+    [mySubjects, myGrades, prerequisites, studentProfile]
+  );
+
+  const visibleEnrollments = useMemo(
+    () => academicView.visible.map((row) => row.enrollment),
+    [academicView]
+  );
+
+  const hiddenPrerequisiteCount = useMemo(
+    () => academicView.hidden.filter((h) => h.hiddenReason === 'prerequisite').length,
+    [academicView]
+  );
 
   const filteredSubjects = useMemo(() => {
     const q = filterSearch.trim().toLowerCase();
-    const filtered = mySubjects.filter((ss) => {
+    const filtered = visibleEnrollments.filter((ss) => {
       const sub = ss.subject;
       const name = String(sub?.name || '').toLowerCase();
       const course = String(sub?.course?.name || '').toLowerCase();
-      const teacher = String(
-        sub?.teacher?.name || `${sub?.teacher?.first_name || ''} ${sub?.teacher?.last_name || ''}`
-      )
-        .trim()
-        .toLowerCase();
+      const teacher = formatTeacherDisplayName(sub?.teacher || {}).toLowerCase();
       if (q && !name.includes(q) && !course.includes(q) && !teacher.includes(q)) return false;
       if (filterCourseId && sub?.course?.id !== filterCourseId) return false;
       if (filterYear && (sub?.year_level || '') !== filterYear) return false;
@@ -81,7 +116,16 @@ export default function StudentSubjectsPage() {
       return true;
     });
     return filtered.sort((a, b) => compareAlphabetical(a.subject?.name || '', b.subject?.name || ''));
-  }, [mySubjects, filterSearch, filterCourseId, filterYear, filterSemester]);
+  }, [visibleEnrollments, filterSearch, filterCourseId, filterYear, filterSemester]);
+
+  const visibleMetaBySubjectId = useMemo(() => {
+    const map = new Map<string, (typeof academicView.visible)[0]>();
+    for (const row of academicView.visible) {
+      const id = row.enrollment.subject?.id || row.enrollment.subject_id;
+      if (id) map.set(id, row);
+    }
+    return map;
+  }, [academicView]);
 
   const hasActiveFilters =
     Boolean(filterSearch.trim()) || Boolean(filterCourseId) || Boolean(filterYear) || Boolean(filterSemester);
@@ -102,16 +146,16 @@ export default function StudentSubjectsPage() {
   }, [courses]);
 
   const courseOptions = useMemo(() => {
-    const options = Array.from(new Set(mySubjects.map((ss) => ss.subject?.course?.id).filter(Boolean))).map(
+    const options = Array.from(new Set(visibleEnrollments.map((ss) => ss.subject?.course?.id).filter(Boolean))).map(
       (courseId) => {
         const id = String(courseId);
-        const joinedName = mySubjects.find((ss) => ss.subject?.course?.id === id)?.subject?.course?.name;
+        const joinedName = visibleEnrollments.find((ss) => ss.subject?.course?.id === id)?.subject?.course?.name;
         const label = joinedName || courseNameById.get(id) || `Course ${id.slice(0, 8)}...`;
         return { value: id, label };
       }
     );
     return sortSelectOptions([{ value: '', label: 'All courses' }, ...options], ['']);
-  }, [mySubjects, courseNameById]);
+  }, [visibleEnrollments, courseNameById]);
 
   if (loading) {
     return <DashboardLayout title="My Subjects"><PageSkeletonLoader rows={4} /></DashboardLayout>;
@@ -119,7 +163,11 @@ export default function StudentSubjectsPage() {
 
   return (
     <DashboardLayout title="My Subjects">
-      
+      <StudentAcademicBanner
+        currentSemester={studentProfile.current_semester}
+        backSubjectCount={academicView.backSubjects.length}
+        hiddenByPrerequisiteCount={hiddenPrerequisiteCount}
+      />
 
       <div className="mb-5 w-full max-w-2xl">
         <label htmlFor="student-subject-search" className="sr-only">
@@ -157,8 +205,8 @@ export default function StudentSubjectsPage() {
         </button>
         {!filtersOpen && (
           <span className="text-sm text-gray-600">
-            Showing <span className="font-semibold text-[#800000]">{filteredSubjects.length}</span> / {mySubjects.length}{' '}
-            subject{mySubjects.length !== 1 ? 's' : ''}
+            Showing <span className="font-semibold text-[#800000]">{filteredSubjects.length}</span> /{' '}
+            {visibleEnrollments.length} visible subject{visibleEnrollments.length !== 1 ? 's' : ''}
           </span>
         )}
       </div>
@@ -216,38 +264,45 @@ export default function StudentSubjectsPage() {
       {filteredSubjects.length === 0 ? (
         <GlassCard className="p-5 sm:p-6">
           <p className="text-center text-gray-100">
-            {mySubjects.length === 0
-              ? 'No subjects are assigned to your account yet.'
+            {visibleEnrollments.length === 0
+              ? 'No subjects are available for your current semester yet. Check back when your school advances the term, or ask the registrar.'
               : 'No subjects match your filters.'}
           </p>
         </GlassCard>
       ) : (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-          {filteredSubjects.map((ss) => (
-            <div key={ss.id} className="rounded-2xl border border-maroon-200/50 bg-white p-5 shadow-sm sm:p-6">
-              <div className="flex items-start justify-between gap-2">
-                <h3 className="text-lg font-semibold text-[#800000]">{ss.subject?.name}</h3>
-                {yearLevelRank(ss.subject?.year_level) > 0 &&
-                  yearLevelRank(studentYearLevel) > 0 &&
-                  yearLevelRank(ss.subject?.year_level) < yearLevelRank(studentYearLevel) && (
-                    <span className="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">
-                      Back Subject
-                    </span>
-                  )}
+          {filteredSubjects.map((ss) => {
+            const subjectId = ss.subject?.id || ss.subject_id;
+            const meta = subjectId ? visibleMetaBySubjectId.get(subjectId) : undefined;
+            return (
+              <div key={ss.id} className="rounded-2xl border border-maroon-200/50 bg-white p-5 shadow-sm sm:p-6">
+                <div className="flex items-start justify-between gap-2">
+                  <h3 className="text-lg font-semibold text-[#800000]">{ss.subject?.name}</h3>
+                  <div className="flex flex-wrap justify-end gap-1.5">
+                    {meta?.isBackSubject && (
+                      <span className="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                        Back Subject
+                      </span>
+                    )}
+                    {meta?.isPastTermSubject && !meta?.isBackSubject && (
+                      <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-900">
+                        Previous term
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="mt-3 space-y-1 text-sm text-gray-700">
+                  <p><span className="font-semibold">Course:</span> {ss.subject?.course?.name || '-'}</p>
+                  <p><span className="font-semibold">Year level:</span> {ss.subject?.year_level || '-'}</p>
+                  <p><span className="font-semibold">Semester:</span> {ss.subject?.semester || '-'}</p>
+                  <p>
+                    <span className="font-semibold">Teacher:</span>{' '}
+                    {ss.subject?.teacher ? formatTeacherDisplayName(ss.subject.teacher) : '-'}
+                  </p>
+                </div>
               </div>
-              <div className="mt-3 space-y-1 text-sm text-gray-700">
-                <p><span className="font-semibold">Course:</span> {ss.subject?.course?.name || '-'}</p>
-                <p><span className="font-semibold">Year level:</span> {ss.subject?.year_level || '-'}</p>
-                <p><span className="font-semibold">Semester:</span> {ss.subject?.semester || '-'}</p>
-                <p>
-                  <span className="font-semibold">Teacher:</span>{' '}
-                  {ss.subject?.teacher
-                    ? (ss.subject.teacher.name || `${ss.subject.teacher.first_name || ''} ${ss.subject.teacher.last_name || ''}`.trim())
-                    : '-'}
-                </p>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </DashboardLayout>

@@ -5,8 +5,14 @@ import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { PageIntro } from '../../components/layouts/PageIntro';
 import { Button, GlassCard, Modal, Select, Table, PageSkeletonLoader } from '../../components/ui';
 import { useAuthStore } from '../../store';
-import { supabase, getGradeRemarks, getGradeStatus, parseGradeInput, toGradePoint, formatGradeDisplay } from '../../lib/supabase';
+import {
+  supabase,
+  computeSubjectFinalAverage,
+  getGradeRemarks,
+  gradeValueForStorage,
+} from '../../lib/supabase';
 import { useSupabaseLiveReload } from '../../lib/useSupabaseLiveReload';
+import { formatPersonDisplayName } from '../../lib/personName';
 import {
   compareAlphabetical,
   courseSelectOptions,
@@ -21,11 +27,29 @@ type FinalAverageRow = {
   semester: number;
   student_name: string;
   course_name: string;
+  course_id: string;
   section: string;
+  year_level: string;
   subject_name: string;
+  subject_code: string;
   quarter_count: number;
   final_average: number | null;
+  final_grade_point: number | null;
   status: 'passed' | 'failed' | 'inc';
+  grade_ids: string[];
+};
+
+type GradeSectionGroup = {
+  key: string;
+  subject_id: string;
+  subject_name: string;
+  subject_code: string;
+  semester: number;
+  course_id: string;
+  course_name: string;
+  section: string;
+  year_level: string;
+  rows: FinalAverageRow[];
   grade_ids: string[];
 };
 
@@ -93,20 +117,13 @@ export default function AdminGradesPage() {
       const [gradesRes, studentsRes, subjectsRes, coursesRes] = await Promise.all([
         (async () => {
           let query = supabase.from('grades').select('*').order('created_at', { ascending: false });
-          // Active-year view: include legacy rows missing school_year_id (bulk upload used to omit it).
           if (effectiveSchoolYearId) {
-            if (schoolYearFilter === 'active') {
-              query = query.or(
-                `school_year_id.eq.${effectiveSchoolYearId},school_year_id.is.null`
-              );
-            } else {
-              query = query.eq('school_year_id', effectiveSchoolYearId);
-            }
+            query = query.eq('school_year_id', effectiveSchoolYearId);
           }
           return query;
         })(),
         supabase.from('students').select('id,first_name,last_name,section,grade_level,course_id'),
-        supabase.from('subjects').select('id,name,course_id'),
+        supabase.from('subjects').select('id,name,code,course_id'),
         supabase.from('courses').select('id,name'),
       ]);
       setGrades(gradesRes.data || []);
@@ -139,11 +156,12 @@ export default function AdminGradesPage() {
       if (section && String(st?.section || '').toLowerCase() !== section.toLowerCase()) return false;
       if (yearLevel && String(st?.grade_level || '') !== yearLevel) return false;
       if (!term) return true;
-      const name = `${st?.first_name || ''} ${st?.last_name || ''}`.trim().toLowerCase();
+      const name = formatPersonDisplayName(st || {}).toLowerCase();
       const courseName = String(courses.find((c) => c.id === st?.course_id)?.name || '').toLowerCase();
       return (
         name.includes(term) ||
         String(sb?.name || '').toLowerCase().includes(term) ||
+        String(sb?.code || '').toLowerCase().includes(term) ||
         courseName.includes(term) ||
         String(st?.section || '').toLowerCase().includes(term)
       );
@@ -165,31 +183,75 @@ export default function AdminGradesPage() {
       const st = students.find((s) => s.id === first.student_id);
       const sb = subjects.find((s) => s.id === first.subject_id);
       const cr = courses.find((c) => c.id === st?.course_id);
-      const hasInc = list.some((g) => g.grade_status === 'inc');
-      const numeric = list.filter((g) => g.grade_status !== 'inc').map((g) => Number(g.grade));
-      const avg =
-        numeric.length > 0
-          ? Math.round((numeric.reduce((sum, n) => sum + n, 0) / numeric.length) * 100) / 100
-          : null;
-      const status: 'passed' | 'failed' | 'inc' = hasInc ? 'inc' : getGradeStatus(avg ?? 0);
+      const summary = computeSubjectFinalAverage(list);
       rows.push({
         key,
         student_id: first.student_id,
         subject_id: first.subject_id,
         semester: first.semester,
-        student_name: `${st?.first_name || ''} ${st?.last_name || ''}`.trim(),
+        student_name: formatPersonDisplayName(st || {}),
         course_name: cr?.name || '',
+        course_id: st?.course_id || '',
         section: st?.section || '',
+        year_level: st?.grade_level || '',
         subject_name: sb?.name || '',
-        quarter_count: list.length,
-        final_average: avg,
-        status,
+        subject_code: sb?.code || '',
+        quarter_count: summary.quarterCount,
+        final_average: summary.averagePercent,
+        final_grade_point: summary.gradePoint,
+        status: summary.status,
         grade_ids: list.map((g) => g.id),
       });
     }
 
     return rows.sort((a, b) => compareAlphabetical(a.student_name, b.student_name));
   }, [filtered, students, subjects, courses]);
+
+  const sectionGroups = useMemo<GradeSectionGroup[]>(() => {
+    const byGroup = new Map<string, FinalAverageRow[]>();
+    for (const row of finalRows) {
+      const groupKey = [
+        row.subject_id,
+        row.semester,
+        row.course_id || 'none',
+        row.section || 'none',
+        row.year_level || 'none',
+      ].join('__');
+      const list = byGroup.get(groupKey) || [];
+      list.push(row);
+      byGroup.set(groupKey, list);
+    }
+
+    const groups: GradeSectionGroup[] = [];
+    for (const [key, rows] of byGroup.entries()) {
+      const first = rows[0];
+      groups.push({
+        key,
+        subject_id: first.subject_id,
+        subject_name: first.subject_name,
+        subject_code: first.subject_code,
+        semester: first.semester,
+        course_id: first.course_id,
+        course_name: first.course_name,
+        section: first.section,
+        year_level: first.year_level,
+        rows: rows.sort((a, b) => compareAlphabetical(a.student_name, b.student_name)),
+        grade_ids: rows.flatMap((r) => r.grade_ids),
+      });
+    }
+
+    return groups.sort((a, b) => {
+      const courseCmp = compareAlphabetical(a.course_name, b.course_name);
+      if (courseCmp !== 0) return courseCmp;
+      const sectionCmp = compareAlphabetical(a.section, b.section);
+      if (sectionCmp !== 0) return sectionCmp;
+      const yearCmp = compareAlphabetical(a.year_level, b.year_level);
+      if (yearCmp !== 0) return yearCmp;
+      const subjectCmp = compareAlphabetical(a.subject_name, b.subject_name);
+      if (subjectCmp !== 0) return subjectCmp;
+      return a.semester - b.semester;
+    });
+  }, [finalRows]);
 
   const sortedCourses = useMemo(() => courseSelectOptions(courses), [courses]);
   const sortedSchoolYears = useMemo(
@@ -203,10 +265,16 @@ export default function AdminGradesPage() {
         student: r.student_name,
         course: r.course_name,
         section: r.section,
+        subject_code: r.subject_code,
         subject: r.subject_name,
         semester: r.semester,
         quarters_included: r.quarter_count,
-        final_average: r.status === 'inc' ? 'INC' : r.final_average,
+        final_average:
+          r.status === 'inc'
+            ? 'INC'
+            : r.final_average != null && r.final_grade_point != null
+              ? `${r.final_average}% → ${r.final_grade_point.toFixed(2)}`
+              : r.final_average,
         status: r.status.toUpperCase(),
       };
     });
@@ -214,6 +282,7 @@ export default function AdminGradesPage() {
       student: '',
       course: '',
       section: '',
+      subject_code: '',
       subject: '',
       semester: '',
       quarters_included: '',
@@ -235,15 +304,15 @@ export default function AdminGradesPage() {
 
   const saveEdit = async () => {
     if (!editRow) return;
-    const gradePoint = parseGradeInput(editGrade);
-    if (editStatus !== 'inc' && gradePoint == null) return;
+    const gradeToStore = gradeValueForStorage(editGrade);
+    if (editStatus !== 'inc' && gradeToStore == null) return;
     const payload =
       editStatus === 'inc'
         ? { grade_status: 'inc', grade: 0, remarks: 'INC' }
         : {
             grade_status: editStatus,
-            grade: gradePoint!,
-            remarks: getGradeRemarks(gradePoint!),
+            grade: gradeToStore!,
+            remarks: getGradeRemarks(gradeToStore!),
           };
 
     await supabase
@@ -254,9 +323,9 @@ export default function AdminGradesPage() {
     await loadData();
   };
 
-  const approveAndLock = async (row: FinalAverageRow) => {
-    if (!row.grade_ids.length) return;
-    setActionLoadingKey(`${row.key}:lock`);
+  const approveAndLock = async (group: GradeSectionGroup) => {
+    if (!group.grade_ids.length) return;
+    setActionLoadingKey(`${group.key}:lock`);
     await supabase
       .from('grades')
       .update({
@@ -267,14 +336,14 @@ export default function AdminGradesPage() {
         unlock_reason: null,
         unlock_requested_at: null,
       })
-      .in('id', row.grade_ids);
+      .in('id', group.grade_ids);
     setActionLoadingKey('');
     await loadData();
   };
 
-  const approveUnlock = async (row: FinalAverageRow) => {
-    if (!row.grade_ids.length) return;
-    setActionLoadingKey(`${row.key}:unlock`);
+  const approveUnlock = async (group: GradeSectionGroup) => {
+    if (!group.grade_ids.length) return;
+    setActionLoadingKey(`${group.key}:unlock`);
     try {
       await supabase
         .from('grades')
@@ -288,10 +357,31 @@ export default function AdminGradesPage() {
           unlock_requested_at: null,
           unlock_requested_by: null,
         })
-        .in('id', row.grade_ids);
+        .in('id', group.grade_ids);
       await loadData();
     } finally {
       setActionLoadingKey('');
+    }
+  };
+
+  const groupWorkflowLabel = (group: GradeSectionGroup) => {
+    const relatedGrades = grades.filter((g) => group.grade_ids.includes(g.id));
+    const anyLocked = relatedGrades.some((g) => Boolean(g.is_locked));
+    const anyUnlockRequested = relatedGrades.some((g) => Boolean(g.unlock_requested));
+    const hasForReview = relatedGrades.some((g) => g.workflow_status === 'for_review');
+    return anyLocked ? 'LOCKED' : anyUnlockRequested ? 'UNLOCK REQUESTED' : hasForReview ? 'FOR REVIEW' : 'DRAFT';
+  };
+
+  const workflowBadgeClass = (label: string) => {
+    switch (label) {
+      case 'LOCKED':
+        return 'bg-emerald-500/20 text-emerald-100 ring-emerald-400/40';
+      case 'UNLOCK REQUESTED':
+        return 'bg-amber-500/25 text-amber-100 ring-amber-400/45';
+      case 'FOR REVIEW':
+        return 'bg-sky-500/25 text-sky-100 ring-sky-400/45';
+      default:
+        return 'bg-white/15 text-white/90 ring-white/25';
     }
   };
 
@@ -306,7 +396,7 @@ export default function AdminGradesPage() {
       <div className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
         <input
           className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5"
-          placeholder="Search student, subject, course, or section..."
+          placeholder="Search student, subject code, course, or section..."
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
@@ -359,74 +449,133 @@ export default function AdminGradesPage() {
       </div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-gray-600">
-          Showing <span className="font-semibold text-[#800000]">{finalRows.length}</span> final average record{finalRows.length !== 1 ? 's' : ''} (sorted by student).
+          Showing <span className="font-semibold text-[#800000]">{finalRows.length}</span> student record
+          {finalRows.length !== 1 ? 's' : ''} in{' '}
+          <span className="font-semibold text-[#800000]">{sectionGroups.length}</span> class group
+          {sectionGroups.length !== 1 ? 's' : ''} (course · section · year · subject).
         </p>
         <Button type="button" onClick={exportCsv}>
           <Download className="h-5 w-5 shrink-0" />
           Export Filtered CSV
         </Button>
       </div>
-      <GlassCard className="p-4 sm:p-6">
-        <Table headers={['Student', 'Course', 'Section', 'Subject', 'Sem', 'Quarters', 'Final Average', 'Status', 'Workflow', 'Actions']}>
-          {finalRows.map((row) => {
-            const relatedGrades = grades.filter((g) => row.grade_ids.includes(g.id));
-            const anyLocked = relatedGrades.some((g) => Boolean(g.is_locked));
-            const anyUnlockRequested = relatedGrades.some((g) => Boolean(g.unlock_requested));
-            const hasForReview = relatedGrades.some((g) => g.workflow_status === 'for_review');
-            const workflowLabel = anyLocked ? 'LOCKED' : anyUnlockRequested ? 'UNLOCK REQUESTED' : hasForReview ? 'FOR REVIEW' : 'DRAFT';
-            return (
-              <tr key={row.key}>
-                <td className="px-4 py-3">{row.student_name || '—'}</td>
-                <td className="px-4 py-3">{row.course_name || '—'}</td>
-                <td className="px-4 py-3">{row.section || '—'}</td>
-                <td className="px-4 py-3">{row.subject_name || '—'}</td>
-                <td className="px-4 py-3">{row.semester}</td>
-                <td className="px-4 py-3">{row.quarter_count}</td>
-                <td className="px-4 py-3">{row.status === 'inc' ? 'INC' : row.final_average ?? '—'}</td>
-                <td className="px-4 py-3">{row.status.toUpperCase()}</td>
-                <td className="px-4 py-3">
-                  <span className="text-xs font-semibold">{workflowLabel}</span>
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex flex-wrap items-center gap-2">
+      <div className="space-y-6">
+        {sectionGroups.map((group) => {
+          const relatedGrades = grades.filter((g) => group.grade_ids.includes(g.id));
+          const anyLocked = relatedGrades.some((g) => Boolean(g.is_locked));
+          const workflowLabel = groupWorkflowLabel(group);
+          return (
+            <GlassCard key={group.key} variant="plain" className="overflow-hidden p-0 shadow-md">
+              <div className="border-b border-gold-500/25 bg-gradient-to-r from-[#4a0000] via-[#660000] to-[#800000] px-4 py-4 sm:px-6">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gold-200/90">
+                      {group.course_name || '—'} · Section {group.section || '—'} ·{' '}
+                      {group.year_level ? `${group.year_level} Year` : '—'}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {group.subject_code ? (
+                        <span className="rounded-md bg-gold-400/20 px-2.5 py-1 font-mono text-sm font-bold tracking-wide text-gold-100 ring-1 ring-gold-400/40">
+                          {group.subject_code}
+                        </span>
+                      ) : null}
+                      <h3 className="text-base font-semibold text-white sm:text-lg">
+                        {group.subject_name || '—'}
+                      </h3>
+                    </div>
+                    <p className="text-sm text-white/75">
+                      Semester {group.semester} · {group.rows.length} student
+                      {group.rows.length !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
+                    <span
+                      className={`rounded-lg px-2.5 py-1 text-xs font-bold uppercase tracking-wide ring-1 ${workflowBadgeClass(workflowLabel)}`}
+                    >
+                      {workflowLabel}
+                    </span>
                     <button
                       type="button"
-                      className="rounded-lg p-2 text-[#800000] hover:bg-maroon-50 disabled:opacity-50"
-                      disabled={anyLocked}
-                      onClick={() => {
-                        setEditRow(row);
-                        setEditStatus(row.status);
-                        setEditGrade(String(row.final_average ?? ''));
-                      }}
-                      title={anyLocked ? 'Locked grades cannot be edited.' : 'Edit final average'}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-white/25 bg-white/10 px-3 py-2 text-sm font-medium text-white hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-45"
+                      disabled={anyLocked || actionLoadingKey === `${group.key}:lock`}
+                      onClick={() => void approveAndLock(group)}
+                      title="Approve and lock all grades in this class group"
                     >
-                      <Pencil className="h-[1.1rem] w-[1.1rem] shrink-0" />
+                      <Lock className="h-4 w-4 shrink-0" />
+                      Lock all
                     </button>
                     <button
                       type="button"
-                      className="rounded-lg p-2 text-green-700 hover:bg-green-50 disabled:opacity-50"
-                      disabled={anyLocked || actionLoadingKey === `${row.key}:lock`}
-                      onClick={() => void approveAndLock(row)}
-                      title="Approve and lock grades"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300/50 bg-amber-500/20 px-3 py-2 text-sm font-medium text-amber-50 hover:bg-amber-500/30 disabled:cursor-not-allowed disabled:opacity-45"
+                      disabled={!anyLocked || actionLoadingKey === `${group.key}:unlock`}
+                      onClick={() => void approveUnlock(group)}
+                      title={anyLocked ? 'Unlock all grades in this class group' : 'Already unlocked'}
                     >
-                      <Lock className="h-[1.1rem] w-[1.1rem] shrink-0" />
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded-lg p-2 text-amber-700 hover:bg-amber-50 disabled:opacity-50"
-                      disabled={!anyLocked || actionLoadingKey === `${row.key}:unlock`}
-                      onClick={() => void approveUnlock(row)}
-                      title={anyLocked ? 'Unlock and reopen for editing' : 'Already unlocked'}
-                    >
-                      <LockOpen className="h-[1.1rem] w-[1.1rem] shrink-0" />
+                      <LockOpen className="h-4 w-4 shrink-0" />
+                      Unlock all
                     </button>
                   </div>
-                </td>
-              </tr>
-            );
-          })}
-        </Table>
-      </GlassCard>
+                </div>
+              </div>
+              <div className="bg-white p-4 sm:p-6">
+                <Table variant="light" headers={['Student', 'Quarters', 'Final Average', 'Status', 'Edit']}>
+                  {group.rows.map((row) => {
+                    const rowLocked = grades
+                      .filter((g) => row.grade_ids.includes(g.id))
+                      .some((g) => Boolean(g.is_locked));
+                    return (
+                      <tr key={row.key} className="hover:bg-gray-50/80">
+                        <td className="px-4 py-3 font-medium text-gray-900">{row.student_name || '—'}</td>
+                        <td className="px-4 py-3 text-gray-700">{row.quarter_count}</td>
+                        <td className="px-4 py-3 text-gray-800">
+                          {row.status === 'inc'
+                            ? 'INC'
+                            : row.final_average != null && row.final_grade_point != null
+                              ? `${row.final_average}% → ${row.final_grade_point.toFixed(2)}`
+                              : row.final_average ?? '—'}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={
+                              row.status === 'passed'
+                                ? 'font-semibold text-green-700'
+                                : row.status === 'failed'
+                                  ? 'font-semibold text-red-700'
+                                  : 'font-semibold text-amber-700'
+                            }
+                          >
+                            {row.status.toUpperCase()}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <button
+                            type="button"
+                            className="rounded-lg border border-gray-200 p-2 text-[#800000] hover:bg-maroon-50 disabled:opacity-50"
+                            disabled={rowLocked}
+                            onClick={() => {
+                              setEditRow(row);
+                              setEditStatus(row.status);
+                              setEditGrade(String(row.final_average ?? ''));
+                            }}
+                            title={rowLocked ? 'Locked grades cannot be edited.' : 'Edit final average'}
+                          >
+                            <Pencil className="h-[1.1rem] w-[1.1rem] shrink-0" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </Table>
+              </div>
+            </GlassCard>
+          );
+        })}
+        {sectionGroups.length === 0 && (
+          <GlassCard variant="plain" className="p-6 text-center text-sm text-gray-500">
+            No grade records match the current filters.
+          </GlassCard>
+        )}
+      </div>
 
       <Modal isOpen={Boolean(editRow)} onClose={() => setEditRow(null)} title="Edit final average">
         <div className="space-y-4">

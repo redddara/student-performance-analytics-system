@@ -7,6 +7,7 @@ import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { GlassCard, Button, Input, Select, PageSkeletonLoader } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase } from '../../lib/supabase';
+import { formatPersonDisplayName } from '../../lib/personName';
 import { courseSelectOptions, sortByName } from '../../lib/sortUtils';
 
 export default function TeacherSubjectsPage() {
@@ -169,7 +170,7 @@ export default function TeacherSubjectsPage() {
                 <p><span className="font-semibold">Year level:</span> {subject.year_level || '-'}</p>
                 <p><span className="font-semibold">Semester:</span> {subject.semester || '-'}</p>
                 <p><span className="font-semibold">Class days:</span> {formatClassDaysLabel(subject.class_days)}</p>
-                <p><span className="font-semibold">Teacher:</span> {(subject.teacher?.first_name || '') + ' ' + (subject.teacher?.last_name || '') || '-'}</p>
+                <p><span className="font-semibold">Teacher:</span> {formatPersonDisplayName(subject.teacher || {}) || '-'}</p>
               </div>
             </div>
           ))}

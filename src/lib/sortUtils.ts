@@ -1,3 +1,5 @@
+import { formatPersonDisplayName } from './personName';
+
 const TEXT_COLLATOR = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
 
 /** Alphabetical with embedded numbers in order (e.g. BSCS-3N1 before BSCS-4N1). */
@@ -26,8 +28,8 @@ export function sortByStudentName<
   T extends { first_name?: string | null; last_name?: string | null; name?: string | null },
 >(items: T[]): T[] {
   return [...items].sort((a, b) => {
-    const na = (a.name || `${a.last_name || ''} ${a.first_name || ''}`).trim();
-    const nb = (b.name || `${b.last_name || ''} ${b.first_name || ''}`).trim();
+    const na = formatPersonDisplayName(a);
+    const nb = formatPersonDisplayName(b);
     return compareAlphabetical(na, nb);
   });
 }

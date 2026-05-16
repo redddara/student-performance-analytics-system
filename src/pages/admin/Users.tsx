@@ -43,6 +43,12 @@ import {
 } from '../../constants/schoolSections';
 import { isLoginLocked } from '../../lib/loginLock';
 import {
+  formatPersonDisplayName,
+  normalizePersonNames,
+  normalizeTeacherTitle,
+  TEACHER_TITLE_SELECT_OPTIONS,
+} from '../../lib/personName';
+import {
   courseSelectOptions,
   sectionSelectOptions,
   sortByName,
@@ -253,6 +259,15 @@ export default function AdminUsersPage() {
 
   const handleEditUser = async (userId: string, updatedData: any, role?: string) => {
     try {
+      if (role === 'teacher' && !normalizeTeacherTitle(updatedData.name_title)) {
+        showMessage({
+          title: 'Title required',
+          message: 'Select Mr., Mrs., or Ms. for the teacher.',
+          variant: 'warning',
+        });
+        return;
+      }
+
       const previousUser = users.find((u) => u.id === userId);
       let resolvedYearLevel = updatedData.year_level;
       let resolvedCourseId = updatedData.course_id || null;
@@ -272,12 +287,18 @@ export default function AdminUsersPage() {
         }
       }
 
-      const payload: Record<string, unknown> = {
+      const { first_name, last_name } = normalizePersonNames({
         first_name: updatedData.first_name,
         last_name: updatedData.last_name,
+      });
+
+      const payload: Record<string, unknown> = {
+        first_name,
+        last_name,
         email: updatedData.email,
         year_level: resolvedYearLevel,
         course_id: role === 'student' || role === 'teacher' ? resolvedCourseId : null,
+        name_title: role === 'teacher' ? normalizeTeacherTitle(updatedData.name_title) || null : null,
       };
       if (role === 'student') {
         payload.section = resolvedLegacySection;
@@ -295,6 +316,8 @@ export default function AdminUsersPage() {
         await supabase
           .from('students')
           .update({
+            first_name,
+            last_name,
             section_id: updatedData.section_id || null,
             section: resolvedLegacySection,
             course_id: resolvedCourseId,
@@ -344,7 +367,7 @@ export default function AdminUsersPage() {
   const filteredUsers = useMemo(() => {
     const q = filterSearch.trim().toLowerCase();
     const filtered = users.filter((u) => {
-      const displayName = (u.name || `${u.first_name || ''} ${u.last_name || ''}`).trim().toLowerCase();
+      const displayName = formatPersonDisplayName(u).toLowerCase();
       const email = String(u.email || '').toLowerCase();
       const uname = String(u.username || '').toLowerCase();
       if (q && !displayName.includes(q) && !email.includes(q) && !uname.includes(q)) return false;
@@ -611,7 +634,7 @@ export default function AdminUsersPage() {
                     {user.name?.[0] || user.first_name?.[0] || 'U'}
                   </div>
                   <span className="font-medium text-gray-800">
-                    {user.name || `${user.first_name || ''} ${user.last_name || ''}`.trim()}
+                    {formatPersonDisplayName(user)}
                   </span>
                 </div>
               </td>
@@ -681,7 +704,7 @@ export default function AdminUsersPage() {
                   <button 
                     type="button"
                     className="p-2 rounded-lg glass-hover text-[#800000]" 
-                    onClick={() => openConfirmModal('reset', user.id, user.name || `${user.first_name} ${user.last_name}`)}
+                    onClick={() => openConfirmModal('reset', user.id, formatPersonDisplayName(user))}
                     title="Reset Password"
                   >
                     <RefreshCw className="h-[1.15rem] w-[1.15rem] shrink-0" strokeWidth={2} aria-hidden />
@@ -690,7 +713,7 @@ export default function AdminUsersPage() {
                   <button 
                     type="button"
                     className="p-2 rounded-lg glass-hover text-red-600" 
-                    onClick={() => openConfirmModal('delete', user.id, user.name || `${user.first_name} ${user.last_name}`)}
+                    onClick={() => openConfirmModal('delete', user.id, formatPersonDisplayName(user))}
                     title="Delete User"
                   >
                     <Trash2 className="h-[1.15rem] w-[1.15rem] shrink-0" strokeWidth={2} aria-hidden />
@@ -821,6 +844,7 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess, onFeedback
     first_name: '',
     last_name: '',
     email: '',
+    name_title: '',
     course_id: '',
     grade_level: '1st',
     section_id: '',
@@ -842,6 +866,7 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess, onFeedback
       first_name: '',
       last_name: '',
       email: '',
+      name_title: '',
       course_id: '',
       grade_level: '1st',
       section_id: '',
@@ -874,6 +899,22 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess, onFeedback
     setLoading(true);
 
     try {
+      const { first_name: normalizedFirstName, last_name: normalizedLastName } = normalizePersonNames({
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+      });
+      const normalizedTeacherTitle = type === 'teacher' ? normalizeTeacherTitle(formData.name_title) : '';
+
+      if (type === 'teacher' && !normalizedTeacherTitle) {
+        onFeedback({
+          title: 'Title required',
+          message: 'Select Mr., Mrs., or Ms. for the teacher.',
+          variant: 'warning',
+        });
+        setLoading(false);
+        return;
+      }
+
       const selectedOfficial = formData.section_id
         ? availableOfficialSections.find((s) => s.id === formData.section_id) ||
           officialSections.find((s) => s.id === formData.section_id) ||
@@ -994,8 +1035,9 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess, onFeedback
           is_temp_password: true,
           temp_password_visible: tempPassword,
           is_dropout: false,
-          first_name: formData.first_name,
-          last_name: formData.last_name,
+          first_name: normalizedFirstName,
+          last_name: normalizedLastName,
+          name_title: type === 'teacher' ? normalizedTeacherTitle : null,
           course_id: type === 'admin' ? null : effectiveCourseId || null,
           year_level: type === 'student' ? effectiveYearLevel : null,
           section: type === 'student' ? legacySectionValue : null,
@@ -1030,8 +1072,8 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess, onFeedback
           const { data: studentData, error: studentError } = await supabase
             .from('students')
             .insert({
-              first_name: formData.first_name,
-              last_name: formData.last_name,
+              first_name: normalizedFirstName,
+              last_name: normalizedLastName,
               grade_level: effectiveYearLevel,
               section_id: selectedOfficial?.id || null,
               section: legacySectionValue,
@@ -1072,7 +1114,7 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess, onFeedback
         const credentialRole =
           type === 'admin' ? 'admin' : type === 'teacher' ? 'teacher' : 'student';
         const emailData = generateStudentCredentialEmail(
-          formData.first_name,
+          normalizedFirstName,
           username || formData.email,
           tempPassword,
           credentialRole
@@ -1099,6 +1141,7 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess, onFeedback
         first_name: '',
         last_name: '',
         email: '',
+        name_title: '',
         course_id: '',
         grade_level: '1st',
         section_id: '',
@@ -1166,15 +1209,24 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess, onFeedback
         )}
         
         {type === 'teacher' && (
-          <Select
-            label="Course (optional)"
-            value={formData.course_id}
-            onChange={e => setFormData({ ...formData, course_id: e.target.value })}
-            options={sortSelectOptions(
-              [{ value: '', label: 'None — not linked to a program' }, ...sortByName(courses).map((c) => ({ value: c.id, label: c.name || '' }))],
-              ['']
-            )}
-          />
+          <>
+            <Select
+              label="Title"
+              value={formData.name_title}
+              onChange={(e) => setFormData({ ...formData, name_title: e.target.value })}
+              options={TEACHER_TITLE_SELECT_OPTIONS}
+              required
+            />
+            <Select
+              label="Course (optional)"
+              value={formData.course_id}
+              onChange={e => setFormData({ ...formData, course_id: e.target.value })}
+              options={sortSelectOptions(
+                [{ value: '', label: 'None — not linked to a program' }, ...sortByName(courses).map((c) => ({ value: c.id, label: c.name || '' }))],
+                ['']
+              )}
+            />
+          </>
         )}
 
         <div className="flex gap-4 pt-4">
@@ -1234,6 +1286,7 @@ interface BulkTeacherRow {
   first_name?: string;
   last_name?: string;
   email?: string;
+  name_title?: string;
   course_name?: string;
 }
 
@@ -1256,6 +1309,7 @@ function BulkCreateTeachersModal({
       {
         first_name: 'Ana',
         last_name: 'Reyes',
+        name_title: 'Mrs.',
         email: 'ana.reyes@example.com',
         course_name: courses[0]?.name || 'BSCS',
       },
@@ -1288,13 +1342,21 @@ function BulkCreateTeachersModal({
         const row = rows[i];
         const rowNo = i + 2;
         try {
-          const firstName = String(row.first_name || '').trim();
-          const lastName = String(row.last_name || '').trim();
+          const { first_name: firstName, last_name: lastName } = normalizePersonNames({
+            first_name: String(row.first_name || '').trim(),
+            last_name: String(row.last_name || '').trim(),
+          });
           const email = String(row.email || '').trim().toLowerCase();
           const courseName = String(row.course_name || '').trim().toLowerCase();
+          const nameTitle = normalizeTeacherTitle(row.name_title);
           if (!firstName || !lastName || !email) {
             failed += 1;
             errors.push(`Row ${rowNo}: first_name, last_name, and email are required.`);
+            continue;
+          }
+          if (!nameTitle) {
+            failed += 1;
+            errors.push(`Row ${rowNo}: name_title is required (Mr., Mrs., or Ms.).`);
             continue;
           }
           if (emailSet.has(email)) {
@@ -1328,6 +1390,7 @@ function BulkCreateTeachersModal({
             temp_password_visible: tempPassword,
             first_name: firstName,
             last_name: lastName,
+            name_title: nameTitle,
             course_id: courseId,
           });
           if (userError) {
@@ -1364,7 +1427,8 @@ function BulkCreateTeachersModal({
     <Modal isOpen={isOpen} onClose={onClose} title="Bulk Add Teachers" size="md">
       <div className="space-y-4">
         <p className="text-sm text-gray-600">
-          Required: <code>first_name</code>, <code>last_name</code>, <code>email</code>. Optional: <code>course_name</code>.
+          Required: <code>first_name</code>, <code>last_name</code>, <code>name_title</code> (Mr., Mrs., or Ms.),{' '}
+          <code>email</code>. Optional: <code>course_name</code>.
         </p>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <Button type="button" variant="secondary" onClick={downloadTemplate}>
@@ -1494,8 +1558,10 @@ function BulkCreateStudentsModal({
         const row = rows[i];
         const rowNo = i + 2;
         try {
-          const firstName = String(row.first_name || '').trim();
-          const lastName = String(row.last_name || '').trim();
+          const { first_name: firstName, last_name: lastName } = normalizePersonNames({
+            first_name: String(row.first_name || '').trim(),
+            last_name: String(row.last_name || '').trim(),
+          });
           const email = String(row.email || '').trim().toLowerCase();
           const courseName = String(row.course_name || '').trim().toLowerCase();
           const yearLevel = String(row.year_level || '').trim() || '1st';
@@ -1713,6 +1779,7 @@ function EditUserModal({ user, courses, onSave }: EditUserModalProps) {
     first_name: user.first_name || '',
     last_name: user.last_name || '',
     email: user.email || '',
+    name_title: user.name_title || '',
     year_level: user.year_level || '',
     section_id: '',
     course_id: user.course_id || '',
@@ -1724,6 +1791,7 @@ function EditUserModal({ user, courses, onSave }: EditUserModalProps) {
       first_name: user.first_name || '',
       last_name: user.last_name || '',
       email: user.email || '',
+      name_title: user.name_title || '',
       year_level: user.year_level || '',
       section_id: '',
       course_id: user.course_id || '',
@@ -1819,6 +1887,15 @@ function EditUserModal({ user, courses, onSave }: EditUserModalProps) {
             required
             autoComplete="off"
           />
+          {user.role === 'teacher' && (
+            <Select
+              label="Title"
+              value={formData.name_title}
+              onChange={(e) => setFormData({ ...formData, name_title: e.target.value })}
+              options={TEACHER_TITLE_SELECT_OPTIONS}
+              required
+            />
+          )}
           {(user.role === 'student' || user.role === 'teacher') && (
             <>
               <Select

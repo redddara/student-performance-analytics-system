@@ -18,13 +18,14 @@ import {
 } from '../../components/ui';
 import { useDataStore } from '../../store';
 import { supabase } from '../../lib/supabase';
+import { formatPersonDisplayName } from '../../lib/personName';
 import { compareAlphabetical, sortByName, sortSelectOptions } from '../../lib/sortUtils';
 import { CLASS_DAY_PRESET_OPTIONS } from '../../lib/classSchedule';
 
 const TEACHER_UNASSIGNED = '__unassigned__';
 
 function teacherLabel(t: { name?: string; first_name?: string; last_name?: string; username?: string }) {
-  return t.name || `${t.first_name || ''} ${t.last_name || ''}`.trim() || t.username || 'Teacher';
+  return formatPersonDisplayName(t) || t.username || 'Teacher';
 }
 
 export default function AdminSubjectsPage() {
@@ -55,6 +56,7 @@ export default function AdminSubjectsPage() {
     semester: '1st Sem',
     teacher_id: '',
     class_days: '',
+    prerequisite_subject_id: '',
   });
 
   useEffect(() => {
@@ -107,23 +109,58 @@ export default function AdminSubjectsPage() {
       class_days: formData.class_days?.trim() || null,
     };
 
+    const savePrerequisite = async (subjectId: string) => {
+      await supabase.from('subject_prerequisites').delete().eq('subject_id', subjectId);
+      const prereqId = formData.prerequisite_subject_id?.trim();
+      if (prereqId) {
+        const { error: prereqError } = await supabase.from('subject_prerequisites').insert({
+          subject_id: subjectId,
+          prerequisite_subject_id: prereqId,
+          minimum_grade: 75,
+        });
+        if (prereqError) throw prereqError;
+      }
+    };
+
     try {
       if (editingSubject) {
         const { error } = await supabase.from('subjects').update(data).eq('id', editingSubject.id);
         if (error) throw error;
+        await savePrerequisite(editingSubject.id);
         setAppMessage({ title: 'Subject updated', message: `"${formData.name}" has been saved.`, variant: 'success' });
       } else {
         const { data: insertedSubject, error } = await supabase.from('subjects').insert(data).select('id').single();
         if (error) throw error;
         if (insertedSubject?.id) {
-          const { data: matchingStudents, error: studentFetchError } = await supabase
-            .from('students')
+          const { data: siblingSubjects, error: siblingSubjectsError } = await supabase
+            .from('subjects')
             .select('id')
             .eq('course_id', courseId)
-            .eq('grade_level', formData.year_level);
-          if (studentFetchError) throw studentFetchError;
+            .eq('year_level', formData.year_level)
+            .eq('semester', formData.semester)
+            .neq('id', insertedSubject.id);
+          if (siblingSubjectsError) throw siblingSubjectsError;
 
-          const studentIds = (matchingStudents || []).map((s) => s.id).filter(Boolean);
+          let studentIds: string[] = [];
+          const siblingIds = (siblingSubjects || []).map((s) => s.id).filter(Boolean);
+          if (siblingIds.length > 0) {
+            const { data: enrolledRows, error: enrolledFetchError } = await supabase
+              .from('student_subjects')
+              .select('student_id')
+              .in('subject_id', siblingIds);
+            if (enrolledFetchError) throw enrolledFetchError;
+            studentIds = Array.from(
+              new Set((enrolledRows || []).map((r) => r.student_id).filter(Boolean))
+            );
+          } else {
+            const { data: matchingStudents, error: studentFetchError } = await supabase
+              .from('students')
+              .select('id')
+              .eq('course_id', courseId)
+              .eq('grade_level', formData.year_level);
+            if (studentFetchError) throw studentFetchError;
+            studentIds = (matchingStudents || []).map((s) => s.id).filter(Boolean);
+          }
           if (studentIds.length > 0) {
             const enrollments = studentIds.map((sid) => ({
               student_id: sid,
@@ -135,12 +172,22 @@ export default function AdminSubjectsPage() {
               .upsert(enrollments, { onConflict: 'student_id,subject_id', ignoreDuplicates: true });
             if (enrollmentError) throw enrollmentError;
           }
+          await savePrerequisite(insertedSubject.id);
         }
         setAppMessage({ title: 'Subject added', message: `"${formData.name}" is now in the catalog.`, variant: 'success' });
       }
 
       setShowModal(false);
-      setFormData({ code: '', name: '', course_id: '', year_level: '1st', semester: '1st Sem', teacher_id: '', class_days: '' });
+      setFormData({
+        code: '',
+        name: '',
+        course_id: '',
+        year_level: '1st',
+        semester: '1st Sem',
+        teacher_id: '',
+        class_days: '',
+        prerequisite_subject_id: '',
+      });
       setEditingSubject(null);
       loadData();
     } catch (err: any) {
@@ -154,8 +201,13 @@ export default function AdminSubjectsPage() {
     }
   };
 
-  const handleEdit = (subject: any) => {
+  const handleEdit = async (subject: any) => {
     setEditingSubject(subject);
+    const { data: prereqRow } = await supabase
+      .from('subject_prerequisites')
+      .select('prerequisite_subject_id')
+      .eq('subject_id', subject.id)
+      .maybeSingle();
     setFormData({
       code: subject.code || '',
       name: subject.name,
@@ -164,6 +216,7 @@ export default function AdminSubjectsPage() {
       semester: subject.semester || '1st Sem',
       teacher_id: subject.teacher_id || '',
       class_days: subject.class_days || '',
+      prerequisite_subject_id: prereqRow?.prerequisite_subject_id || '',
     });
     setShowModal(true);
   };
@@ -251,6 +304,7 @@ export default function AdminSubjectsPage() {
               semester: '1st Sem',
               teacher_id: '',
               class_days: '',
+              prerequisite_subject_id: '',
             });
             setShowModal(true);
           }}
@@ -363,7 +417,7 @@ export default function AdminSubjectsPage() {
               <td className="px-4 py-3 text-gray-600">{subject.year_level || '-'}</td>
               <td className="px-4 py-3 text-gray-600">{subject.semester || '-'}</td>
               <td className="px-4 py-3 text-gray-600">
-                {subject.teacher ? `${subject.teacher.first_name || ''} ${subject.teacher.last_name || ''}`.trim() || subject.teacher.name || '-' : '-'}
+                {subject.teacher ? formatPersonDisplayName(subject.teacher) || '-' : '-'}
               </td>
               <td className="px-4 py-3">
                 <div className="flex items-center gap-2">
@@ -396,7 +450,7 @@ export default function AdminSubjectsPage() {
         )}
       </GlassCard>
 
-      <Modal isOpen={showModal} onClose={() => { setShowModal(false); setFormData({ code: '', name: '', course_id: '', year_level: '1st', semester: '1st Sem', teacher_id: '', class_days: '' }); setEditingSubject(null); }} title={editingSubject ? 'Edit Subject' : 'Add Subject'}>
+      <Modal isOpen={showModal} onClose={() => { setShowModal(false); setFormData({ code: '', name: '', course_id: '', year_level: '1st', semester: '1st Sem', teacher_id: '', class_days: '', prerequisite_subject_id: '' }); setEditingSubject(null); }} title={editingSubject ? 'Edit Subject' : 'Add Subject'}>
         <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
           <Input
             label="Subject Code"
@@ -438,6 +492,24 @@ export default function AdminSubjectsPage() {
             onChange={(e) => setFormData({ ...formData, class_days: e.target.value })}
             options={CLASS_DAY_PRESET_OPTIONS.map((opt) => ({ value: opt.value, label: opt.label }))}
           />
+          <Select
+            label="Prerequisite subject (optional)"
+            value={formData.prerequisite_subject_id}
+            onChange={(e) => setFormData({ ...formData, prerequisite_subject_id: e.target.value })}
+            options={[
+              { value: '', label: 'None — no prerequisite' },
+              ...sortByName(
+                subjects.filter(
+                  (s) =>
+                    s.id !== editingSubject?.id &&
+                    (!formData.course_id || s.course_id === formData.course_id)
+                )
+              ).map((s) => ({
+                value: s.id,
+                label: `${s.code || ''} ${s.name} (${s.semester || '—'})`.trim(),
+              })),
+            ]}
+          />
           <div className="flex gap-4 pt-4">
             <Button
               type="button"
@@ -453,6 +525,7 @@ export default function AdminSubjectsPage() {
                   semester: '1st Sem',
                   teacher_id: '',
                   class_days: '',
+                  prerequisite_subject_id: '',
                 });
                 setEditingSubject(null);
               }}

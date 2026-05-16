@@ -8,6 +8,8 @@ export interface User {
   name?: string;
   first_name?: string;
   last_name?: string;
+  /** Teacher honorific: Mr., Mrs., or Ms. */
+  name_title?: string | null;
   year_level?: string;
   section?: string;
   course_id?: string;
@@ -47,12 +49,21 @@ export interface Student {
   first_name: string;
   last_name: string;
   grade_level: string;
+  /** 1 = 1st semester, 2 = 2nd semester (current term for this year level). */
+  current_semester?: number;
   section?: string;
   course_id?: string;
   user_id?: string;
   created_at?: string;
   user?: User;
   course?: Course;
+}
+
+export interface SubjectPrerequisite {
+  id?: string;
+  subject_id: string;
+  prerequisite_subject_id: string;
+  minimum_grade?: number;
 }
 
 export interface Grade {

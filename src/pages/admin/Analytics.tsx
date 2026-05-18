@@ -3,7 +3,7 @@ import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { PageIntro } from '../../components/layouts/PageIntro';
 import { GlassCard, Select, Button, PageSkeletonLoader } from '../../components/ui';
 import { useDataStore, useAuthStore } from '../../store';
-import { supabase, isPassing, calculateGWA, isDeanListEligible, toGradePoint, getRemarkCategory } from '../../lib/supabase';
+import { supabase, isPassing, toGradePoint, getRemarkCategory, formatGwa } from '../../lib/supabase';
 import { useSupabaseLiveReload } from '../../lib/useSupabaseLiveReload';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
@@ -13,6 +13,14 @@ import { Users, BarChart3, TrendingUp, GraduationCap, BookOpen, CheckCircle2, Ch
 import { chartAxis, chartGrid, chartLegend, chartTooltip } from '../../lib/chartTheme';
 import { formatPersonDisplayName } from '../../lib/personName';
 import { compareNumeric, sortByName, sortSelectOptions } from '../../lib/sortUtils';
+import {
+  buildSubjectPassFailData,
+  averageSubjectFinalGradePoint,
+  calculateGwaFromSubjectFinals,
+  collectSubjectFinalGradePoints,
+  fetchActiveSchoolYear,
+  isStudentPassingBySubjectFinals,
+} from '../../lib/analyticsData';
 
 export default function AdminAnalyticsPage() {
   const { user } = useAuthStore();
@@ -25,21 +33,8 @@ export default function AdminAnalyticsPage() {
 
   const loadData = useCallback(async () => {
     try {
-      let activeSy: { id?: string; name?: string } | null = null;
-      try {
-        const res = await supabase
-          .from('school_years')
-          .select('id,name')
-          .eq('is_active', true)
-          .maybeSingle();
-        if (res.error) throw res.error;
-        activeSy = res.data as any;
-        setActiveSchoolYearName(activeSy?.name || '');
-      } catch {
-        // If school_years isn't available yet, keep analytics working (legacy behavior).
-        activeSy = null;
-        setActiveSchoolYearName('');
-      }
+      const activeSy = await fetchActiveSchoolYear();
+      setActiveSchoolYearName(activeSy?.name || '');
 
       const [subjectsRes, studentsRes, gradesRes, coursesRes] = await Promise.all([
         supabase.from('subjects').select('*, course:courses(*)').order('name', { ascending: true }),
@@ -112,11 +107,12 @@ export default function AdminAnalyticsPage() {
     const studentGrades = filteredGrades.filter((g) => g.student_id === student.id);
     return {
       studentId: student.id,
-      gwa: studentGrades.length > 0 ? calculateGWA(studentGrades) : 0,
+      gwa: calculateGwaFromSubjectFinals(studentGrades),
+      passing: isStudentPassingBySubjectFinals(studentGrades),
       count: studentGrades.length,
     };
   }).filter((row) => row.count > 0);
-  const passingCount = studentPassRows.filter((row) => isPassing(row.gwa)).length;
+  const passingCount = studentPassRows.filter((row) => row.passing).length;
   const passFailData = [
     { name: 'Passing', value: passingCount, color: '#4CAF50' },
     { name: 'Failing', value: studentPassRows.length - passingCount, color: '#f44336' },
@@ -125,11 +121,9 @@ export default function AdminAnalyticsPage() {
   // Subject Performance
   const subjectPerformance = subjects.map(sub => {
     const subjectGrades = filteredGrades.filter(g => g.subject_id === sub.id);
-    const avg = subjectGrades.length > 0
-      ? Math.round(subjectGrades.reduce((sum, g) => sum + toGradePoint(Number(g.grade)), 0) / subjectGrades.length * 100) / 100
-      : 0;
+    const avg = subjectGrades.length > 0 ? averageSubjectFinalGradePoint(subjectGrades) : 0;
     return { name: sub.name.length > 15 ? sub.name.substring(0, 15) + '...' : sub.name, average: avg, students: subjectGrades.length };
-  }).filter(s => s.students > 0).slice(0, 10);
+  }).filter(s => s.students > 0 && s.average > 0).slice(0, 10);
 
   // Quarterly Trends
   const quarterlyData = [1, 2, 3, 4].map(q => {
@@ -155,11 +149,10 @@ export default function AdminAnalyticsPage() {
   const yearLevelData = ['1st', '2nd', '3rd', '4th'].map(year => {
     const yearSubjects = subjects.filter(s => s.year_level === year);
     const yearGrades = filteredGrades.filter(g => yearSubjects.find(s => s.id === g.subject_id));
+    const points = collectSubjectFinalGradePoints(yearGrades);
     return {
       year: `${year} Year`,
-      average: yearGrades.length > 0
-        ? Math.round(yearGrades.reduce((sum, g) => sum + toGradePoint(Number(g.grade)), 0) / yearGrades.length * 100) / 100
-        : 0,
+      average: points.length > 0 ? calculateGwaFromSubjectFinals(yearGrades) : 0,
       count: yearGrades.length,
     };
   });
@@ -170,11 +163,9 @@ export default function AdminAnalyticsPage() {
     const courseGrades = filteredGrades.filter(g => courseSubjects.find(s => s.id === g.subject_id));
     return {
       name: course.name.substring(0, 12),
-      average: courseGrades.length > 0
-        ? Math.round(courseGrades.reduce((sum, g) => sum + toGradePoint(Number(g.grade)), 0) / courseGrades.length * 100) / 100
-        : 0,
+      average: courseGrades.length > 0 ? calculateGwaFromSubjectFinals(courseGrades) : 0,
     };
-  });
+  }).filter((row) => row.average > 0);
 
   // Top Performers
   const topPerformers = filteredStudents.map(student => {
@@ -182,21 +173,22 @@ export default function AdminAnalyticsPage() {
     const subjectCount = new Set(studentGrades.map((g) => g.subject_id)).size;
     return {
       name: formatPersonDisplayName(student).substring(0, 15),
-      gwa: calculateGWA(studentGrades),
+      gwa: calculateGwaFromSubjectFinals(studentGrades),
       subjectCount,
       grades: studentGrades.length,
     };
-  }).filter(s => s.grades > 0).sort((a, b) => compareNumeric(a.gwa, b.gwa)).slice(0, 5);
+  }).filter(s => s.grades > 0 && s.gwa > 0).sort((a, b) => compareNumeric(a.gwa, b.gwa)).slice(0, 5);
 
   const deanListByCourse = courses.map((course) => {
     const courseStudents = filteredStudents.filter((student) => student.course_id === course.id);
     const deanListStudents = courseStudents.map((student) => {
       const studentGrades = filteredGrades.filter((grade) => grade.student_id === student.id);
-      if (studentGrades.length === 0 || !isDeanListEligible(studentGrades)) return null;
+      const finals = collectSubjectFinalGradePoints(studentGrades);
+      if (finals.length === 0 || finals.some((gp) => gp > 2.25)) return null;
       return {
         id: student.id,
         name: formatPersonDisplayName(student) || 'Unknown Student',
-        gwa: calculateGWA(studentGrades),
+        gwa: calculateGwaFromSubjectFinals(studentGrades),
         gradeCount: studentGrades.length,
       };
     }).filter(Boolean).sort((a, b) => compareNumeric(a?.gwa || 0, b?.gwa || 0)) as Array<{
@@ -228,30 +220,9 @@ export default function AdminAnalyticsPage() {
     };
   });
 
-  const subjectPassFailData = subjects.map((sub) => {
-    const subjectGrades = grades.filter((g) => g.subject_id === sub.id);
-    const byStudent = new Map<string, number[]>();
-    subjectGrades.forEach((grade) => {
-      const numericGrade = toGradePoint(Number(grade.grade));
-      if (!Number.isFinite(numericGrade)) return;
-      const list = byStudent.get(grade.student_id) || [];
-      list.push(numericGrade);
-      byStudent.set(grade.student_id, list);
-    });
-    const studentAverages = Array.from(byStudent.values()).map((list) => list.reduce((sum, value) => sum + value, 0) / list.length);
-    const passing = studentAverages.filter((avg) => isPassing(avg)).length;
-    const failing = studentAverages.filter((avg) => !isPassing(avg)).length;
-    return {
-      name: (sub.name || 'Subject').substring(0, 16),
-      Passing: passing,
-      Failing: failing,
-      total: passing + failing,
-    };
-  }).filter((row) => row.total > 0).slice(0, 20);
+  const subjectPassFailData = buildSubjectPassFailData(subjects, filteredGrades).slice(0, 20);
 
-  const overallAverage = filteredGrades.length > 0
-    ? Math.round(filteredGrades.reduce((sum, g) => sum + toGradePoint(Number(g.grade)), 0) / filteredGrades.length * 100) / 100
-    : 0;
+  const overallAverage = calculateGwaFromSubjectFinals(filteredGrades);
   const passRate = studentPassRows.length > 0 ? Math.round((passingCount / studentPassRows.length) * 100) : 0;
 
   const hasActiveCourseFilter = selectedCourse !== 'all';
@@ -328,8 +299,8 @@ export default function AdminAnalyticsPage() {
         {[
           { label: 'Total Students', value: filteredStudents.length, Icon: Users, color: '#800000' },
           { label: 'Total Subjects', value: subjects.length, Icon: BookOpen, color: '#d4af37' },
-          { label: 'Overall Pass Rate (Student GWA)', value: `${passRate}%`, Icon: CheckCircle2, color: '#4CAF50' },
-          { label: 'Average GWA', value: overallAverage, Icon: ChartLine, color: '#2196F3' },
+          { label: 'Pass Rate (All Subjects Passed)', value: `${passRate}%`, Icon: CheckCircle2, color: '#4CAF50' },
+          { label: 'Average GWA', value: formatGwa(overallAverage), Icon: ChartLine, color: '#2196F3' },
         ].map((stat, i) => (
           <GlassCard key={i} className={`p-3 sm:p-4 text-center animate-delay-${i * 100} animate-in fade-in slide-in-from-bottom duration-500 opacity-100`}>
             <div className="text-3xl mb-2">
@@ -509,7 +480,7 @@ export default function AdminAnalyticsPage() {
               <div key={i} className="text-center p-4 rounded-xl bg-gradient-to-br from-[#800000]/10 to-[#d4af37]/10 border border-[#800000]/20">
                 {i === 0 ? <GraduationCap className="h-8 w-8 mx-auto text-yellow-500" /> : i === 1 ? <TrendingUp className="h-7 w-7 mx-auto text-yellow-400" /> : i === 2 ? <BarChart3 className="h-6 w-6 mx-auto text-yellow-300" /> : <Users className="h-6 w-6 mx-auto text-yellow-400" />}
                 <p className="font-semibold text-gray-800 text-sm">{student.name}</p>
-                <p className="text-xl font-bold text-[#800000]">{student.gwa.toFixed(2)}</p>
+                <p className="text-xl font-bold text-[#800000]">{formatGwa(student.gwa)}</p>
                 <p className="text-xs text-gray-500">{student.subjectCount} subject{student.subjectCount !== 1 ? 's' : ''}</p>
               </div>
             ))}
@@ -534,7 +505,7 @@ export default function AdminAnalyticsPage() {
                   {courseRow.deanListStudents.map((studentRow) => (
                     <div key={studentRow.id} className="rounded-lg border border-[#d4af37]/40 bg-[#d4af37]/10 p-3">
                       <p className="font-semibold text-gray-800">{studentRow.name}</p>
-                      <p className="text-sm text-gray-700">GWA: {studentRow.gwa.toFixed(2)}</p>
+                      <p className="text-sm text-gray-700">GWA: {formatGwa(studentRow.gwa)}</p>
                       <p className="text-xs text-gray-500">Based on {studentRow.gradeCount} recorded grade{studentRow.gradeCount !== 1 ? 's' : ''}</p>
                     </div>
                   ))}

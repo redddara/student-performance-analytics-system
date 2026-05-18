@@ -24,7 +24,15 @@ import {
   type AppMessagePayload,
 } from '../../components/ui';
 import { useDataStore, useAuthStore } from '../../store';
-import { supabase, generateStudentUsername, generateTempPassword, hashPassword, isPassing, toGradePoint } from '../../lib/supabase';
+import {
+  supabase,
+  generateStudentUsername,
+  generateTempPassword,
+  getNextStudentUsernameSequence,
+  hashPassword,
+  studentUsernameLikePattern,
+} from '../../lib/supabase';
+import { computeStudentGwaPassRate, fetchActiveSchoolYear } from '../../lib/analyticsData';
 import { useSupabaseLiveReload } from '../../lib/useSupabaseLiveReload';
 import { sendEmail, generateStudentCredentialEmail } from '../../api/email';
 import {
@@ -46,6 +54,7 @@ export default function AdminDashboard() {
   const { user } = useAuthStore();
   const { students, teachers, courses, subjects, grades, setCourses, setSubjects, setStudents, setGrades, setTeachers } = useDataStore();
   const [loading, setLoading] = useState(true);
+  const [activeSchoolYearName, setActiveSchoolYearName] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createType, setCreateType] = useState<'student' | 'teacher'>('student');
   const [appMessage, setAppMessage] = useState<AppMessagePayload | null>(null);
@@ -53,12 +62,19 @@ export default function AdminDashboard() {
 
   const loadData = useCallback(async () => {
     try {
+      const activeSy = await fetchActiveSchoolYear();
+      setActiveSchoolYearName(activeSy?.name || '');
+
       const [coursesRes, subjectsRes, studentsRes, usersRes, gradesRes] = await Promise.all([
         supabase.from('courses').select('*'),
         supabase.from('subjects').select('*, course:courses(*), teacher:users(*)'),
         supabase.from('students').select('*, user:users(*), course:courses(*)'),
         supabase.from('users').select('*').in('role', ['teacher']),
-        supabase.from('grades').select('*'),
+        (async () => {
+          let q = supabase.from('grades').select('*');
+          if (activeSy?.id) q = q.eq('school_year_id', activeSy.id);
+          return q;
+        })(),
       ]);
 
       if (coursesRes.data) setCourses(coursesRes.data);
@@ -80,17 +96,17 @@ export default function AdminDashboard() {
   useSupabaseLiveReload(
     loadData,
     user?.id ? `live:admin-dashboard:${user.id}` : null,
-    ['courses', 'subjects', 'students', 'users', 'grades', 'student_subjects']
+    ['courses', 'subjects', 'students', 'users', 'grades', 'student_subjects', 'school_years']
   );
 
   const totalStudents = students.length;
   const totalTeachers = teachers.length;
   const totalSubjects = subjects.length;
 
-  // Calculate pass rate
-  const passRate = grades.length > 0
-    ? Math.round((grades.filter((g) => isPassing(toGradePoint(Number(g.grade)))).length / grades.length) * 100)
-    : 0;
+  const { passRate } = computeStudentGwaPassRate(
+    students.map((s) => s.id),
+    grades
+  );
 
   const recentStudentsSorted = useMemo(
     () =>
@@ -162,6 +178,12 @@ export default function AdminDashboard() {
       <PageIntro
         title="Institution overview"
       />
+      {activeSchoolYearName && (
+        <p className="mb-3 text-sm text-gray-600">
+          Active School Year: <span className="font-semibold text-[#800000]">{activeSchoolYearName}</span>
+          {' '}(grades and pass rate use this year only)
+        </p>
+      )}
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <GlassCard className="p-4 sm:p-6">
@@ -207,7 +229,7 @@ export default function AdminDashboard() {
             </div>
             <div>
               <p className="text-2xl font-bold text-gold-600">{passRate}%</p>
-              <p className="text-sm text-gray-500">Pass Rate</p>
+              <p className="text-sm text-gray-500">Pass Rate (All Subjects Passed)</p>
             </div>
           </div>
         </GlassCard>
@@ -543,17 +565,15 @@ function CreateUserModal({ isOpen, onClose, type, courses, onFeedback }: CreateU
         const { data: existingUsers } = await supabase
           .from('users')
           .select('username')
-          .like('username', 'STUD-%')
-          .order('username', { ascending: false })
-          .limit(1);
+          .like('username', studentUsernameLikePattern(courseName, formData.grade_level));
 
-        let nextNumber = 1001;
-        if (existingUsers && existingUsers.length > 0) {
-          const lastNum = parseInt(existingUsers[0].username?.split('-')[2] || '1000');
-          nextNumber = lastNum + 1;
-        }
+        const nextSequence = getNextStudentUsernameSequence(
+          (existingUsers || []).map((u) => u.username),
+          courseName,
+          formData.grade_level
+        );
 
-        const username = generateStudentUsername(courseName, nextNumber);
+        const username = generateStudentUsername(courseName, formData.grade_level, nextSequence);
 
         const { data: userData, error: userError } = await supabase
           .from('users')

@@ -16,6 +16,8 @@ import {
   gradeValueForStorage,
   toGradePoint,
   formatGradeDisplay,
+  formatGradePoint,
+  formatGwa,
 } from '../../lib/supabase';
 import { useGradesAutoRefresh } from '../../lib/useGradesAutoRefresh';
 import { formatPersonDisplayName } from '../../lib/personName';
@@ -780,7 +782,7 @@ export default function TeacherGradesPage() {
         q4: q4?.grade_status === 'inc' ? 'INC' : q4?.grade != null ? displayGradePercent(Number(q4.grade)) : '—',
         finalGrade:
           finalPercent != null && finalGradePoint != null
-            ? `${finalPercent}% → ${finalGradePoint.toFixed(2)}`
+            ? `${finalPercent}% → ${formatGradePoint(finalGradePoint)}`
             : '—',
         remarks:
           locked
@@ -1173,7 +1175,7 @@ export default function TeacherGradesPage() {
             {entryGradePreview && (
               <p className="mt-2 rounded-lg border border-[#800000]/20 bg-[#800000]/5 px-3 py-2 text-xs text-gray-800">
                 <span className="font-semibold text-[#800000]">Equivalent:</span>{' '}
-                {entryGradePreview.gradePoint.toFixed(2)} · {entryGradePreview.rangeLabel} ·{' '}
+                {formatGradePoint(entryGradePreview.gradePoint)} · {entryGradePreview.rangeLabel} ·{' '}
                 {entryGradePreview.remarks} ·{' '}
                 {entryGradePreview.status === 'passed' ? 'Passed' : 'Failed'}
               </p>
@@ -1369,7 +1371,7 @@ export default function TeacherGradesPage() {
                 >
                   <span className="font-semibold">{student.studentName}</span>
                   <span className="ml-2">({student.gradeLevel} • {student.section})</span>
-                  <span className="ml-2 font-semibold">Avg {student.average.toFixed(2)}</span>
+                  <span className="ml-2 font-semibold">Avg {formatGwa(student.average)}</span>
                 </li>
               ))}
             </ul>
@@ -1392,7 +1394,7 @@ export default function TeacherGradesPage() {
                 >
                   <span className="font-semibold">{student.studentName}</span>
                   <span className="ml-2">({student.gradeLevel} • {student.section})</span>
-                  <span className="ml-2 font-semibold">Avg {student.average.toFixed(2)}</span>
+                  <span className="ml-2 font-semibold">Avg {formatGwa(student.average)}</span>
                   {student.failingCount > 0 && (
                     <span className="ml-2 font-semibold">{student.failingCount} failing grade{student.failingCount > 1 ? 's' : ''}</span>
                   )}

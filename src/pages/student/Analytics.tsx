@@ -4,7 +4,8 @@ import { AlertTriangle, Lightbulb, Star } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { GlassCard, PageSkeletonLoader, Select } from '../../components/ui';
 import { useAuthStore } from '../../store';
-import { supabase, isPassing, calculateGWA } from '../../lib/supabase';
+import { supabase, computeSubjectFinalAverage, formatGwa, isPassing } from '../../lib/supabase';
+import { calculateGwaFromSubjectFinals } from '../../lib/analyticsData';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { chartAxis, chartGrid, chartTooltip } from '../../lib/chartTheme';
 import { compareAlphabetical } from '../../lib/sortUtils';
@@ -143,26 +144,29 @@ export default function StudentAnalyticsPage() {
         (g) => g.subject_id === b.subject_id && (g.school_year_id ?? null) === (b.school_year_id ?? null)
       );
       if (subjectGrades.length > 0) {
-        subjectAverages[k] = calculateGWA(subjectGrades as any[]);
+        const summary = computeSubjectFinalAverage(subjectGrades);
+        if (summary.gradePoint != null) {
+          subjectAverages[k] = summary.gradePoint;
+        }
       }
     });
 
     Object.entries(subjectAverages).forEach(([key, avg]) => {
       const b = buckets.find((x) => bucketKey(x.subject_id, x.school_year_id) === key);
       if (!b) return;
-      if (avg >= 85) {
-        newStrengths.push(`${b.displayName}: ${avg.toFixed(2)}`);
-      } else if (avg < 75) {
-        newWeaknesses.push(`${b.displayName}: ${avg.toFixed(2)}`);
+      if (avg <= 2.25) {
+        newStrengths.push(`${b.displayName}: ${formatGwa(avg)}`);
+      } else if (!isPassing(avg)) {
+        newWeaknesses.push(`${b.displayName}: ${formatGwa(avg)}`);
       }
     });
 
     Object.entries(subjectAverages)
-      .filter(([, avg]) => avg < 75)
+      .filter(([, avg]) => !isPassing(avg))
       .forEach(([key, avg]) => {
         const b = buckets.find((x) => bucketKey(x.subject_id, x.school_year_id) === key);
         if (b) {
-          newSuggestions.push(`Focus on ${b.displayName} — currently at ${avg.toFixed(2)}, below passing`);
+          newSuggestions.push(`Focus on ${b.displayName} — currently at ${formatGwa(avg)}, below passing`);
         }
       });
 
@@ -183,12 +187,12 @@ export default function StudentAnalyticsPage() {
       }
     });
 
-    const overallGWA = grades.length > 0 ? calculateGWA(grades as any[]) : 0;
-    if (overallGWA >= 85) {
+    const overallGWA = calculateGwaFromSubjectFinals(grades);
+    if (overallGWA > 0 && overallGWA <= 2.25) {
       newSuggestions.push('Great job! Maintain your excellent performance');
-    } else if (overallGWA >= 75) {
-      newSuggestions.push('Keep working to improve your GWA above 85');
-    } else {
+    } else if (overallGWA > 0 && isPassing(overallGWA)) {
+      newSuggestions.push('Keep working to improve your GWA above 85% equivalent (2.25 or better)');
+    } else if (overallGWA > 0) {
       newSuggestions.push('Focus on improving your grades across all subjects');
     }
 
@@ -207,7 +211,8 @@ export default function StudentAnalyticsPage() {
         const subjectGrades = filteredGrades.filter(
           (g) => g.subject_id === b.subject_id && (g.school_year_id ?? null) === (b.school_year_id ?? null)
         );
-        const avg = subjectGrades.length > 0 ? calculateGWA(subjectGrades as any[]) : 0;
+        const summary = computeSubjectFinalAverage(subjectGrades);
+        const avg = summary.gradePoint ?? 0;
         return {
           name: b.displayName.substring(0, 18),
           average: avg,
@@ -221,13 +226,13 @@ export default function StudentAnalyticsPage() {
       const qGrades = filteredGrades.filter((g) => g.quarter === q);
       return {
         quarter: `Q${q}`,
-        average: qGrades.length > 0 ? calculateGWA(qGrades as any[]) : 0,
+        average: qGrades.length > 0 ? calculateGwaFromSubjectFinals(qGrades) : 0,
       };
     });
   }, [filteredGrades]);
 
   const overallGWA = useMemo(
-    () => (filteredGrades.length > 0 ? calculateGWA(filteredGrades as any[]) : 0),
+    () => calculateGwaFromSubjectFinals(filteredGrades),
     [filteredGrades]
   );
 
@@ -236,13 +241,14 @@ export default function StudentAnalyticsPage() {
       const subjectGrades = filteredGrades.filter(
         (g) => g.subject_id === b.subject_id && (g.school_year_id ?? null) === (b.school_year_id ?? null)
       );
+      const summary = computeSubjectFinalAverage(subjectGrades);
       return {
-        average: subjectGrades.length > 0 ? calculateGWA(subjectGrades as any[]) : 0,
+        passing: summary.status === 'passed',
         hasGrades: subjectGrades.length > 0,
       };
     });
     const withGrades = subjectAverages.filter((row) => row.hasGrades);
-    const passingSubjects = withGrades.filter((row) => isPassing(row.average)).length;
+    const passingSubjects = withGrades.filter((row) => row.passing).length;
     return withGrades.length > 0 ? Math.round((passingSubjects / withGrades.length) * 100) : 0;
   }, [analyticsBuckets, filteredGrades]);
 
@@ -280,12 +286,12 @@ export default function StudentAnalyticsPage() {
       {/* Summary Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-8">
         <GlassCard className="p-4 sm:p-6 text-center">
-          <p className="text-3xl sm:text-4xl font-bold text-[#800000]">{overallGWA.toFixed(2)}</p>
+          <p className="text-3xl sm:text-4xl font-bold text-[#800000]">{formatGwa(overallGWA)}</p>
           <p className="text-sm sm:text-base text-gray-500">Overall GWA</p>
         </GlassCard>
         <GlassCard className="p-4 sm:p-6 text-center">
           <p className="text-3xl sm:text-4xl font-bold text-gold-600">{passRate}%</p>
-          <p className="text-sm sm:text-base text-gray-500">Pass Rate (Subject GWA)</p>
+          <p className="text-sm sm:text-base text-gray-500">Pass Rate (Subjects Passed)</p>
         </GlassCard>
         <GlassCard className="p-4 sm:p-6 text-center">
           <p className="text-3xl sm:text-4xl font-bold text-[#d4af37]">{mySubjects.length}</p>

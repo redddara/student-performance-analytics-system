@@ -136,15 +136,29 @@ export function computeSubjectFinalAverage(
 
   const averagePercent =
     Math.round((percents.reduce((sum, p) => sum + p, 0) / percents.length) * 100) / 100;
-  const gradePoint = averagePercentToGradePoint(percents);
-  const status = gradePoint != null ? getGradeStatus(gradePoint) : 'failed';
+  const gradePoint = percentageToGradePoint(averagePercent);
+  const status = getGradeStatus(gradePoint);
   return { averagePercent, gradePoint, status, quarterCount };
 }
 
+/**
+ * GWA = mean of official subject grade points, then snap to the institutional scale.
+ * Result is always one of: 1, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.75, 3, 5 — never 3.33 or 4.88.
+ */
+export function calculateOfficialGwa(subjectGradePoints: number[]): number {
+  const official = subjectGradePoints
+    .filter((gp) => Number.isFinite(gp))
+    .map((gp) => snapToGradePoint(gp));
+  if (official.length === 0) return 0;
+  const mean = official.reduce((sum, gp) => sum + gp, 0) / official.length;
+  return snapToGradePoint(mean);
+}
+
+/** @deprecated Prefer subject finals + calculateOfficialGwa; snaps raw quarter mean as fallback. */
 export function calculateGWA(grades: { grade: number }[]): number {
   if (grades.length === 0) return 0;
-  const total = grades.reduce((sum, g) => sum + toGradePoint(g.grade), 0);
-  return Math.round((total / grades.length) * 100) / 100;
+  const points = grades.map((g) => toGradePoint(g.grade));
+  return calculateOfficialGwa(points);
 }
 
 /** Dean's List: every grade equivalent to 85% or higher (grade point ≤ 2.25). */
@@ -159,10 +173,28 @@ export function formatGradeRange(entry: GradeScaleEntry): string {
   return `${entry.minPercent}–${entry.maxPercent}`;
 }
 
+/** Official grade points always display with two decimals (1.00, 1.25, 3.00, 5.00, …). */
+export function formatNumericGradePoint(gp: number): string {
+  if (!Number.isFinite(gp)) return '—';
+  const rounded = Math.round(gp * 100) / 100;
+  return rounded.toFixed(2);
+}
+
+/** Format an official grade point (snaps to scale first). */
+export function formatGradePoint(value: number): string {
+  return formatNumericGradePoint(toGradePoint(value));
+}
+
+/** Format GWA — always snapped to an official grade point before display. */
+export function formatGwa(value: number): string {
+  if (!Number.isFinite(value)) return '—';
+  return formatNumericGradePoint(snapToGradePoint(value));
+}
+
 export function formatGradeDisplay(value: number): string {
   const gp = toGradePoint(value);
   const entry = getScaleEntry(gp);
-  return `${gp.toFixed(2)} (${formatGradeRange(entry)})`;
+  return `${formatGradePoint(value)} (${formatGradeRange(entry)})`;
 }
 
 export function parseGradeInput(raw: string | number): number | null {

@@ -3,12 +3,18 @@ import { useSupabaseLiveReload } from '../../lib/useSupabaseLiveReload';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { GlassCard, PageSkeletonLoader } from '../../components/ui';
 import { useAuthStore } from '../../store';
-import { supabase, isPassing, calculateGWA } from '../../lib/supabase';
+import { supabase, isPassing, computeSubjectFinalAverage, calculateOfficialGwa, toGradePoint, formatGwa } from '../../lib/supabase';
+import {
+  buildStudentGwaRemarkDistribution,
+  buildSubjectPassFailData,
+  averageSubjectFinalGradePoint,
+  calculateGwaFromSubjectFinals,
+  fetchActiveSchoolYear,
+  isStudentPassingBySubjectFinals,
+} from '../../lib/analyticsData';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import { chartAxis, chartGrid, chartTooltip } from '../../lib/chartTheme';
 import { formatPersonDisplayName } from '../../lib/personName';
-
-const COLORS = ['#800000', '#d4af37', '#4CAF50', '#f44336', '#2196F3'];
 
 export default function TeacherAnalyticsPage() {
   const { user } = useAuthStore();
@@ -27,20 +33,8 @@ export default function TeacherAnalyticsPage() {
         return;
       }
 
-      let activeSy: { id?: string; name?: string } | null = null;
-      try {
-        const res = await supabase
-          .from('school_years')
-          .select('id,name')
-          .eq('is_active', true)
-          .maybeSingle();
-        if (res.error) throw res.error;
-        activeSy = res.data as any;
-        setActiveSchoolYearName(activeSy?.name || '');
-      } catch {
-        activeSy = null;
-        setActiveSchoolYearName('');
-      }
+      const activeSy = await fetchActiveSchoolYear();
+      setActiveSchoolYearName(activeSy?.name || '');
 
       const [subjectsRes, gradesRes, studentSubjectsRes] = await Promise.all([
         supabase.from('subjects').select('*, course:courses(*)').eq('teacher_id', user.id),
@@ -117,31 +111,14 @@ export default function TeacherAnalyticsPage() {
       .filter((entry) => entry.grades.length > 0)
       .map((entry) => ({
         ...entry,
-        gwa: calculateGWA(entry.grades),
+        gwa: calculateGwaFromSubjectFinals(entry.grades),
+        passing: isStudentPassingBySubjectFinals(entry.grades),
       }));
   }, [students, myGrades]);
 
-  // Grade distribution by student general average (not per quarter)
-  const gradeDistribution = [0, 0, 0, 0, 0];
-  studentPerformance.forEach((entry) => {
-    const avg = entry.gwa;
-    if (avg >= 90) gradeDistribution[0]++;
-    else if (avg >= 85) gradeDistribution[1]++;
-    else if (avg >= 80) gradeDistribution[2]++;
-    else if (avg >= 75) gradeDistribution[3]++;
-    else gradeDistribution[4]++;
-  });
+  const pieData = buildStudentGwaRemarkDistribution(myGrades);
 
-  const pieData = [
-    { name: 'Excellent (90+)', value: gradeDistribution[0] },
-    { name: 'Good (85-89)', value: gradeDistribution[1] },
-    { name: 'Fair (80-84)', value: gradeDistribution[2] },
-    { name: 'Passing (75-79)', value: gradeDistribution[3] },
-    { name: 'Below 75', value: gradeDistribution[4] },
-  ].filter(d => d.value > 0);
-
-  // Pass/Fail (student GWA based)
-  const passingCount = studentPerformance.filter(s => isPassing(s.gwa)).length;
+  const passingCount = studentPerformance.filter((s) => s.passing).length;
   const passFailData = [
     { name: 'Passing', value: passingCount },
     { name: 'Failing', value: studentPerformance.length - passingCount },
@@ -150,11 +127,9 @@ export default function TeacherAnalyticsPage() {
   // Subject Performance
   const subjectPerformance = mySubjects.map(sub => {
     const subjectGrades = myGrades.filter(g => g.subject_id === sub.id);
-    const avg = subjectGrades.length > 0 
-      ? Math.round(subjectGrades.reduce((sum, g) => sum + g.grade, 0) / subjectGrades.length * 100) / 100
-      : 0;
+    const avg = subjectGrades.length > 0 ? averageSubjectFinalGradePoint(subjectGrades) : 0;
     return { name: (sub.name || 'Subject').substring(0, 15), average: avg, students: subjectGrades.length };
-  }).filter(s => s.students > 0);
+  }).filter(s => s.students > 0 && s.average > 0);
 
   // Quarterly Trends
   const quarterlyData = [1, 2, 3, 4].map(q => {
@@ -162,7 +137,7 @@ export default function TeacherAnalyticsPage() {
     const qStudentMap = new Map<string, number[]>();
     qGrades.forEach((grade) => {
       const list = qStudentMap.get(grade.student_id) || [];
-      list.push(grade.grade);
+      list.push(toGradePoint(Number(grade.grade)));
       qStudentMap.set(grade.student_id, list);
     });
     const qStudentPass = Array.from(qStudentMap.values()).filter((gradesList) => {
@@ -171,7 +146,9 @@ export default function TeacherAnalyticsPage() {
     }).length;
     return {
       quarter: `Q${q}`,
-      average: qGrades.length > 0 ? Math.round(qGrades.reduce((sum, g) => sum + g.grade, 0) / qGrades.length * 100) / 100 : 0,
+      average: qGrades.length > 0
+        ? Math.round(qGrades.reduce((sum, g) => sum + toGradePoint(Number(g.grade)), 0) / qGrades.length * 100) / 100
+        : 0,
       passingStudents: qStudentPass,
       totalStudents: qStudentMap.size,
     };
@@ -179,30 +156,29 @@ export default function TeacherAnalyticsPage() {
 
   const subjectStudentPerformance = mySubjects.map((sub) => {
     const subjectGrades = myGrades.filter((g) => g.subject_id === sub.id);
-    const byStudent = new Map<string, number[]>();
+    const byStudent = new Map<string, typeof subjectGrades>();
     subjectGrades.forEach((grade) => {
       const list = byStudent.get(grade.student_id) || [];
-      const numericGrade = Number(grade.grade);
-      if (Number.isFinite(numericGrade)) {
-        list.push(numericGrade);
-      }
+      list.push(grade);
       byStudent.set(grade.student_id, list);
     });
     const studentRows = Array.from(byStudent.entries()).map(([studentId, gradeList]) => {
       const student = students.find((s: any) => s.id === studentId);
-      const avg = gradeList.reduce((sum, value) => sum + value, 0) / gradeList.length;
+      const summary = computeSubjectFinalAverage(gradeList);
+      const avg = summary.gradePoint;
       return {
         studentName: formatPersonDisplayName(student || {}) || 'Unknown',
         yearLevel: student?.grade_level || '-',
         section: student?.section || '-',
-        average: avg,
+        average: avg ?? 0,
+        status: summary.status,
       };
-    }).filter((row) => Number.isFinite(row.average));
+    }).filter((row) => row.status !== 'inc' && Number.isFinite(row.average));
     if (studentRows.length === 0) return null;
-    const sortedDesc = [...studentRows].sort((a, b) => b.average - a.average);
-    const sortedAsc = [...studentRows].sort((a, b) => a.average - b.average);
-    const topStudent = sortedDesc[0] || null;
-    const atRiskStudent = sortedAsc[0] || null;
+    const sortedBest = [...studentRows].sort((a, b) => a.average - b.average);
+    const sortedWorst = [...studentRows].sort((a, b) => b.average - a.average);
+    const topStudent = sortedBest[0] || null;
+    const atRiskStudent = sortedWorst[0] || null;
     return {
       subjectId: sub.id,
       subjectName: sub.name || 'Subject',
@@ -211,26 +187,7 @@ export default function TeacherAnalyticsPage() {
     };
   }).filter(Boolean) as Array<any>;
 
-  const subjectPassFailData = mySubjects.map((sub) => {
-    const subjectGrades = myGrades.filter((g) => g.subject_id === sub.id);
-    const byStudent = new Map<string, number[]>();
-    subjectGrades.forEach((grade) => {
-      const numericGrade = Number(grade.grade);
-      if (!Number.isFinite(numericGrade)) return;
-      const list = byStudent.get(grade.student_id) || [];
-      list.push(numericGrade);
-      byStudent.set(grade.student_id, list);
-    });
-    const studentAverages = Array.from(byStudent.values()).map((list) => list.reduce((sum, value) => sum + value, 0) / list.length);
-    const passing = studentAverages.filter((avg) => isPassing(avg)).length;
-    const failing = studentAverages.filter((avg) => !isPassing(avg)).length;
-    return {
-      name: (sub.name || 'Subject').substring(0, 16),
-      Passing: passing,
-      Failing: failing,
-      total: passing + failing,
-    };
-  }).filter((row) => row.total > 0);
+  const subjectPassFailData = buildSubjectPassFailData(mySubjects, myGrades);
 
   if (loading) {
     return <DashboardLayout title="Analytics"><PageSkeletonLoader rows={5} /></DashboardLayout>;
@@ -250,7 +207,7 @@ export default function TeacherAnalyticsPage() {
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
               <Pie data={pieData} cx="50%" cy="50%" labelLine={false} label={({ name, percent }) => percent ? `${name} (${(percent * 100).toFixed(0)}%)` : name} outerRadius={60} fill="#8884d8" dataKey="value">
-                {pieData.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
               </Pie>
               <Tooltip {...chartTooltip} />
             </PieChart>
@@ -275,8 +232,8 @@ export default function TeacherAnalyticsPage() {
             <BarChart data={subjectPerformance}>
               <CartesianGrid {...chartGrid} />
               <XAxis dataKey="name" fontSize={10} {...chartAxis} />
-              <YAxis domain={[0, 100]} fontSize={10} {...chartAxis} />
-              <Tooltip {...chartTooltip} />
+              <YAxis domain={[1, 5]} reversed fontSize={10} {...chartAxis} />
+              <Tooltip formatter={(value) => [value, 'Avg GWA']} {...chartTooltip} />
               <Bar dataKey="average" fill="#800000" />
             </BarChart>
           </ResponsiveContainer>
@@ -288,9 +245,9 @@ export default function TeacherAnalyticsPage() {
             <LineChart data={quarterlyData}>
               <CartesianGrid {...chartGrid} />
               <XAxis dataKey="quarter" {...chartAxis} />
-              <YAxis domain={[0, 100]} {...chartAxis} />
+              <YAxis domain={[1, 5]} reversed {...chartAxis} />
               <Tooltip {...chartTooltip} />
-              <Line type="monotone" dataKey="average" stroke="#d4af37" strokeWidth={2} />
+              <Line type="monotone" dataKey="average" stroke="#d4af37" strokeWidth={2} name="Avg GWA" />
               <Line type="monotone" dataKey="passingStudents" stroke="#4CAF50" strokeWidth={2} />
             </LineChart>
           </ResponsiveContainer>
@@ -310,10 +267,16 @@ export default function TeacherAnalyticsPage() {
           </div>
           <div className="text-center p-4 glass-inset">
             <p className="text-2xl font-bold text-green-600">{studentPerformance.length > 0 ? Math.round((passingCount / studentPerformance.length) * 100) : 0}%</p>
-            <p className="text-sm text-gray-600">Pass Rate (Student GWA)</p>
+            <p className="text-sm text-gray-600">Pass Rate (All Subjects Passed)</p>
           </div>
           <div className="text-center p-4 glass-inset">
-            <p className="text-2xl font-bold text-blue-600">{studentPerformance.length > 0 ? Math.round(studentPerformance.reduce((sum, s) => sum + s.gwa, 0) / studentPerformance.length * 100) / 100 : 0}</p>
+            <p className="text-2xl font-bold text-blue-600">
+              {studentPerformance.length > 0
+                ? formatGwa(
+                    calculateOfficialGwa(studentPerformance.map((s) => s.gwa))
+                  )
+                : '—'}
+            </p>
             <p className="text-sm text-gray-600">Average Student GWA</p>
           </div>
         </div>
@@ -331,10 +294,10 @@ export default function TeacherAnalyticsPage() {
                 <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
                   <div className="rounded-xl border border-green-400/35 bg-green-500/15 p-3 text-sm text-green-100">
                     <p className="font-semibold">Performing well</p>
-                    {row.topStudent && row.topStudent.average >= 75 ? (
+                    {row.topStudent && row.topStudent.status === 'passed' ? (
                       <>
                         <p>{row.topStudent.studentName} ({row.topStudent.yearLevel} • {row.topStudent.section})</p>
-                        <p className="font-semibold">Avg {row.topStudent.average.toFixed(2)}</p>
+                        <p className="font-semibold">Avg {formatGwa(row.topStudent.average)}</p>
                       </>
                     ) : (
                       <p>No passing student yet in this subject.</p>
@@ -342,10 +305,10 @@ export default function TeacherAnalyticsPage() {
                   </div>
                   <div className="rounded-xl border border-red-400/35 bg-red-500/15 p-3 text-sm text-red-100">
                     <p className="font-semibold">Needs attention</p>
-                    {row.atRiskStudent && row.atRiskStudent.average < 75 ? (
+                    {row.atRiskStudent && row.atRiskStudent.status === 'failed' ? (
                       <>
                         <p>{row.atRiskStudent.studentName} ({row.atRiskStudent.yearLevel} • {row.atRiskStudent.section})</p>
-                        <p className="font-semibold">Avg {row.atRiskStudent.average.toFixed(2)}</p>
+                        <p className="font-semibold">Avg {formatGwa(row.atRiskStudent.average)}</p>
                       </>
                     ) : (
                       <p>No at-risk student in this subject.</p>

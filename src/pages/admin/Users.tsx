@@ -32,7 +32,15 @@ import {
   MessageModal,
   type AppMessagePayload,
 } from '../../components/ui';
-import { supabase, hashPassword, generateTempPassword, generateStudentUsername } from '../../lib/supabase';
+import {
+  supabase,
+  hashPassword,
+  generateTempPassword,
+  generateStudentUsername,
+  createStudentUsernameAllocator,
+  getNextStudentUsernameSequence,
+  studentUsernameLikePattern,
+} from '../../lib/supabase';
 import { sendEmail, generateStudentCredentialEmail, generatePasswordResetEmail } from '../../api/email';
 import {
   DEFAULT_SCHOOL_SECTION,
@@ -999,17 +1007,15 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess, onFeedback
         const { data: existingUsers } = await supabase
           .from('users')
           .select('username')
-          .like('username', 'STUD-%')
-          .order('username', { ascending: false })
-          .limit(1);
+          .like('username', studentUsernameLikePattern(courseName, effectiveYearLevel));
 
-        let nextNumber = 1001;
-        if (existingUsers && existingUsers.length > 0) {
-          const lastNum = parseInt(existingUsers[0].username?.split('-')[2] || '1000');
-          nextNumber = lastNum + 1;
-        }
+        const nextSequence = getNextStudentUsernameSequence(
+          (existingUsers || []).map((u) => u.username),
+          courseName,
+          effectiveYearLevel
+        );
 
-        username = generateStudentUsername(courseName, nextNumber);
+        username = generateStudentUsername(courseName, effectiveYearLevel, nextSequence);
       }
 
       if (formData.email?.trim()) {
@@ -1566,13 +1572,9 @@ function BulkCreateStudentsModal({
       );
       const generatedEmailSet = new Set<string>();
 
-      let highestStudentNumber = 1000;
-      (existingUsers || []).forEach((u: any) => {
-        const raw = String(u.username || '');
-        const parts = raw.split('-');
-        const n = parseInt(parts[2] || '0', 10);
-        if (Number.isFinite(n) && n > highestStudentNumber) highestStudentNumber = n;
-      });
+      const allocateStudentUsername = createStudentUsernameAllocator(
+        (existingUsers || []).map((u: { username?: string | null }) => u.username)
+      );
 
       let success = 0;
       let failed = 0;
@@ -1632,13 +1634,19 @@ function BulkCreateStudentsModal({
           }
 
           let username = '';
-          while (!username) {
-            highestStudentNumber += 1;
-            const candidate = generateStudentUsername(matchedCourse.name, highestStudentNumber);
+          let allocateAttempts = 0;
+          while (!username && allocateAttempts < 1000) {
+            allocateAttempts += 1;
+            const candidate = allocateStudentUsername(matchedCourse.name, yearLevel);
             if (!existingUsernameSet.has(candidate.toUpperCase())) {
               username = candidate;
               existingUsernameSet.add(candidate.toUpperCase());
             }
+          }
+          if (!username) {
+            failed += 1;
+            errors.push(`Row ${rowNo}: could not assign a unique student ID.`);
+            continue;
           }
 
           const tempPassword = generateTempPassword();

@@ -370,7 +370,7 @@ export default function LoginPage() {
                     type="text"
                     name="username"
                     autoComplete="off"
-                    placeholder={username.includes('@') ? 'name@school.edu' : 'e.g. STUD-CS-0001'}
+                    placeholder={username.includes('@') ? 'name@school.edu' : 'e.g. STUD-CS-1001'}
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     autoCapitalize="none"

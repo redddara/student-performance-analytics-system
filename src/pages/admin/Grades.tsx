@@ -8,6 +8,7 @@ import { useAuthStore } from '../../store';
 import {
   supabase,
   computeSubjectFinalAverage,
+  formatGradePoint,
   getGradeRemarks,
   gradeValueForStorage,
 } from '../../lib/supabase';
@@ -273,7 +274,7 @@ export default function AdminGradesPage() {
           r.status === 'inc'
             ? 'INC'
             : r.final_average != null && r.final_grade_point != null
-              ? `${r.final_average}% → ${r.final_grade_point.toFixed(2)}`
+              ? `${r.final_average}% → ${formatGradePoint(r.final_grade_point)}`
               : r.final_average,
         status: r.status.toUpperCase(),
       };
@@ -531,7 +532,7 @@ export default function AdminGradesPage() {
                           {row.status === 'inc'
                             ? 'INC'
                             : row.final_average != null && row.final_grade_point != null
-                              ? `${row.final_average}% → ${row.final_grade_point.toFixed(2)}`
+                              ? `${row.final_average}% → ${formatGradePoint(row.final_grade_point)}`
                               : row.final_average ?? '—'}
                         </td>
                         <td className="px-4 py-3">

@@ -4,7 +4,12 @@ import { BookOpen, CheckCircle2, Target } from 'lucide-react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { GlassCard, PageSkeletonLoader } from '../../components/ui';
 import { useAuthStore } from '../../store';
-import { supabase, calculateGWA } from '../../lib/supabase';
+import { supabase, formatGwa } from '../../lib/supabase';
+import {
+  calculateGwaFromSubjectFinals,
+  fetchActiveSchoolYear,
+  filterGradesBySchoolYear,
+} from '../../lib/analyticsData';
 import { countPassingSubjectsByFinalGrade } from '../../lib/studentGradeInsights';
 import { StudentAcademicBanner } from '../../components/student/StudentAcademicBanner';
 import {
@@ -21,6 +26,8 @@ export default function StudentDashboard() {
   const [prerequisites, setPrerequisites] = useState<SubjectPrerequisite[]>([]);
   const [studentProfile, setStudentProfile] = useState({ grade_level: '', current_semester: 1 });
   const [loading, setLoading] = useState(true);
+  const [activeSchoolYearId, setActiveSchoolYearId] = useState<string | null>(null);
+  const [activeSchoolYearName, setActiveSchoolYearName] = useState('');
 
   const loadData = useCallback(async () => {
     try {
@@ -39,6 +46,10 @@ export default function StudentDashboard() {
         grade_level: studentData.grade_level || '',
         current_semester: studentData.current_semester === 2 ? 2 : 1,
       });
+
+      const activeSy = await fetchActiveSchoolYear();
+      setActiveSchoolYearId(activeSy?.id ?? null);
+      setActiveSchoolYearName(activeSy?.name || '');
 
       const [subjectsRes, gradesRes, prereqRes] = await Promise.all([
         supabase
@@ -73,10 +84,10 @@ export default function StudentDashboard() {
   const visibleSubjectIds = new Set(
     academicView.visible.map((v) => v.enrollment.subject?.id || v.enrollment.subject_id).filter(Boolean)
   );
-  const visibleGrades = myGrades.filter((g) => g.subject_id && visibleSubjectIds.has(g.subject_id));
+  const yearGrades = filterGradesBySchoolYear(myGrades, activeSchoolYearId);
+  const visibleGrades = yearGrades.filter((g) => g.subject_id && visibleSubjectIds.has(g.subject_id));
   const passingSubjects = countPassingSubjectsByFinalGrade(visibleGrades);
-  const gwa =
-    visibleGrades.length > 0 ? Math.round(calculateGWA(visibleGrades) * 100) / 100 : 0;
+  const gwa = calculateGwaFromSubjectFinals(visibleGrades);
   const hiddenPrerequisiteCount = academicView.hidden.filter((h) => h.hiddenReason === 'prerequisite').length;
 
   return (
@@ -86,6 +97,12 @@ export default function StudentDashboard() {
         backSubjectCount={academicView.backSubjects.length}
         hiddenByPrerequisiteCount={hiddenPrerequisiteCount}
       />
+      {activeSchoolYearName && (
+        <p className="mb-3 text-sm text-gray-600">
+          Active School Year: <span className="font-semibold text-[#800000]">{activeSchoolYearName}</span>
+          {' '}(GWA and passing subjects use this year only)
+        </p>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <GlassCard className="p-4 sm:p-6">
           <div className="flex items-center gap-4">
@@ -117,7 +134,7 @@ export default function StudentDashboard() {
               <Target className="h-6 w-6 shrink-0" strokeWidth={2} aria-hidden />
             </div>
             <div>
-              <p className="text-2xl font-bold text-maroon-600">{gwa.toFixed(2)}</p>
+              <p className="text-2xl font-bold text-maroon-600">{formatGwa(gwa)}</p>
               <p className="text-sm text-gray-500">GWA</p>
             </div>
           </div>

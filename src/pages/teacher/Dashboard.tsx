@@ -5,7 +5,8 @@ import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { GlassCard, Button, PageSkeletonLoader } from '../../components/ui';
 import { useAuthStore } from '../../store';
-import { supabase, isPassing, calculateGWA } from '../../lib/supabase';
+import { supabase } from '../../lib/supabase';
+import { computeStudentGwaPassRate, fetchActiveSchoolYear } from '../../lib/analyticsData';
 
 export default function TeacherDashboard() {
   const { user } = useAuthStore();
@@ -13,10 +14,14 @@ export default function TeacherDashboard() {
   const [grades, setGrades] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [mySubjects, setMySubjects] = useState<any[]>([]);
-  const [myStudents, setMyStudents] = useState<any[]>([]);
+  const [myStudents, setMyStudents] = useState<string[]>([]);
+  const [activeSchoolYearName, setActiveSchoolYearName] = useState('');
 
   const loadData = useCallback(async () => {
     try {
+      const activeSy = await fetchActiveSchoolYear();
+      setActiveSchoolYearName(activeSy?.name || '');
+
       // Get subjects assigned to this teacher
       const { data: teacherSubjects } = await supabase
         .from('subjects')
@@ -28,10 +33,9 @@ export default function TeacherDashboard() {
       // Get unique students in teacher's subjects
       if (teacherSubjects && teacherSubjects.length > 0) {
         const subjectIds = teacherSubjects.map((s: any) => s.id);
-        const { data: gradesData } = await supabase
-          .from('grades')
-          .select('*')
-          .in('subject_id', subjectIds);
+        let gradesQuery = supabase.from('grades').select('*').in('subject_id', subjectIds);
+        if (activeSy?.id) gradesQuery = gradesQuery.eq('school_year_id', activeSy.id);
+        const { data: gradesData } = await gradesQuery;
         setGrades(gradesData || []);
 
         const { data: studentSubjects } = await supabase
@@ -62,29 +66,25 @@ export default function TeacherDashboard() {
     'subjects',
     'students',
     'courses',
+    'school_years',
   ]);
 
   if (loading) {
     return <DashboardLayout title="Dashboard"><PageSkeletonLoader /></DashboardLayout>;
   }
 
-  // Calculate stats - only teacher's subjects grades
   const mySubjectIds = mySubjects.map((s: any) => s.id);
   const myGrades = grades.filter((g: any) => mySubjectIds.includes(g.subject_id));
-  const studentGwa = myStudents.map((studentId: any) => {
-    const studentGrades = myGrades.filter((g: any) => g.student_id === studentId);
-    return {
-      studentId,
-      gwa: studentGrades.length > 0 ? calculateGWA(studentGrades) : 0,
-      hasGrades: studentGrades.length > 0,
-    };
-  }).filter((entry) => entry.hasGrades);
-  const passingStudents = studentGwa.filter((entry) => isPassing(entry.gwa)).length;
-  const passRate = studentGwa.length > 0 ? Math.round((passingStudents / studentGwa.length) * 100) : 0;
+  const { passRate } = computeStudentGwaPassRate(myStudents, myGrades);
 
   return (
     <DashboardLayout title="Teacher Dashboard">
-      
+      {activeSchoolYearName && (
+        <p className="mb-3 text-sm text-gray-600">
+          Active School Year: <span className="font-semibold text-[#800000]">{activeSchoolYearName}</span>
+          {' '}(grades and pass rate use this year only)
+        </p>
+      )}
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <GlassCard className="p-4 sm:p-6">
@@ -118,7 +118,7 @@ export default function TeacherDashboard() {
             </div>
             <div>
               <p className="text-2xl font-bold text-gold-600">{passRate}%</p>
-              <p className="text-sm text-gray-500">Pass Rate</p>
+              <p className="text-sm text-gray-500">Pass Rate (All Subjects Passed)</p>
             </div>
           </div>
         </GlassCard>

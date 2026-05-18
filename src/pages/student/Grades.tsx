@@ -534,7 +534,7 @@ export default function StudentGradesPage() {
       </div>
       </div>
 
-      <div id="student-grade-report" className="space-y-8">
+      <div id="student-grade-report" className="space-y-8 print:space-y-0">
         {selectedSchoolYearId ? (
           <>
             {filteredSemesterSubjects.length > 0 &&

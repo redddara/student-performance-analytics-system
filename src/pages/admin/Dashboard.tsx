@@ -229,7 +229,7 @@ export default function AdminDashboard() {
             </div>
             <div>
               <p className="text-2xl font-bold text-gold-600">{passRate}%</p>
-              <p className="text-sm text-gray-500">Pass Rate (All Subjects Passed)</p>
+              <p className="text-sm text-gray-500">Passing Rate)</p>
             </div>
           </div>
         </GlassCard>

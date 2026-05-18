@@ -268,3 +268,50 @@ input[type="file"]::file-selector-button {
     display: none;
   }
 }
+
+/* Official grade report print layout */
+@media print {
+  @page {
+    size: landscape;
+    margin: 0.35in;
+  }
+
+  html,
+  body {
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  #student-grade-report .official-grade-report {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin-bottom: 0.5in;
+  }
+
+  #student-grade-report .official-grade-report:last-child {
+    margin-bottom: 0;
+  }
+
+  .grade-report-table th,
+  .grade-report-table td {
+    padding: 2px 3px !important;
+    line-height: 1.2;
+    word-break: break-word;
+  }
+
+  .grade-report-table th {
+    font-size: 6.5pt !important;
+  }
+
+  .grade-report-table td {
+    font-size: 7pt !important;
+  }
+
+  .grade-report-student-bar p:first-child,
+  .grade-report-student-bar p:last-child {
+    white-space: nowrap !important;
+  }
+}

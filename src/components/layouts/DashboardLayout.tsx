@@ -276,19 +276,19 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
   };
 
   return (
-    <div className="relative flex h-dvh bg-white overflow-hidden">
+    <div className="relative flex h-dvh overflow-hidden bg-white print:h-auto print:overflow-visible">
 
       {/* Mobile Overlay */}
       {sidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-30 md:hidden backdrop-blur-sm touch-manipulation"
+        <div
+          className="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm touch-manipulation md:hidden print:hidden"
           onClick={() => setSidebarOpen(false)}
           aria-hidden
         />
       )}
 
       {/* Sidebar */}
-      <aside className={`z-40 w-[min(100%,16rem)] max-w-[85vw] maroon-sidebar flex flex-col fixed top-0 left-0 h-dvh min-h-screen pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)] transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+      <aside className={`z-40 w-[min(100%,16rem)] max-w-[85vw] maroon-sidebar flex flex-col fixed top-0 left-0 h-dvh min-h-screen pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)] transition-transform duration-300 print:hidden ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         {/* Logo */}
         <div className="mb-6 px-3 pt-6 sm:px-4">
           <div className="flex items-center gap-3">
@@ -358,9 +358,9 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
       </aside>
 
       {/* Main Content */}
-      <main className="relative z-10 min-w-0 flex-1 h-dvh overflow-y-auto px-4 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom,0px))] sm:px-6 md:ml-64 md:w-[calc(100%-16rem)] md:px-8 lg:px-12 md:pt-6 lg:pt-8 bg-white">
+      <main className="relative z-10 min-w-0 flex-1 h-dvh overflow-y-auto px-4 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom,0px))] sm:px-6 md:ml-64 md:w-[calc(100%-16rem)] md:px-8 lg:px-12 md:pt-6 lg:pt-8 bg-white print:ml-0 print:h-auto print:w-full print:max-w-none print:overflow-visible print:p-0 print:pt-0">
         {/* Mobile Header with Hamburger */}
-        <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-6 md:mb-10">
+        <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between md:mb-10 print:hidden">
           <div className="flex items-start gap-3 min-w-0">
             <button 
               type="button"

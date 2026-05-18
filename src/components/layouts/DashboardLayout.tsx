@@ -13,6 +13,7 @@ import {
   UserPen,
   Users,
   UserRound,
+  ShieldCheck,
 } from 'lucide-react';
 import { useAuthStore } from '../../store';
 import { supabase } from '../../lib/supabase';
@@ -37,6 +38,7 @@ const menuItems: Record<
     { id: 'users', label: 'Users', Icon: Users },
     { id: 'courses', label: 'Courses', Icon: BookUser },
     { id: 'subjects', label: 'Subjects', Icon: GraduationCap },
+    { id: 'attendance-access', label: 'Attendance Access', Icon: ShieldCheck },
     { id: 'sections', label: 'Sections', Icon: Network },
     { id: 'academic', label: 'Academic', Icon: Calendar },
     { id: 'analytics', label: 'Analytics', Icon: BarChart3 },
@@ -129,13 +131,25 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
 
   const loadAdminWorkflowAlerts = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from('grades')
-        .select(
-          'id,subject_id,semester,quarter,workflow_status,unlock_requested,unlock_reason,unlock_requested_at,created_at,subject:subjects(name,teacher:users(first_name,last_name,name))'
-        )
-        .or('unlock_requested.eq.true,workflow_status.eq.for_review');
-      if (error) throw error;
+      const [gradesRes, accessRes] = await Promise.all([
+        supabase
+          .from('grades')
+          .select(
+            'id,subject_id,semester,quarter,workflow_status,unlock_requested,unlock_reason,unlock_requested_at,created_at,subject:subjects(name,teacher:users(first_name,last_name,name))'
+          )
+          .or('unlock_requested.eq.true,workflow_status.eq.for_review'),
+        supabase
+          .from('attendance_access_requests')
+          .select(
+            'id, attendance_date, reason, created_at, subject:subjects(name, teacher:users(first_name, last_name, name))'
+          )
+          .eq('status', 'pending')
+          .order('created_at', { ascending: false })
+          .limit(20),
+      ]);
+
+      if (gradesRes.error) throw gradesRes.error;
+      const data = gradesRes.data;
       const grouped = new Map<string, any>();
       (data || []).forEach((row: any) => {
         const teacherName = formatPersonDisplayName(row?.subject?.teacher || {}) || 'Teacher';
@@ -158,7 +172,7 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
         }
         grouped.set(groupKey, existing);
       });
-      const alerts = Array.from(grouped.values()).map((g: any) => {
+      const gradeAlerts = Array.from(grouped.values()).map((g: any) => {
         const quarterList = Array.from(g.quarters)
           .sort((a: number, b: number) => a - b)
           .map((q: number) => `Q${q}`)
@@ -174,7 +188,19 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
           actionPath: `/admin/grades?subject=${encodeURIComponent(g.subjectId)}&semester=${encodeURIComponent(String(g.semester))}`,
         };
       });
-      setAdminWorkflowAlerts(alerts);
+
+      const accessAlerts = (accessRes.data || []).map((row: any) => {
+        const teacherName = formatPersonDisplayName(row?.subject?.teacher || {}) || 'Teacher';
+        return {
+          id: `att-access:${row.id}`,
+          kind: 'attendance_access',
+          title: `${teacherName} requested attendance access`,
+          body: `${row?.subject?.name || 'Subject'} · ${row.attendance_date} · ${row.reason || 'No reason'}`,
+          actionPath: '/admin/attendance-access',
+        };
+      });
+
+      setAdminWorkflowAlerts([...accessAlerts, ...gradeAlerts]);
     } catch {
       setAdminWorkflowAlerts([]);
     }
@@ -203,9 +229,10 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
 
     const channel = supabase
       .channel(`admin-workflow-alerts:${user?.id ?? 'unknown'}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'grades' }, () => scheduleReload())
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'grades' },
+        { event: '*', schema: 'public', table: 'attendance_access_requests' },
         () => scheduleReload()
       )
       .subscribe();

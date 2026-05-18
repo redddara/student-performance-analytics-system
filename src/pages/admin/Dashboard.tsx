@@ -342,13 +342,6 @@ export default function AdminDashboard() {
 
       <GlassCard className="mt-8 p-4 shadow-md sm:p-6 lg:p-8">
         <h2 className="text-xl font-semibold text-[#800000] mb-1">Historical data</h2>
-        <p className="mb-6 text-sm leading-relaxed text-gray-600">
-          Grade records and trends use each row’s{' '}
-          <span className="inline-block rounded-md border border-gold-400/50 bg-black/25 px-2 py-0.5 font-mono text-xs font-semibold text-gold-100 shadow-inner">
-            created_at
-          </span>{' '}
-          field—the time that grade was saved in the database.
-        </p>
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
           <div>
             <h3 className="text-lg font-semibold text-[#800000] mb-3">Recent grade records</h3>

@@ -35,6 +35,7 @@ import AdminAnalyticsPage from './pages/admin/Analytics';
 import AdminGradesPage from './pages/admin/Grades';
 import AdminAcademicPage from './pages/admin/Academic';
 import AdminSectionsPage from './pages/admin/Sections';
+import AdminAttendanceAccessPage from './pages/admin/AttendanceAccess';
 
 // Teacher Pages
 import TeacherDashboard from './pages/teacher/Dashboard';
@@ -356,6 +357,7 @@ export default function App() {
                   <Route path="users" element={<AdminUsersPage />} />
                   <Route path="courses" element={<AdminCoursesPage />} />
                   <Route path="subjects" element={<AdminSubjectsPage />} />
+                  <Route path="attendance-access" element={<AdminAttendanceAccessPage />} />
                   <Route path="analytics" element={<AdminAnalyticsPage />} />
                   <Route path="academic" element={<AdminAcademicPage />} />
                   <Route path="sections" element={<AdminSectionsPage />} />

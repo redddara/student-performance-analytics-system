@@ -327,7 +327,7 @@ export default function LoginPage() {
   );
 
   return (
-    <div className="relative min-h-dvh overflow-x-hidden bg-gradient-to-br from-gray-50 via-white to-maroon-50/30">
+    <div className="sapas-page-transition relative min-h-dvh overflow-x-hidden bg-gradient-to-br from-gray-50 via-white to-maroon-50/30">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(128,0,0,0.06),transparent_50%)]" aria-hidden />
 
       <div className="relative z-10 mx-auto flex min-h-dvh max-w-6xl items-center justify-center px-3 py-6 sm:px-4 sm:py-10 lg:max-w-7xl lg:px-8">

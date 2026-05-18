@@ -519,7 +519,7 @@ export default function AdminGradesPage() {
                 </div>
               </div>
               <div className="bg-white p-4 sm:p-6">
-                <Table variant="light" headers={['Student', 'Quarters', 'Final Average', 'Status', 'Edit']}>
+                <Table variant="light" headers={['Student', 'Periods', 'Final Average', 'Status', 'Edit']}>
                   {group.rows.map((row) => {
                     const rowLocked = grades
                       .filter((g) => row.grade_ids.includes(g.id))

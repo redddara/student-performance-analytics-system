@@ -54,8 +54,8 @@ export function StudentOfficialGradeReport({
             <tr className="border-b border-gray-800 bg-white text-[10px] font-bold uppercase sm:text-xs print:text-[6px]">
               <th className="w-[7%] border border-gray-400 px-1 py-1.5 text-left sm:px-2 sm:py-2">Subject Code</th>
               <th className="w-[18%] border border-gray-400 px-1 py-1.5 text-left sm:px-2 sm:py-2">Subject Description</th>
-              <th className="w-[7%] border border-gray-400 px-1 py-1.5 text-center sm:px-2 sm:py-2">Prelim</th>
-              <th className="w-[7%] border border-gray-400 px-1 py-1.5 text-center sm:px-2 sm:py-2">Midterm</th>
+              <th className="w-[7%] border border-gray-400 px-1 py-1.5 text-center sm:px-2 sm:py-2">Prelims</th>
+              <th className="w-[7%] border border-gray-400 px-1 py-1.5 text-center sm:px-2 sm:py-2">Midterms</th>
               <th className="w-[8%] border border-gray-400 px-1 py-1.5 text-center sm:px-2 sm:py-2">Semi-Finals</th>
               <th className="w-[7%] border border-gray-400 px-1 py-1.5 text-center sm:px-2 sm:py-2">Finals</th>
               <th className="w-[9%] border border-gray-400 px-1 py-1.5 text-center sm:px-2 sm:py-2">Semestral Grades</th>

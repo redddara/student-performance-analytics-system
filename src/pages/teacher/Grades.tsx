@@ -44,6 +44,17 @@ import {
   type ExistingGradeLite,
   type EnrolledStudentLite,
 } from '../../lib/bulkGradeUploadPreview';
+import { GRADING_PERIODS, gradingPeriodLabel } from '../../lib/gradingPeriods';
+import {
+  applyGradingPeriodDeadlineLocks,
+  buildTeacherDeadlineNotifications,
+  fetchGradingPeriodDeadlines,
+  findPeriodDeadline,
+  formatDeadlineDisplay,
+  isPeriodPastDeadline,
+  periodDeadlineMessage,
+  type GradingPeriodDeadline,
+} from '../../lib/gradingPeriodDeadlines';
 import {
   getSubjectGradeSemester,
   gradeSemesterMatchesSubject,
@@ -101,6 +112,7 @@ export default function TeacherGradesPage() {
   const [requestingUnlock, setRequestingUnlock] = useState(false);
   const [submittingForReview, setSubmittingForReview] = useState(false);
   const [activeSchoolYearId, setActiveSchoolYearId] = useState<string | null>(null);
+  const [periodDeadlines, setPeriodDeadlines] = useState<GradingPeriodDeadline[]>([]);
   const [classRecordDrafts, setClassRecordDrafts] = useState<Record<string, string>>({});
   const [classRecordSavingKey, setClassRecordSavingKey] = useState('');
 
@@ -207,7 +219,18 @@ export default function TeacherGradesPage() {
             if (syError) throw syError;
             setActiveSchoolYearId(activeSy?.id ?? null);
             let query = supabase.from('grades').select('*').in('subject_id', subjectIds);
-            if (activeSy?.id) query = query.eq('school_year_id', activeSy.id);
+            if (activeSy?.id) {
+              query = query.eq('school_year_id', activeSy.id);
+              try {
+                await applyGradingPeriodDeadlineLocks();
+                const deadlines = await fetchGradingPeriodDeadlines(activeSy.id);
+                setPeriodDeadlines(deadlines);
+              } catch {
+                setPeriodDeadlines([]);
+              }
+            } else {
+              setPeriodDeadlines([]);
+            }
             return query;
           } catch {
             // Backward-compat: if migration not applied yet, fall back to all grades.
@@ -258,6 +281,38 @@ export default function TeacherGradesPage() {
     }
   }, [selectedSubject, subjectCatalogSemester]);
 
+  const isGradePeriodLocked = useCallback(
+    (
+      semester: number,
+      period: number,
+      scope?: { studentId?: string; subjectId?: string }
+    ): boolean => {
+      const matching = grades.filter(
+        (g) =>
+          g.semester === semester &&
+          g.quarter === period &&
+          (!scope?.studentId || g.student_id === scope.studentId) &&
+          (!scope?.subjectId || g.subject_id === scope.subjectId)
+      );
+      const reopened = matching.some((g) => g.workflow_status === 'reopened' && !g.is_locked);
+      if (reopened) return false;
+      if (isPeriodPastDeadline(periodDeadlines, semester, period)) return true;
+      return matching.some((g) => Boolean(g.is_locked));
+    },
+    [grades, periodDeadlines]
+  );
+
+  const selectedPeriodDeadline = useMemo(() => {
+    const period = selectedQuarter ? Number(selectedQuarter) : null;
+    if (!period) return null;
+    return findPeriodDeadline(periodDeadlines, selectedSemester, period);
+  }, [periodDeadlines, selectedSemester, selectedQuarter]);
+
+  const deadlineReminders = useMemo(
+    () => buildTeacherDeadlineNotifications(periodDeadlines),
+    [periodDeadlines]
+  );
+
   const applySubjectSelection = (subjectId: string) => {
     setSelectedSubject(subjectId);
     if (subjectId) {
@@ -302,13 +357,18 @@ export default function TeacherGradesPage() {
       schoolYearId: activeSchoolYearId,
     };
     const existing = grades.find((g) => gradeMatchesScope(g, gradeScope));
-    const anyLockedForSubjectSemester = grades.some(
-      (g) => gradeMatchesScope(g, { ...gradeScope, quarter: undefined }) && Boolean(g.is_locked)
-    );
-    if (existing?.is_locked || anyLockedForSubjectSemester) {
+    if (
+      isGradePeriodLocked(selectedSemester, quarterValue, {
+        studentId: selectedStudentForEntry,
+        subjectId: selectedSubject,
+      })
+    ) {
+      const pastDeadline = isPeriodPastDeadline(periodDeadlines, selectedSemester, quarterValue);
       setAppMessage({
         title: 'Grade is locked',
-        message: 'This subject grade set is locked after admin approval. Request unlock first.',
+        message: pastDeadline
+          ? periodDeadlineMessage(selectedSemester, quarterValue)
+          : 'This period is locked after admin approval. Request unlock first.',
         variant: 'warning',
       });
       return;
@@ -515,16 +575,20 @@ export default function TeacherGradesPage() {
     return sortByStudentName(filtered);
   }, [enrolledStudents, entryStudentSearch, filterSection]);
 
+  const quickEntryPeriod = Number(selectedQuarter || '1');
   const quickEntryLocked = useMemo(() => {
     if (!selectedSubject || !selectedStudentForEntry) return false;
-    return grades.some(
-      (g) =>
-        g.student_id === selectedStudentForEntry &&
-        g.subject_id === selectedSubject &&
-        g.semester === selectedSemester &&
-        Boolean(g.is_locked)
-    );
-  }, [grades, selectedSubject, selectedStudentForEntry, selectedSemester]);
+    return isGradePeriodLocked(selectedSemester, quickEntryPeriod, {
+      studentId: selectedStudentForEntry,
+      subjectId: selectedSubject,
+    });
+  }, [
+    isGradePeriodLocked,
+    selectedSubject,
+    selectedStudentForEntry,
+    selectedSemester,
+    quickEntryPeriod,
+  ]);
 
   const entryGradePreview = useMemo(() => {
     if (entryStatus === 'inc' || !entryGrade.trim()) return null;
@@ -642,15 +706,18 @@ export default function TeacherGradesPage() {
       for (const pr of toSave) {
         try {
           const grade = pr.numericGrade as number;
-          const lockedSet = grades.some(
-            (g) =>
-              g.student_id === pr.studentId &&
-              g.subject_id === selectedSubject &&
-              g.semester === pr.semester &&
-              Boolean(g.is_locked)
-          );
-          if (lockedSet) {
-            throw new Error('Grade set is locked by admin approval.');
+          if (
+            isGradePeriodLocked(pr.semester, pr.quarter, {
+              studentId: pr.studentId!,
+              subjectId: selectedSubject,
+            })
+          ) {
+            const pastDeadline = isPeriodPastDeadline(periodDeadlines, pr.semester, pr.quarter);
+            throw new Error(
+              pastDeadline
+                ? periodDeadlineMessage(pr.semester, pr.quarter)
+                : 'This period is locked by admin approval.'
+            );
           }
           if (pr.existingGradeId) {
             const { error: updateError } = await supabase
@@ -772,7 +839,14 @@ export default function TeacherGradesPage() {
         computeSubjectFinalAverage(quarterGrades);
       const encodedCount = [q1, q2, q3, q4].filter(Boolean).length;
       const completionStatus = encodedCount === 0 ? 'none' : encodedCount < 4 ? 'partial' : 'complete';
-      const locked = [q1, q2, q3, q4].some((g: any) => Boolean(g?.is_locked));
+      const periodLocked: Record<number, boolean> = {};
+      for (const period of [1, 2, 3, 4] as const) {
+        periodLocked[period] = isGradePeriodLocked(selectedSemester, period, {
+          studentId: student.id,
+          subjectId: selectedSubject,
+        });
+      }
+      const anyLocked = Object.values(periodLocked).some(Boolean);
       return {
         id: student.id,
         name: formatPersonDisplayName(student),
@@ -785,16 +859,16 @@ export default function TeacherGradesPage() {
             ? `${finalPercent}% → ${formatGradePoint(finalGradePoint)}`
             : '—',
         remarks:
-          locked
+          anyLocked
             ? 'Locked'
             : finalGradePoint == null
               ? 'In Progress'
               : getGradeRemarks(finalGradePoint),
         completionStatus,
-        locked,
+        periodLocked,
       };
     });
-  }, [selectedSubject, selectedSemester, enrolledStudents, grades]);
+  }, [selectedSubject, selectedSemester, enrolledStudents, grades, isGradePeriodLocked]);
 
   const classRecordCellKey = (studentId: string, quarter: number) =>
     `${selectedSubject || 'all'}:${selectedSemester}:${studentId}:${quarter}`;
@@ -846,17 +920,18 @@ export default function TeacherGradesPage() {
       return;
     }
 
-    const lockedSet = grades.some(
-      (g) =>
-        g.student_id === studentId &&
-        g.subject_id === selectedSubject &&
-        g.semester === selectedSemester &&
-        Boolean(g.is_locked)
-    );
-    if (lockedSet) {
+    if (
+      isGradePeriodLocked(selectedSemester, quarter, {
+        studentId,
+        subjectId: selectedSubject,
+      })
+    ) {
+      const pastDeadline = isPeriodPastDeadline(periodDeadlines, selectedSemester, quarter);
       setAppMessage({
         title: 'Grade is locked',
-        message: 'This subject grade set is locked after admin approval. Request unlock first.',
+        message: pastDeadline
+          ? periodDeadlineMessage(selectedSemester, quarter)
+          : 'This period is locked after admin approval. Request unlock first.',
         variant: 'warning',
       });
       return;
@@ -898,7 +973,11 @@ export default function TeacherGradesPage() {
         delete next[classRecordCellKey(studentId, quarter)];
         return next;
       });
-      setAppMessage({ title: 'Saved', message: `Q${quarter} grade saved from class record.`, variant: 'success' });
+      setAppMessage({
+        title: 'Saved',
+        message: `${gradingPeriodLabel(quarter)} grade saved from class record.`,
+        variant: 'success',
+      });
     } catch (err: any) {
       setAppMessage({
         title: 'Save failed',
@@ -958,11 +1037,35 @@ export default function TeacherGradesPage() {
             {selectedSemester === 1 ? '1st' : '2nd'} semester
             {' · '}
             {selectedQuarter === ''
-              ? 'All quarters'
-              : ['', 'Prelim', 'Midterm', 'Pre-Finals', 'Finals'][Number(selectedQuarter)] || 'Quarter'}
+              ? 'All periods'
+              : gradingPeriodLabel(Number(selectedQuarter))}
           </>
         )}
       </div>
+
+      {deadlineReminders.length > 0 && (
+        <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          <p className="font-semibold text-[#800000]">Grade submission deadlines</p>
+          <ul className="mt-2 space-y-1.5">
+            {deadlineReminders.map((item) => (
+              <li key={item.id} className="flex flex-wrap gap-x-2 text-gray-800">
+                <span
+                  className={
+                    item.kind === 'passed'
+                      ? 'font-semibold text-red-800'
+                      : item.kind === 'due_soon'
+                        ? 'font-semibold text-amber-900'
+                        : ''
+                  }
+                >
+                  {item.title}:
+                </span>
+                <span className="text-gray-700">{item.body}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="mb-5 w-full max-w-2xl">
         <label htmlFor="teacher-grade-search" className="sr-only">
@@ -1063,15 +1166,12 @@ export default function TeacherGradesPage() {
               ]}
             />
             <Select
-              label="Quarter"
+              label="Period"
               value={selectedQuarter}
               onChange={(e) => setSelectedQuarter(e.target.value)}
               options={[
-                { value: '', label: 'All quarters' },
-                { value: '1', label: 'Prelim' },
-                { value: '2', label: 'Midterm' },
-                { value: '3', label: 'Pre-Finals' },
-                { value: '4', label: 'Finals' },
+                { value: '', label: 'All periods' },
+                ...GRADING_PERIODS.map((p) => ({ value: String(p.value), label: p.label })),
               ]}
             />
             <Select
@@ -1093,7 +1193,17 @@ export default function TeacherGradesPage() {
         )}
         {selectedSubject && selectedStudentForEntry && quickEntryLocked && (
           <p className="mb-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800">
-            This student’s grade set for the selected subject/semester is <span className="font-semibold">LOCKED</span>. Use “Request unlock” to make changes.
+            <span className="font-semibold">{gradingPeriodLabel(quickEntryPeriod)}</span> is locked for this
+            student.{' '}
+            {isPeriodPastDeadline(periodDeadlines, selectedSemester, quickEntryPeriod)
+              ? 'The admin submission deadline has passed.'
+              : 'Use “Request unlock” to make changes after admin approval.'}
+          </p>
+        )}
+        {selectedPeriodDeadline && !quickEntryLocked && (
+          <p className="mb-3 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-950">
+            Deadline for {gradingPeriodLabel(Number(selectedQuarter))}:{' '}
+            <span className="font-semibold">{formatDeadlineDisplay(selectedPeriodDeadline.deadline_at)}</span>
           </p>
         )}
         <div className="mb-4 w-full md:max-w-sm">
@@ -1131,15 +1241,10 @@ export default function TeacherGradesPage() {
             ]}
           />
           <Select
-            label="Quarter"
+            label="Period"
             value={selectedQuarter || '1'}
             onChange={(e) => setSelectedQuarter(e.target.value)}
-            options={[
-              { value: '1', label: 'Prelim' },
-              { value: '2', label: 'Midterm' },
-              { value: '3', label: 'Pre-Finals' },
-              { value: '4', label: 'Finals' },
-            ]}
+            options={GRADING_PERIODS.map((p) => ({ value: String(p.value), label: p.label }))}
           />
           <div>
             <label className="ml-1 block text-sm font-medium text-gray-700">Grade entry</label>
@@ -1411,7 +1516,7 @@ export default function TeacherGradesPage() {
             <h3 className="mb-3 text-lg font-semibold text-[#800000]">Class record view</h3>
             <p className="mb-4 text-sm text-gray-600">
               Spreadsheet-style encoding. Enter a percentage (0–100); your exact score is saved and the grade point /
-              remarks are computed from it. Click <span className="font-semibold">Save</span> per quarter. Locked records
+              remarks are computed from it. Click <span className="font-semibold">Save</span> per period. Locked records
               cannot be edited.
             </p>
 
@@ -1419,7 +1524,9 @@ export default function TeacherGradesPage() {
               {classRecordRows.map((row) => (
                 <div
                   key={`mobile-${row.id}`}
-                  className={`rounded-2xl border border-gray-200 bg-white p-4 ${row.locked ? 'opacity-90' : ''}`}
+                  className={`rounded-2xl border border-gray-200 bg-white p-4 ${
+                    Object.values(row.periodLocked).some(Boolean) ? 'opacity-90' : ''
+                  }`}
                 >
                   <div className="mb-3 flex flex-wrap items-center gap-2">
                     <p className="font-semibold text-gray-900">{row.name}</p>
@@ -1435,9 +1542,10 @@ export default function TeacherGradesPage() {
                         quarter === 1 ? row.q1 : quarter === 2 ? row.q2 : quarter === 3 ? row.q3 : row.q4;
                       const cellKey = `${row.id}:${quarter}`;
                       const draftValue = getClassRecordInputValue(row.id, quarter, current);
+                      const cellLocked = row.periodLocked[quarter];
                       return (
                         <div key={cellKey} className="rounded-xl border border-gray-100 bg-gray-50/80 p-3">
-                          <p className="mb-2 text-xs font-semibold text-gray-600">Q{quarter}</p>
+                          <p className="mb-2 text-xs font-semibold text-gray-600">{gradingPeriodLabel(quarter)}</p>
                           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                             <input
                               type="number"
@@ -1447,7 +1555,7 @@ export default function TeacherGradesPage() {
                               value={draftValue}
                               onChange={(e) => updateClassRecordDraft(row.id, quarter, e.target.value)}
                               placeholder={current === 'INC' ? 'INC' : current === '—' ? '—' : String(current)}
-                              disabled={row.locked}
+                              disabled={cellLocked}
                               className="w-full min-w-0 flex-1 rounded-xl border border-gray-300/70 bg-white px-3 py-2 text-sm text-gray-900 focus:border-maroon-500 focus:outline-none focus:ring-2 focus:ring-maroon-500/35 disabled:bg-gray-100"
                             />
                             <Button
@@ -1455,7 +1563,7 @@ export default function TeacherGradesPage() {
                               variant="secondary"
                               size="sm"
                               className="w-full shrink-0 sm:w-auto"
-                              disabled={classRecordSavingKey === cellKey || row.locked}
+                              disabled={classRecordSavingKey === cellKey || cellLocked}
                               onClick={() => void saveClassRecordCell(row.id, quarter, current)}
                             >
                               {classRecordSavingKey === cellKey ? 'Saving…' : 'Save'}
@@ -1478,7 +1586,7 @@ export default function TeacherGradesPage() {
               <table className="w-full min-w-[720px] text-left text-xs sm:text-sm">
                 <thead className="bg-gray-50">
                   <tr className="border-b border-gray-200">
-                    {['Student', 'Q1', 'Q2', 'Q3', 'Q4', 'Final Grade', 'Remarks', 'Completion'].map((h) => (
+                    {['Student', ...GRADING_PERIODS.map((p) => p.label), 'Final Grade', 'Remarks', 'Completion'].map((h) => (
                       <th
                         key={h}
                         className="whitespace-nowrap px-3 py-3 text-xs font-semibold text-gray-700 sm:px-4 sm:text-sm"
@@ -1490,7 +1598,12 @@ export default function TeacherGradesPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-100 bg-white">
                   {classRecordRows.map((row) => (
-                    <tr key={row.id} className={row.locked ? 'bg-gray-50' : 'hover:bg-gray-50/70'}>
+                    <tr
+                      key={row.id}
+                      className={
+                        Object.values(row.periodLocked).some(Boolean) ? 'bg-gray-50' : 'hover:bg-gray-50/70'
+                      }
+                    >
                       <td className="px-3 py-3 font-medium text-gray-900 sm:px-4">
                         <div className="flex items-center gap-2">
                           <span>{row.name}</span>
@@ -1506,6 +1619,7 @@ export default function TeacherGradesPage() {
                           quarter === 1 ? row.q1 : quarter === 2 ? row.q2 : quarter === 3 ? row.q3 : row.q4;
                         const cellKey = `${row.id}:${quarter}`;
                         const draftValue = getClassRecordInputValue(row.id, quarter, current);
+                        const cellLocked = row.periodLocked[quarter];
                         const hasExistingNumeric = current !== '—' && current !== 'INC' && current !== '';
                         const hasExistingInc = current === 'INC';
                         const showCurrentLabel = hasExistingInc || hasExistingNumeric;
@@ -1523,14 +1637,14 @@ export default function TeacherGradesPage() {
                                 value={draftValue}
                                 onChange={(e) => updateClassRecordDraft(row.id, quarter, e.target.value)}
                                 placeholder={current === 'INC' ? 'INC' : current === '—' ? '—' : String(current)}
-                                disabled={row.locked}
+                                disabled={cellLocked}
                                 className="w-full min-w-[4.5rem] max-w-[6rem] rounded-xl border border-gray-300/70 bg-white px-3 py-2 text-sm text-gray-900 focus:border-maroon-500 focus:outline-none focus:ring-2 focus:ring-maroon-500/35 disabled:bg-gray-100 disabled:text-gray-500"
                               />
                               <Button
                                 type="button"
                                 variant="secondary"
                                 size="sm"
-                                disabled={classRecordSavingKey === cellKey || row.locked}
+                                disabled={classRecordSavingKey === cellKey || cellLocked}
                                 onClick={() => void saveClassRecordCell(row.id, quarter, current)}
                               >
                                 {classRecordSavingKey === cellKey ? 'Saving…' : 'Save'}
@@ -1608,7 +1722,7 @@ export default function TeacherGradesPage() {
               <td className={`px-4 py-3 ${failing ? 'text-red-900' : excellent ? 'text-green-900' : 'text-gray-600'}`}>{getSubjectName(grade.subject_id)}</td>
               <td className={`px-4 py-3 ${failing ? 'text-red-900' : excellent ? 'text-green-900' : 'text-gray-600'}`}>{grade.semester === 1 ? '1st Sem' : '2nd Sem'}</td>
               <td className={`px-4 py-3 ${failing ? 'text-red-900' : excellent ? 'text-green-900' : 'text-gray-600'}`}>
-                {['', 'Prelim', 'Midterm', 'Pre-Finals', 'Finals'][grade.quarter]}
+                {gradingPeriodLabel(grade.quarter)}
               </td>
               <td className="px-4 py-3 font-medium text-gray-800">
                 {grade.grade_status === 'inc' ? 'INC' : formatGradeDisplay(Number(grade.grade))}

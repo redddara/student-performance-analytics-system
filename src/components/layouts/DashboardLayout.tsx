@@ -19,6 +19,11 @@ import { useAuthStore } from '../../store';
 import { supabase } from '../../lib/supabase';
 import { formatPersonDisplayName } from '../../lib/personName';
 import { useSupabaseLiveReload } from '../../lib/useSupabaseLiveReload';
+import {
+  buildTeacherDeadlineNotifications,
+  fetchGradingPeriodDeadlines,
+  type TeacherDeadlineNotification,
+} from '../../lib/gradingPeriodDeadlines';
 import logoSpas from '../../assets/LOGO SPAS.png';
 
 interface DashboardLayoutProps {
@@ -67,6 +72,7 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeAnnouncements, setActiveAnnouncements] = useState<any[]>([]);
   const [adminWorkflowAlerts, setAdminWorkflowAlerts] = useState<any[]>([]);
+  const [teacherDeadlineAlerts, setTeacherDeadlineAlerts] = useState<TeacherDeadlineNotification[]>([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [readNotificationIds, setReadNotificationIds] = useState<string[]>([]);
   const reloadAdminWorkflowTimerRef = useRef<number | null>(null);
@@ -106,6 +112,39 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
     loadAnnouncements,
     user?.id ? `live:layout-announcements:${user.id}` : null,
     ['system_announcements']
+  );
+
+  const loadTeacherDeadlineAlerts = useCallback(async () => {
+    try {
+      const { data: sy, error: syError } = await supabase
+        .from('school_years')
+        .select('id')
+        .eq('is_active', true)
+        .maybeSingle();
+      if (syError) throw syError;
+      if (!sy?.id) {
+        setTeacherDeadlineAlerts([]);
+        return;
+      }
+      const deadlines = await fetchGradingPeriodDeadlines(sy.id);
+      setTeacherDeadlineAlerts(buildTeacherDeadlineNotifications(deadlines));
+    } catch {
+      setTeacherDeadlineAlerts([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (role !== 'teacher') {
+      setTeacherDeadlineAlerts([]);
+      return;
+    }
+    void loadTeacherDeadlineAlerts();
+  }, [role, loadTeacherDeadlineAlerts]);
+
+  useSupabaseLiveReload(
+    loadTeacherDeadlineAlerts,
+    role === 'teacher' && user?.id ? `live:layout-teacher-deadlines:${user.id}` : null,
+    ['grading_period_deadlines', 'school_years']
   );
 
   useEffect(() => {
@@ -263,7 +302,11 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
   }));
 
   const allNotifications =
-    role === 'admin' ? [...adminWorkflowAlerts, ...announcementNotifications] : [...announcementNotifications];
+    role === 'admin'
+      ? [...adminWorkflowAlerts, ...announcementNotifications]
+      : role === 'teacher'
+        ? [...teacherDeadlineAlerts, ...announcementNotifications]
+        : [...announcementNotifications];
   const unreadCount = allNotifications.filter((n: any) => !readNotificationIds.includes(n.id)).length;
 
   const markAsRead = (id: string) => {
@@ -409,7 +452,7 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
                 </div>
                 <div className="max-h-72 overflow-y-auto">
                   {allNotifications.length === 0 ? (
-                    <p className="px-4 py-4 text-sm text-gray-500">No new announcements.</p>
+                    <p className="px-4 py-4 text-sm text-gray-500">No new notifications.</p>
                   ) : (
                     allNotifications.map((item: any) => (
                       <button
@@ -424,6 +467,16 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
                       >
                         <p className="text-sm font-semibold text-gray-900">{item.title}</p>
                         <p className="mt-1 text-xs text-gray-600">{item.body}</p>
+                        {item.kind === 'due_soon' && (
+                          <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                            Due soon
+                          </p>
+                        )}
+                        {item.kind === 'passed' && (
+                          <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-red-700">
+                            Locked
+                          </p>
+                        )}
                       </button>
                     ))
                   )}
@@ -433,8 +486,8 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
           </div>
         </header>
 
-        {/* Content */}
-        <div className="animate-fade-in min-w-0">
+        {/* Content — smooth transition when switching sidebar pages */}
+        <div key={location.pathname} className="sapas-page-transition min-w-0">
           {children}
         </div>
       </main>

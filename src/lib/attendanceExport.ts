@@ -9,6 +9,7 @@ import {
   summarizeByStudent,
   type AttendanceStatus,
 } from './attendance';
+import { gradingPeriodLabel } from './gradingPeriods';
 
 type StudentRow = {
   id: string;
@@ -72,7 +73,7 @@ export function exportAttendanceWorkbook(options: {
       return {
         Subject: subjectName,
         Date: r.attendance_date,
-        Period: r.quarter === 1 ? 'Prelim' : r.quarter === 2 ? 'Midterm' : r.quarter === 3 ? 'Semi-Finals' : r.quarter === 4 ? 'Finals' : '',
+        Period: gradingPeriodLabel(r.quarter),
         Student: formatPersonDisplayName(student || {}),
         Course: student?.course?.name || '',
         Section: student ? officialSectionDisplayName(student, sectionsById) : '',

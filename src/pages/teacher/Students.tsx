@@ -15,6 +15,7 @@ import {
   type OfficialSection,
 } from '../../lib/officialSections';
 import { compareNumeric, sortByLabel, sortByName, sortByStudentName, sortSelectOptions } from '../../lib/sortUtils';
+import { gradingPeriodLabel } from '../../lib/gradingPeriods';
 
 const yearLevelRank = (value?: string | null) => {
   const normalized = String(value || '').trim().toLowerCase();
@@ -160,7 +161,7 @@ export default function TeacherStudentsPage() {
     setFilterSubjectId('');
   };
 
-  const quarterLabel = (q: number) => ['', 'Prelim', 'Midterm', 'Pre-Finals', 'Finals'][q] || `Q${q}`;
+  const quarterLabel = (q: number) => gradingPeriodLabel(q);
 
   const getStudentSubjectGradeCards = (student: any) => {
     return (student.subjects || []).map((subject: any) => {

@@ -10,17 +10,16 @@ export const ATTENDANCE_SCORE = {
 
 export type AttendanceScore = (typeof ATTENDANCE_SCORE)[keyof typeof ATTENDANCE_SCORE];
 
-export const ATTENDANCE_QUARTERS = [
-  { value: 1, label: 'Prelim', shortLabel: 'Prelim' },
-  { value: 2, label: 'Midterm', shortLabel: 'Midterm' },
-  { value: 3, label: 'Semi-Finals', shortLabel: 'Semi-Finals' },
-  { value: 4, label: 'Finals', shortLabel: 'Finals' },
-] as const;
+import { GRADING_PERIODS, gradingPeriodLabel, gradingPeriodShortLabel } from './gradingPeriods';
+
+/** Matches institutional grading periods (Prelims → Finals). */
+export const ATTENDANCE_QUARTERS = GRADING_PERIODS;
 
 export function quarterLabel(quarter: number | null | undefined): string {
-  const row = ATTENDANCE_QUARTERS.find((q) => q.value === quarter);
-  return row?.label ?? '—';
+  return gradingPeriodLabel(quarter);
 }
+
+export { gradingPeriodShortLabel };
 
 export function scoreToStatus(score: number | null | undefined): AttendanceStatus {
   if (score === 100) return 'present';

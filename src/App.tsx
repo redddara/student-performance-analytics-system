@@ -19,6 +19,7 @@ import {
 import type { TabSyncPayload } from './lib/sessionConstants';
 import type { User } from './types';
 import { ConfirmModal } from './components/ui';
+import { SplashGate } from './components/SplashGate';
 
 // Auth Pages
 import LoginPage from './pages/auth/Login';
@@ -338,11 +339,9 @@ function AppInitializer({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function App() {
+function AppRoutes() {
   return (
-    <BrowserRouter>
-      <AppInitializer>
-        <Routes>
+    <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/change-password" element={<ChangePasswordPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordRedirect />} />
@@ -403,8 +402,18 @@ export default function App() {
 
           <Route path="/" element={<RootRedirect />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
-        </Routes>
-      </AppInitializer>
+    </Routes>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <SplashGate>
+        <AppInitializer>
+          <AppRoutes />
+        </AppInitializer>
+      </SplashGate>
     </BrowserRouter>
   );
 }

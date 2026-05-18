@@ -1,4 +1,5 @@
 import { formatPersonDisplayName } from './personName';
+import { gradingPeriodLabel } from './gradingPeriods';
 import { getGradeRemarks, getGradeStatus, gradeValueForStorage } from './supabase';
 import {
   getSubjectGradeSemester,
@@ -50,9 +51,9 @@ export interface BulkGradePreviewRow {
   existingGradeDisplay: number | string | null;
 }
 
+/** @deprecated Use gradingPeriodLabel from gradingPeriods */
 export function quarterLabel(quarter: number): string {
-  const labels = ['—', 'Prelim', 'Midterm', 'Pre-Finals', 'Finals'];
-  return labels[quarter] || `Q${quarter}`;
+  return gradingPeriodLabel(quarter);
 }
 
 function existingKey(

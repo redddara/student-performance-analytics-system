@@ -142,12 +142,7 @@ export interface StudentAnalytics {
   }[];
 }
 
-export const QUARTERS = [
-  { value: 1, label: 'Prelim' },
-  { value: 2, label: 'Midterm' },
-  { value: 3, label: 'Pre-Finals' },
-  { value: 4, label: 'Finals' },
-] as const;
+export { GRADING_PERIODS, QUARTERS } from '../lib/gradingPeriods';
 
 export const SEMESTERS = [
   { value: 1, label: '1st Semester' },

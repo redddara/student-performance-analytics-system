@@ -4,6 +4,7 @@ import {
   getGradeRemarks,
   isPassing,
 } from './gradingScale';
+import { gradingPeriodLabel } from './gradingPeriods';
 
 export type GradeRecord = {
   grade?: number | null;
@@ -57,13 +58,6 @@ export type SubjectInsightFields = {
   improveReason: string;
   suggestion: string;
   suggestionReason: string;
-};
-
-const QUARTER_LABELS: Record<number, string> = {
-  1: 'Prelim',
-  2: 'Midterm',
-  3: 'Pre-Finals',
-  4: 'Finals',
 };
 
 export function getSubjectInsights(grades: GradeRecord[], subjectName: string): SubjectInsightFields {
@@ -132,7 +126,7 @@ export function getSubjectInsights(grades: GradeRecord[], subjectName: string): 
   const weakQuarters = validGrades.filter((g) => g.quarter && !isPassing(Number(g.grade)));
   if (weakQuarters.length > 0) {
     const weakNames = weakQuarters
-      .map((g) => QUARTER_LABELS[g.quarter!] || `Q${g.quarter}`)
+      .map((g) => gradingPeriodLabel(g.quarter))
       .join(', ');
     if (improve === '—') {
       improve = 'Weak quarters';

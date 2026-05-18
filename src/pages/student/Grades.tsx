@@ -20,6 +20,7 @@ import {
   type SubjectPrerequisite,
 } from '../../lib/studentAcademicRules';
 import { getSubjectGradeSemester } from '../../lib/subjectSemester';
+import { GRADING_PERIODS } from '../../lib/gradingPeriods';
 
 /** Grades with no school_year_id (legacy rows) */
 const LEGACY_SCHOOL_YEAR_SCOPE = '__legacy__';
@@ -486,15 +487,12 @@ export default function StudentGradesPage() {
               options={[{ value: '1', label: '1st Semester' }, { value: '2', label: '2nd Semester' }]}
             />
             <Select
-              label="Quarter"
+              label="Period"
               value={selectedQuarter}
               onChange={(e) => setSelectedQuarter(e.target.value)}
               options={[
-                { value: '', label: 'All Quarters' },
-                { value: '1', label: 'Prelim' },
-                { value: '2', label: 'Midterm' },
-                { value: '3', label: 'Pre-Finals' },
-                { value: '4', label: 'Finals' },
+                { value: '', label: 'All periods' },
+                ...GRADING_PERIODS.map((p) => ({ value: String(p.value), label: p.label })),
               ]}
             />
             <Select

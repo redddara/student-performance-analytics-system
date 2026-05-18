@@ -1,4 +1,11 @@
-import { computeSubjectFinalAverage, displayGradePercent, getGradeStatus, snapToGradePoint } from './gradingScale';
+import {
+  computeSubjectFinalAverage,
+  displayGradePercent,
+  formatGradePoint,
+  calculateOfficialGwa,
+  formatGwa,
+  getGradeStatus,
+} from './gradingScale';
 import { formatTeacherOfficialLabel, normalizePersonNames } from './personName';
 import type { GradeRecord } from './studentGradeInsights';
 
@@ -103,7 +110,7 @@ export function buildOfficialGradeReportRows(
     const gpaDisplay =
       summary.status === 'inc' || summary.gradePoint == null
         ? '—'
-        : summary.gradePoint.toFixed(2);
+        : formatGradePoint(summary.gradePoint);
 
     let remarks = formatRemarks(subjectGrades);
     if (remarks === 'Passed' && summary.gradePoint != null) {
@@ -130,6 +137,5 @@ export function computeReportSemesterGpa(rows: OfficialGradeReportRow[]): string
     .map((r) => (r.gpa === '—' || r.gpa === 'INC' ? null : Number(r.gpa)))
     .filter((n): n is number => n != null && Number.isFinite(n));
   if (points.length === 0) return '—';
-  const avg = points.reduce((s, n) => s + n, 0) / points.length;
-  return snapToGradePoint(avg).toFixed(2);
+  return formatGwa(calculateOfficialGwa(points));
 }

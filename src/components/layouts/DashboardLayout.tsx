@@ -13,11 +13,25 @@ import {
   UserPen,
   Users,
   UserRound,
+  ShieldCheck,
+  MessageSquareWarning,
 } from 'lucide-react';
 import { useAuthStore } from '../../store';
 import { supabase } from '../../lib/supabase';
 import { formatPersonDisplayName } from '../../lib/personName';
 import { useSupabaseLiveReload } from '../../lib/useSupabaseLiveReload';
+import {
+  buildTeacherDeadlineNotifications,
+  fetchGradingPeriodDeadlines,
+  type TeacherDeadlineNotification,
+} from '../../lib/gradingPeriodDeadlines';
+import {
+  buildStudentDisputeNotifications,
+  buildTeacherDisputeNotifications,
+  fetchStudentDisputes,
+  fetchTeacherDisputes,
+  type DisputeNotification,
+} from '../../lib/gradeDisputes';
 import logoSpas from '../../assets/LOGO SPAS.png';
 
 interface DashboardLayoutProps {
@@ -37,6 +51,7 @@ const menuItems: Record<
     { id: 'users', label: 'Users', Icon: Users },
     { id: 'courses', label: 'Courses', Icon: BookUser },
     { id: 'subjects', label: 'Subjects', Icon: GraduationCap },
+    { id: 'attendance-access', label: 'Attendance Access', Icon: ShieldCheck },
     { id: 'sections', label: 'Sections', Icon: Network },
     { id: 'academic', label: 'Academic', Icon: Calendar },
     { id: 'analytics', label: 'Analytics', Icon: BarChart3 },
@@ -45,6 +60,7 @@ const menuItems: Record<
     { id: 'dashboard', label: 'Dashboard', Icon: LayoutDashboard },
     { id: 'subjects', label: 'My Subjects', Icon: GraduationCap },
     { id: 'grades', label: 'Grades', Icon: UserPen },
+    { id: 'disputes', label: 'Disputes', Icon: MessageSquareWarning },
     { id: 'students', label: 'Students', Icon: UserRound },
     { id: 'attendance', label: 'Attendance', Icon: Calendar },
     { id: 'analytics', label: 'Analytics', Icon: BarChart3 },
@@ -52,6 +68,7 @@ const menuItems: Record<
   student: [
     { id: 'dashboard', label: 'Dashboard', Icon: LayoutDashboard },
     { id: 'subjects', label: 'My Subjects', Icon: GraduationCap },
+    { id: 'schedule', label: 'My Schedule', Icon: Calendar },
     { id: 'grades', label: 'My Grades', Icon: UserPen },
     { id: 'analytics', label: 'Analytics', Icon: BarChart3 },
   ],
@@ -64,6 +81,8 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeAnnouncements, setActiveAnnouncements] = useState<any[]>([]);
   const [adminWorkflowAlerts, setAdminWorkflowAlerts] = useState<any[]>([]);
+  const [teacherDeadlineAlerts, setTeacherDeadlineAlerts] = useState<TeacherDeadlineNotification[]>([]);
+  const [disputeAlerts, setDisputeAlerts] = useState<DisputeNotification[]>([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [readNotificationIds, setReadNotificationIds] = useState<string[]>([]);
   const reloadAdminWorkflowTimerRef = useRef<number | null>(null);
@@ -105,6 +124,87 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
     ['system_announcements']
   );
 
+  const loadTeacherDeadlineAlerts = useCallback(async () => {
+    try {
+      const { data: sy, error: syError } = await supabase
+        .from('school_years')
+        .select('id')
+        .eq('is_active', true)
+        .maybeSingle();
+      if (syError) throw syError;
+      if (!sy?.id) {
+        setTeacherDeadlineAlerts([]);
+        return;
+      }
+      const deadlines = await fetchGradingPeriodDeadlines(sy.id);
+      setTeacherDeadlineAlerts(buildTeacherDeadlineNotifications(deadlines));
+    } catch {
+      setTeacherDeadlineAlerts([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (role !== 'teacher') {
+      setTeacherDeadlineAlerts([]);
+      return;
+    }
+    void loadTeacherDeadlineAlerts();
+  }, [role, loadTeacherDeadlineAlerts]);
+
+  useSupabaseLiveReload(
+    loadTeacherDeadlineAlerts,
+    role === 'teacher' && user?.id ? `live:layout-teacher-deadlines:${user.id}` : null,
+    ['grading_period_deadlines', 'school_years']
+  );
+
+  const loadDisputeAlerts = useCallback(async () => {
+    if (!user?.id) {
+      setDisputeAlerts([]);
+      return;
+    }
+    try {
+      if (role === 'teacher') {
+        const disputes = await fetchTeacherDisputes(user.id);
+        setDisputeAlerts(buildTeacherDisputeNotifications(disputes));
+        return;
+      }
+      if (role === 'student') {
+        const { data: student, error } = await supabase
+          .from('students')
+          .select('id')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        if (error) throw error;
+        if (!student?.id) {
+          setDisputeAlerts([]);
+          return;
+        }
+        const disputes = await fetchStudentDisputes(student.id);
+        setDisputeAlerts(buildStudentDisputeNotifications(disputes));
+        return;
+      }
+      setDisputeAlerts([]);
+    } catch {
+      setDisputeAlerts([]);
+    }
+  }, [role, user?.id]);
+
+  useEffect(() => {
+    if (role !== 'teacher' && role !== 'student') {
+      setDisputeAlerts([]);
+      return;
+    }
+    void loadDisputeAlerts();
+  }, [role, loadDisputeAlerts]);
+
+  useSupabaseLiveReload(
+    loadDisputeAlerts,
+    (role === 'teacher' || role === 'student') && user?.id
+      ? `live:layout-disputes:${role}:${user.id}`
+      : null,
+    ['grade_disputes', 'grades']
+  );
+
   useEffect(() => {
     void loadAnnouncements();
   }, [loadAnnouncements]);
@@ -129,13 +229,25 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
 
   const loadAdminWorkflowAlerts = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from('grades')
-        .select(
-          'id,subject_id,semester,quarter,workflow_status,unlock_requested,unlock_reason,unlock_requested_at,created_at,subject:subjects(name,teacher:users(first_name,last_name,name))'
-        )
-        .or('unlock_requested.eq.true,workflow_status.eq.for_review');
-      if (error) throw error;
+      const [gradesRes, accessRes] = await Promise.all([
+        supabase
+          .from('grades')
+          .select(
+            'id,subject_id,semester,quarter,workflow_status,unlock_requested,unlock_reason,unlock_requested_at,created_at,subject:subjects(name,teacher:users(first_name,last_name,name))'
+          )
+          .or('unlock_requested.eq.true,workflow_status.eq.for_review'),
+        supabase
+          .from('attendance_access_requests')
+          .select(
+            'id, attendance_date, reason, created_at, subject:subjects(name, teacher:users(first_name, last_name, name))'
+          )
+          .eq('status', 'pending')
+          .order('created_at', { ascending: false })
+          .limit(20),
+      ]);
+
+      if (gradesRes.error) throw gradesRes.error;
+      const data = gradesRes.data;
       const grouped = new Map<string, any>();
       (data || []).forEach((row: any) => {
         const teacherName = formatPersonDisplayName(row?.subject?.teacher || {}) || 'Teacher';
@@ -158,7 +270,7 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
         }
         grouped.set(groupKey, existing);
       });
-      const alerts = Array.from(grouped.values()).map((g: any) => {
+      const gradeAlerts = Array.from(grouped.values()).map((g: any) => {
         const quarterList = Array.from(g.quarters)
           .sort((a: number, b: number) => a - b)
           .map((q: number) => `Q${q}`)
@@ -174,7 +286,19 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
           actionPath: `/admin/grades?subject=${encodeURIComponent(g.subjectId)}&semester=${encodeURIComponent(String(g.semester))}`,
         };
       });
-      setAdminWorkflowAlerts(alerts);
+
+      const accessAlerts = (accessRes.data || []).map((row: any) => {
+        const teacherName = formatPersonDisplayName(row?.subject?.teacher || {}) || 'Teacher';
+        return {
+          id: `att-access:${row.id}`,
+          kind: 'attendance_access',
+          title: `${teacherName} requested attendance access`,
+          body: `${row?.subject?.name || 'Subject'} · ${row.attendance_date} · ${row.reason || 'No reason'}`,
+          actionPath: '/admin/attendance-access',
+        };
+      });
+
+      setAdminWorkflowAlerts([...accessAlerts, ...gradeAlerts]);
     } catch {
       setAdminWorkflowAlerts([]);
     }
@@ -203,9 +327,10 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
 
     const channel = supabase
       .channel(`admin-workflow-alerts:${user?.id ?? 'unknown'}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'grades' }, () => scheduleReload())
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'grades' },
+        { event: '*', schema: 'public', table: 'attendance_access_requests' },
         () => scheduleReload()
       )
       .subscribe();
@@ -235,7 +360,13 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
   }));
 
   const allNotifications =
-    role === 'admin' ? [...adminWorkflowAlerts, ...announcementNotifications] : [...announcementNotifications];
+    role === 'admin'
+      ? [...adminWorkflowAlerts, ...announcementNotifications]
+      : role === 'teacher'
+        ? [...disputeAlerts, ...teacherDeadlineAlerts, ...announcementNotifications]
+        : role === 'student'
+          ? [...disputeAlerts, ...announcementNotifications]
+          : [...announcementNotifications];
   const unreadCount = allNotifications.filter((n: any) => !readNotificationIds.includes(n.id)).length;
 
   const markAsRead = (id: string) => {
@@ -248,19 +379,19 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
   };
 
   return (
-    <div className="relative flex h-dvh bg-white overflow-hidden">
+    <div className="relative flex h-dvh overflow-hidden bg-white print:h-auto print:overflow-visible">
 
       {/* Mobile Overlay */}
       {sidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-30 md:hidden backdrop-blur-sm touch-manipulation"
+        <div
+          className="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm touch-manipulation md:hidden print:hidden"
           onClick={() => setSidebarOpen(false)}
           aria-hidden
         />
       )}
 
       {/* Sidebar */}
-      <aside className={`z-40 w-[min(100%,16rem)] max-w-[85vw] maroon-sidebar flex flex-col fixed top-0 left-0 h-dvh min-h-screen pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)] transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+      <aside className={`z-40 w-[min(100%,16rem)] max-w-[85vw] maroon-sidebar flex flex-col fixed top-0 left-0 h-dvh min-h-screen pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)] transition-transform duration-300 print:hidden ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         {/* Logo */}
         <div className="mb-6 px-3 pt-6 sm:px-4">
           <div className="flex items-center gap-3">
@@ -330,9 +461,9 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
       </aside>
 
       {/* Main Content */}
-      <main className="relative z-10 min-w-0 flex-1 h-dvh overflow-y-auto px-4 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom,0px))] sm:px-6 md:ml-64 md:w-[calc(100%-16rem)] md:px-8 lg:px-12 md:pt-6 lg:pt-8 bg-white">
+      <main className="relative z-10 min-w-0 flex-1 h-dvh overflow-y-auto px-4 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom,0px))] sm:px-6 md:ml-64 md:w-[calc(100%-16rem)] md:px-8 lg:px-12 md:pt-6 lg:pt-8 bg-white print:ml-0 print:h-auto print:w-full print:max-w-none print:overflow-visible print:p-0 print:pt-0">
         {/* Mobile Header with Hamburger */}
-        <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-6 md:mb-10">
+        <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between md:mb-10 print:hidden">
           <div className="flex items-start gap-3 min-w-0">
             <button 
               type="button"
@@ -381,7 +512,7 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
                 </div>
                 <div className="max-h-72 overflow-y-auto">
                   {allNotifications.length === 0 ? (
-                    <p className="px-4 py-4 text-sm text-gray-500">No new announcements.</p>
+                    <p className="px-4 py-4 text-sm text-gray-500">No new notifications.</p>
                   ) : (
                     allNotifications.map((item: any) => (
                       <button
@@ -396,6 +527,26 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
                       >
                         <p className="text-sm font-semibold text-gray-900">{item.title}</p>
                         <p className="mt-1 text-xs text-gray-600">{item.body}</p>
+                        {item.kind === 'due_soon' && (
+                          <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                            Due soon
+                          </p>
+                        )}
+                        {item.kind === 'passed' && (
+                          <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-red-700">
+                            Locked
+                          </p>
+                        )}
+                        {item.kind === 'dispute_pending' && (
+                          <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                            Grade dispute
+                          </p>
+                        )}
+                        {item.kind === 'dispute_resolved' && (
+                          <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-[#800000]">
+                            Dispute update
+                          </p>
+                        )}
                       </button>
                     ))
                   )}
@@ -405,8 +556,8 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
           </div>
         </header>
 
-        {/* Content */}
-        <div className="animate-fade-in min-w-0">
+        {/* Content — smooth transition when switching sidebar pages */}
+        <div key={location.pathname} className="sapas-page-transition min-w-0">
           {children}
         </div>
       </main>

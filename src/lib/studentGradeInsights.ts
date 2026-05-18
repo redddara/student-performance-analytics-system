@@ -1,4 +1,10 @@
-import { calculateGWA, getGradeRemarks, isPassing } from './gradingScale';
+import {
+  computeSubjectFinalAverage,
+  formatGradePoint,
+  getGradeRemarks,
+  isPassing,
+} from './gradingScale';
+import { gradingPeriodLabel } from './gradingPeriods';
 
 export type GradeRecord = {
   grade?: number | null;
@@ -24,21 +30,23 @@ export function groupGradesBySubjectBucket(grades: GradeRecord[]): Map<string, G
   return map;
 }
 
-/** Final subject grade = average of all recorded quarters (excluding INC). */
+/** Final subject grade = official percent average → grade point (matches class record). */
 export function computeSubjectFinalGrade(grades: GradeRecord[]): number | null {
-  const valid = grades.filter(
-    (g) => g.grade_status !== 'inc' && g.grade != null && Number.isFinite(Number(g.grade)),
-  );
-  if (valid.length === 0) return null;
-  return calculateGWA(valid as { grade: number }[]);
+  const summary = computeSubjectFinalAverage(grades);
+  if (summary.status === 'inc') return null;
+  return summary.gradePoint;
+}
+
+export function isSubjectPassingByFinalGrade(grades: GradeRecord[]): boolean {
+  const summary = computeSubjectFinalAverage(grades);
+  return summary.status === 'passed';
 }
 
 export function countPassingSubjectsByFinalGrade(grades: GradeRecord[]): number {
   const buckets = groupGradesBySubjectBucket(grades);
   let count = 0;
   for (const bucket of buckets.values()) {
-    const final = computeSubjectFinalGrade(bucket);
-    if (final != null && isPassing(final)) count++;
+    if (isSubjectPassingByFinalGrade(bucket)) count++;
   }
   return count;
 }
@@ -50,13 +58,6 @@ export type SubjectInsightFields = {
   improveReason: string;
   suggestion: string;
   suggestionReason: string;
-};
-
-const QUARTER_LABELS: Record<number, string> = {
-  1: 'Prelim',
-  2: 'Midterm',
-  3: 'Pre-Finals',
-  4: 'Finals',
 };
 
 export function getSubjectInsights(grades: GradeRecord[], subjectName: string): SubjectInsightFields {
@@ -89,17 +90,17 @@ export function getSubjectInsights(grades: GradeRecord[], subjectName: string): 
 
   if (gp <= 2.25) {
     strength = 'Strong';
-    strengthReason = `${name} has a final grade of ${gp.toFixed(2)} (${remarks}) — at or above the 85% very satisfactory level.`;
+    strengthReason = `${name} has a final grade of ${formatGradePoint(gp)} (${remarks}) — at or above the 85% very satisfactory level.`;
     improve = '—';
     improveReason = 'No major gaps identified for this subject.';
     suggestion = 'Maintain';
     suggestionReason = 'Keep reviewing regularly so you stay on track for excellent standing.';
   } else if (passing) {
     strength = 'Passing';
-    strengthReason = `${name} has a final grade of ${gp.toFixed(2)} (${remarks}), which meets the passing standard (75%).`;
+    strengthReason = `${name} has a final grade of ${formatGradePoint(gp)} (${remarks}), which meets the passing standard (75%).`;
     if (gp > 2.75) {
       improve = 'Can improve';
-      improveReason = `Your final grade (${gp.toFixed(2)}) is passing but below the 85% very satisfactory range.`;
+      improveReason = `Your final grade (${formatGradePoint(gp)}) is passing but below the 85% very satisfactory range.`;
     } else {
       improve = '—';
       improveReason = 'You are passing with satisfactory marks overall.';
@@ -110,7 +111,7 @@ export function getSubjectInsights(grades: GradeRecord[], subjectName: string): 
     strength = '—';
     strengthReason = 'Final grade is below passing; see Areas to Improve.';
     improve = 'Below passing';
-    improveReason = `${name} has a final grade of ${gp.toFixed(2)} (${remarks}), below the 75% passing threshold.`;
+    improveReason = `${name} has a final grade of ${formatGradePoint(gp)} (${remarks}), below the 75% passing threshold.`;
     if (!hasFinals && validGrades.length > 0) {
       suggestion = 'Strong Finals';
       suggestionReason =
@@ -125,7 +126,7 @@ export function getSubjectInsights(grades: GradeRecord[], subjectName: string): 
   const weakQuarters = validGrades.filter((g) => g.quarter && !isPassing(Number(g.grade)));
   if (weakQuarters.length > 0) {
     const weakNames = weakQuarters
-      .map((g) => QUARTER_LABELS[g.quarter!] || `Q${g.quarter}`)
+      .map((g) => gradingPeriodLabel(g.quarter))
       .join(', ');
     if (improve === '—') {
       improve = 'Weak quarters';

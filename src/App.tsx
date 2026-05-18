@@ -19,6 +19,7 @@ import {
 import type { TabSyncPayload } from './lib/sessionConstants';
 import type { User } from './types';
 import { ConfirmModal } from './components/ui';
+import { SplashGate } from './components/SplashGate';
 
 // Auth Pages
 import LoginPage from './pages/auth/Login';
@@ -35,11 +36,13 @@ import AdminAnalyticsPage from './pages/admin/Analytics';
 import AdminGradesPage from './pages/admin/Grades';
 import AdminAcademicPage from './pages/admin/Academic';
 import AdminSectionsPage from './pages/admin/Sections';
+import AdminAttendanceAccessPage from './pages/admin/AttendanceAccess';
 
 // Teacher Pages
 import TeacherDashboard from './pages/teacher/Dashboard';
 import TeacherSubjectsPage from './pages/teacher/Subjects';
 import TeacherGradesPage from './pages/teacher/Grades';
+import TeacherDisputesPage from './pages/teacher/Disputes';
 import TeacherStudentsPage from './pages/teacher/Students';
 import TeacherAnalyticsPage from './pages/teacher/Analytics';
 import TeacherAttendancePage from './pages/teacher/Attendance';
@@ -49,6 +52,7 @@ import StudentDashboard from './pages/student/Dashboard';
 import StudentSubjectsPage from './pages/student/Subjects';
 import StudentGradesPage from './pages/student/Grades';
 import StudentAnalyticsPage from './pages/student/Analytics';
+import StudentSchedulePage from './pages/student/Schedule';
 
 function LoadingScreen() {
   return (
@@ -336,11 +340,9 @@ function AppInitializer({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function App() {
+function AppRoutes() {
   return (
-    <BrowserRouter>
-      <AppInitializer>
-        <Routes>
+    <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/change-password" element={<ChangePasswordPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordRedirect />} />
@@ -356,6 +358,7 @@ export default function App() {
                   <Route path="users" element={<AdminUsersPage />} />
                   <Route path="courses" element={<AdminCoursesPage />} />
                   <Route path="subjects" element={<AdminSubjectsPage />} />
+                  <Route path="attendance-access" element={<AdminAttendanceAccessPage />} />
                   <Route path="analytics" element={<AdminAnalyticsPage />} />
                   <Route path="academic" element={<AdminAcademicPage />} />
                   <Route path="sections" element={<AdminSectionsPage />} />
@@ -373,6 +376,7 @@ export default function App() {
                   <Route path="dashboard" element={<TeacherDashboard />} />
                   <Route path="subjects" element={<TeacherSubjectsPage />} />
                   <Route path="grades" element={<TeacherGradesPage />} />
+                  <Route path="disputes" element={<TeacherDisputesPage />} />
                   <Route path="students" element={<TeacherStudentsPage />} />
                   <Route path="attendance" element={<TeacherAttendancePage />} />
                   <Route path="analytics" element={<TeacherAnalyticsPage />} />
@@ -389,6 +393,7 @@ export default function App() {
                 <Routes>
                   <Route path="dashboard" element={<StudentDashboard />} />
                   <Route path="subjects" element={<StudentSubjectsPage />} />
+                  <Route path="schedule" element={<StudentSchedulePage />} />
                   <Route path="grades" element={<StudentGradesPage />} />
                   <Route path="analytics" element={<StudentAnalyticsPage />} />
                   <Route path="*" element={<Navigate to="dashboard" replace />} />
@@ -399,8 +404,18 @@ export default function App() {
 
           <Route path="/" element={<RootRedirect />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
-        </Routes>
-      </AppInitializer>
+    </Routes>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <SplashGate>
+        <AppInitializer>
+          <AppRoutes />
+        </AppInitializer>
+      </SplashGate>
     </BrowserRouter>
   );
 }

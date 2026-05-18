@@ -14,6 +14,11 @@ import {
 } from '../../lib/loginLock';
 import logoSpas from '../../assets/LOGO SPAS.png';
 import { ForgotPasswordModal } from '../../components/auth/ForgotPasswordModal';
+import {
+  isActiveStudentStatus,
+  loginBlockedMessage,
+  normalizeStudentStatus,
+} from '../../lib/studentStatus';
 
 function PillField({
   label,
@@ -186,15 +191,24 @@ export default function LoginPage() {
 
       const user = users[0] as (typeof users)[0];
 
-      if (user.role === 'student' && user.is_dropout) {
-        setLoginModal({
-          title: 'Account locked',
-          message:
-            'Your account is marked as dropout and is currently locked. Please contact an administrator for assistance.',
-          variant: 'error',
-        });
-        setLoading(false);
-        return;
+      if (user.role === 'student') {
+        const { data: studentRow } = await supabase
+          .from('students')
+          .select('student_status')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        const enrollmentStatus = normalizeStudentStatus(studentRow?.student_status);
+        if (!isActiveStudentStatus(enrollmentStatus) || user.is_dropout) {
+          setLoginModal({
+            title: 'Account not available',
+            message: user.is_dropout
+              ? 'Your account is inactive and cannot sign in. Please contact an administrator.'
+              : loginBlockedMessage(enrollmentStatus),
+            variant: 'error',
+          });
+          setLoading(false);
+          return;
+        }
       }
 
       if (isLoginLocked(user)) {
@@ -327,7 +341,7 @@ export default function LoginPage() {
   );
 
   return (
-    <div className="relative min-h-dvh overflow-x-hidden bg-gradient-to-br from-gray-50 via-white to-maroon-50/30">
+    <div className="sapas-page-transition relative min-h-dvh overflow-x-hidden bg-gradient-to-br from-gray-50 via-white to-maroon-50/30">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(128,0,0,0.06),transparent_50%)]" aria-hidden />
 
       <div className="relative z-10 mx-auto flex min-h-dvh max-w-6xl items-center justify-center px-3 py-6 sm:px-4 sm:py-10 lg:max-w-7xl lg:px-8">
@@ -370,7 +384,7 @@ export default function LoginPage() {
                     type="text"
                     name="username"
                     autoComplete="off"
-                    placeholder={username.includes('@') ? 'name@school.edu' : 'e.g. STUD-CS-0001'}
+                    placeholder={username.includes('@') ? 'name@school.edu' : 'e.g. STUD-CS-1001'}
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     autoCapitalize="none"

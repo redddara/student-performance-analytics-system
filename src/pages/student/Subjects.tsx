@@ -8,6 +8,7 @@ import { useAuthStore } from '../../store';
 import { supabase } from '../../lib/supabase';
 import { formatTeacherDisplayName } from '../../lib/personName';
 import { compareAlphabetical, sortSelectOptions } from '../../lib/sortUtils';
+import { formatClassDaysLabel } from '../../lib/classSchedule';
 import {
   classifyStudentEnrollments,
   type SubjectPrerequisite,
@@ -298,6 +299,10 @@ export default function StudentSubjectsPage() {
                   <p>
                     <span className="font-semibold">Teacher:</span>{' '}
                     {ss.subject?.teacher ? formatTeacherDisplayName(ss.subject.teacher) : '-'}
+                  </p>
+                  <p>
+                    <span className="font-semibold">Class days:</span>{' '}
+                    {formatClassDaysLabel(ss.subject?.class_days)}
                   </p>
                 </div>
               </div>

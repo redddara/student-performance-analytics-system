@@ -8,6 +8,7 @@ import { useAuthStore } from '../../store';
 import {
   supabase,
   computeSubjectFinalAverage,
+  formatGradePoint,
   getGradeRemarks,
   gradeValueForStorage,
 } from '../../lib/supabase';
@@ -19,6 +20,7 @@ import {
   sortByLabel,
   subjectSelectOptions,
 } from '../../lib/sortUtils';
+import { isEncodableStudent } from '../../lib/studentStatus';
 
 type FinalAverageRow = {
   key: string;
@@ -122,7 +124,9 @@ export default function AdminGradesPage() {
           }
           return query;
         })(),
-        supabase.from('students').select('id,first_name,last_name,section,grade_level,course_id'),
+        supabase
+          .from('students')
+          .select('id,first_name,last_name,section,grade_level,course_id,student_status'),
         supabase.from('subjects').select('id,name,code,course_id'),
         supabase.from('courses').select('id,name'),
       ]);
@@ -149,6 +153,7 @@ export default function AdminGradesPage() {
     const term = q.trim().toLowerCase();
     return grades.filter((g) => {
       const st = students.find((s) => s.id === g.student_id);
+      if (st && !isEncodableStudent(st.student_status)) return false;
       const sb = subjects.find((s) => s.id === g.subject_id);
       if (semester && String(g.semester) !== semester) return false;
       if (subjectId && g.subject_id !== subjectId) return false;
@@ -273,7 +278,7 @@ export default function AdminGradesPage() {
           r.status === 'inc'
             ? 'INC'
             : r.final_average != null && r.final_grade_point != null
-              ? `${r.final_average}% → ${r.final_grade_point.toFixed(2)}`
+              ? `${r.final_average}% → ${formatGradePoint(r.final_grade_point)}`
               : r.final_average,
         status: r.status.toUpperCase(),
       };
@@ -518,7 +523,7 @@ export default function AdminGradesPage() {
                 </div>
               </div>
               <div className="bg-white p-4 sm:p-6">
-                <Table variant="light" headers={['Student', 'Quarters', 'Final Average', 'Status', 'Edit']}>
+                <Table variant="light" headers={['Student', 'Periods', 'Final Average', 'Status', 'Edit']}>
                   {group.rows.map((row) => {
                     const rowLocked = grades
                       .filter((g) => row.grade_ids.includes(g.id))
@@ -531,7 +536,7 @@ export default function AdminGradesPage() {
                           {row.status === 'inc'
                             ? 'INC'
                             : row.final_average != null && row.final_grade_point != null
-                              ? `${row.final_average}% → ${row.final_grade_point.toFixed(2)}`
+                              ? `${row.final_average}% → ${formatGradePoint(row.final_grade_point)}`
                               : row.final_average ?? '—'}
                         </td>
                         <td className="px-4 py-3">

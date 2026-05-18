@@ -8,6 +8,7 @@ import { supabase } from '../../lib/supabase';
 import { compareAlphabetical, sortByLabel } from '../../lib/sortUtils';
 import type { GradeRecord } from '../../lib/studentGradeInsights';
 import { StudentAcademicBanner } from '../../components/student/StudentAcademicBanner';
+import { StudentGradeDisputesPanel } from '../../components/student/StudentGradeDisputesPanel';
 import { StudentOfficialGradeReport } from '../../components/student/StudentOfficialGradeReport';
 import {
   buildOfficialGradeReportRows,
@@ -20,6 +21,7 @@ import {
   type SubjectPrerequisite,
 } from '../../lib/studentAcademicRules';
 import { getSubjectGradeSemester } from '../../lib/subjectSemester';
+import { GRADING_PERIODS } from '../../lib/gradingPeriods';
 
 /** Grades with no school_year_id (legacy rows) */
 const LEGACY_SCHOOL_YEAR_SCOPE = '__legacy__';
@@ -69,6 +71,7 @@ export default function StudentGradesPage() {
   const [activeSchoolYearName, setActiveSchoolYearName] = useState('All years');
   /** '' = all years (grouped tables); otherwise one school_years.id */
   const [selectedSchoolYearId, setSelectedSchoolYearId] = useState('');
+  const [studentRecordId, setStudentRecordId] = useState('');
 
   const loadData = useCallback(async () => {
     try {
@@ -79,6 +82,8 @@ export default function StudentGradesPage() {
         .single();
 
       if (!studentData) return;
+
+      setStudentRecordId(studentData.id);
 
       const linkedUser = studentData.user as { username?: string; first_name?: string; last_name?: string } | null;
       setStudentProfile({
@@ -486,15 +491,12 @@ export default function StudentGradesPage() {
               options={[{ value: '1', label: '1st Semester' }, { value: '2', label: '2nd Semester' }]}
             />
             <Select
-              label="Quarter"
+              label="Period"
               value={selectedQuarter}
               onChange={(e) => setSelectedQuarter(e.target.value)}
               options={[
-                { value: '', label: 'All Quarters' },
-                { value: '1', label: 'Prelim' },
-                { value: '2', label: 'Midterm' },
-                { value: '3', label: 'Pre-Finals' },
-                { value: '4', label: 'Finals' },
+                { value: '', label: 'All periods' },
+                ...GRADING_PERIODS.map((p) => ({ value: String(p.value), label: p.label })),
               ]}
             />
             <Select
@@ -534,7 +536,17 @@ export default function StudentGradesPage() {
       </div>
       </div>
 
-      <div id="student-grade-report" className="space-y-8">
+      {studentRecordId && (
+        <div className="mb-8">
+          <StudentGradeDisputesPanel
+            studentId={studentRecordId}
+            grades={myGrades}
+            onDisputesChanged={loadData}
+          />
+        </div>
+      )}
+
+      <div id="student-grade-report" className="space-y-8 print:space-y-0">
         {selectedSchoolYearId ? (
           <>
             {filteredSemesterSubjects.length > 0 &&

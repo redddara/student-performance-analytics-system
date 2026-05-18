@@ -20,7 +20,8 @@ import { useDataStore } from '../../store';
 import { supabase } from '../../lib/supabase';
 import { formatPersonDisplayName } from '../../lib/personName';
 import { compareAlphabetical, sortByName, sortSelectOptions } from '../../lib/sortUtils';
-import { CLASS_DAY_PRESET_OPTIONS } from '../../lib/classSchedule';
+import { ClassDaysPicker } from '../../components/ClassDaysPicker';
+import { formatClassDaysLabel } from '../../lib/classSchedule';
 
 const TEACHER_UNASSIGNED = '__unassigned__';
 
@@ -157,7 +158,8 @@ export default function AdminSubjectsPage() {
               .from('students')
               .select('id')
               .eq('course_id', courseId)
-              .eq('grade_level', formData.year_level);
+              .eq('grade_level', formData.year_level)
+              .eq('student_status', 'active');
             if (studentFetchError) throw studentFetchError;
             studentIds = (matchingStudents || []).map((s) => s.id).filter(Boolean);
           }
@@ -408,7 +410,7 @@ export default function AdminSubjectsPage() {
 
       
       <GlassCard className="p-4 sm:p-6">
-        <Table headers={['Code', 'Subject Name', 'Course', 'Year Level', 'Semester', 'Teacher', 'Actions']}>
+        <Table headers={['Code', 'Subject Name', 'Course', 'Year Level', 'Semester', 'Schedule', 'Teacher', 'Actions']}>
           {filteredSubjects.map(subject => (
             <tr key={subject.id} className="hover:bg-white/20">
               <td className="px-4 py-3 font-mono text-sm font-semibold text-[#800000]">{subject.code || '—'}</td>
@@ -416,6 +418,7 @@ export default function AdminSubjectsPage() {
               <td className="px-4 py-3 text-gray-600">{subject.course?.name || '-'}</td>
               <td className="px-4 py-3 text-gray-600">{subject.year_level || '-'}</td>
               <td className="px-4 py-3 text-gray-600">{subject.semester || '-'}</td>
+              <td className="px-4 py-3 text-gray-600">{formatClassDaysLabel(subject.class_days)}</td>
               <td className="px-4 py-3 text-gray-600">
                 {subject.teacher ? formatPersonDisplayName(subject.teacher) || '-' : '-'}
               </td>
@@ -486,11 +489,10 @@ export default function AdminSubjectsPage() {
             <Select label="Semester" value={formData.semester} onChange={e => setFormData({ ...formData, semester: e.target.value })} options={[{ value: '1st Sem', label: '1st Sem' }, { value: '2nd Sem', label: '2nd Sem' }]} />
           </div>
           <Select label="Teacher (Optional)" value={formData.teacher_id} onChange={e => setFormData({ ...formData, teacher_id: e.target.value })} options={[{ value: '', label: 'No Teacher' }, ...sortedTeachers.map(t => ({ value: t.id, label: teacherLabel(t) }))]} />
-          <Select
-            label="Class days (attendance schedule)"
+          <ClassDaysPicker
             value={formData.class_days}
-            onChange={(e) => setFormData({ ...formData, class_days: e.target.value })}
-            options={CLASS_DAY_PRESET_OPTIONS.map((opt) => ({ value: opt.value, label: opt.label }))}
+            onChange={(class_days) => setFormData({ ...formData, class_days })}
+            disabled={submitting}
           />
           <Select
             label="Prerequisite subject (optional)"

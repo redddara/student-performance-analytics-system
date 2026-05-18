@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import {
   Button,
@@ -12,6 +12,17 @@ import {
 import { useAuthStore } from '../../store';
 import { supabase } from '../../lib/supabase';
 import { useSupabaseLiveReload } from '../../lib/useSupabaseLiveReload';
+import { GRADING_PERIODS } from '../../lib/gradingPeriods';
+import {
+  applyGradingPeriodDeadlineLocks,
+  deadlineToInputValue,
+  fetchGradingPeriodDeadlines,
+  formatDeadlineDisplay,
+  inputValueToDeadlineIso,
+  isPeriodPastDeadline,
+  type GradingPeriodDeadline,
+} from '../../lib/gradingPeriodDeadlines';
+import { SEMESTERS } from '../../types';
 
 type SchoolYear = {
   id: string;
@@ -33,6 +44,16 @@ export default function AdminAcademicPage() {
     row: SchoolYear;
     gradeCount: number;
   } | null>(null);
+  const [periodDeadlines, setPeriodDeadlines] = useState<GradingPeriodDeadline[]>([]);
+  const [deadlineInputs, setDeadlineInputs] = useState<Record<string, string>>({});
+  const deadlineInputsDirtyRef = useRef(false);
+
+  const activeSchoolYear = useMemo(
+    () => schoolYears.find((sy) => sy.is_active) ?? null,
+    [schoolYears]
+  );
+
+  const deadlineKey = (semester: number, period: number) => `${semester}-${period}`;
 
   const showError = (fallback: string, err: any) =>
     setAppMessage({
@@ -40,6 +61,35 @@ export default function AdminAcademicPage() {
       message: err?.message || fallback,
       variant: 'error',
     });
+
+  const loadPeriodDeadlines = useCallback(async (schoolYearId: string, syncInputs = false) => {
+    try {
+      if (syncInputs) await applyGradingPeriodDeadlineLocks();
+      const rows = await fetchGradingPeriodDeadlines(schoolYearId);
+      setPeriodDeadlines(rows);
+      if (syncInputs || !deadlineInputsDirtyRef.current) {
+        const inputs: Record<string, string> = {};
+        for (const sem of SEMESTERS) {
+          for (const period of GRADING_PERIODS) {
+            const row = rows.find((d) => d.semester === sem.value && d.period === period.value);
+            inputs[deadlineKey(sem.value, period.value)] = deadlineToInputValue(row?.deadline_at);
+          }
+        }
+        setDeadlineInputs(inputs);
+        if (syncInputs) deadlineInputsDirtyRef.current = false;
+      }
+    } catch (err: any) {
+      showError(
+        'Could not load grading period deadlines. Run migration 20260519150000_grading_period_deadlines.sql in Supabase.',
+        err
+      );
+    }
+  }, []);
+
+  const setDeadlineInput = (key: string, value: string) => {
+    deadlineInputsDirtyRef.current = true;
+    setDeadlineInputs((prev) => ({ ...prev, [key]: value }));
+  };
 
   const load = useCallback(async () => {
     try {
@@ -49,25 +99,94 @@ export default function AdminAcademicPage() {
       ]);
       if (syRes.error) throw syRes.error;
       if (annRes.error) throw annRes.error;
-      setSchoolYears((syRes.data || []) as SchoolYear[]);
+      const years = (syRes.data || []) as SchoolYear[];
+      setSchoolYears(years);
       setAnnouncements(annRes.data || []);
+      const active = years.find((sy) => sy.is_active);
+      if (active) {
+        await loadPeriodDeadlines(active.id, false);
+      } else {
+        setPeriodDeadlines([]);
+        setDeadlineInputs({});
+        deadlineInputsDirtyRef.current = false;
+      }
     } catch (err: any) {
       showError(
         'Could not load school year or announcement data. Ensure the new migration is applied in Supabase.',
         err
       );
     }
-  }, []);
+  }, [loadPeriodDeadlines]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!activeSchoolYear?.id) return;
+    deadlineInputsDirtyRef.current = false;
+    void loadPeriodDeadlines(activeSchoolYear.id, true);
+  }, [activeSchoolYear?.id, loadPeriodDeadlines]);
 
   useSupabaseLiveReload(
     load,
     user?.id ? `live:admin-academic:${user.id}` : null,
     ['school_years', 'system_announcements']
   );
+
+  const savePeriodDeadlines = async () => {
+    if (!activeSchoolYear || actionKey) return;
+    setActionKey('save-period-deadlines');
+    try {
+      const upserts: {
+        school_year_id: string;
+        semester: number;
+        period: number;
+        deadline_at: string;
+        created_by: string | null;
+        updated_at: string;
+      }[] = [];
+
+      for (const sem of SEMESTERS) {
+        for (const period of GRADING_PERIODS) {
+          const key = deadlineKey(sem.value, period.value);
+          const iso = inputValueToDeadlineIso(deadlineInputs[key] ?? '');
+          if (!iso) continue;
+          upserts.push({
+            school_year_id: activeSchoolYear.id,
+            semester: sem.value,
+            period: period.value,
+            deadline_at: iso,
+            created_by: user?.id ?? null,
+            updated_at: new Date().toISOString(),
+          });
+        }
+      }
+
+      const { error: deleteError } = await supabase
+        .from('grading_period_deadlines')
+        .delete()
+        .eq('school_year_id', activeSchoolYear.id);
+      if (deleteError) throw deleteError;
+
+      if (upserts.length) {
+        const { error: insertError } = await supabase.from('grading_period_deadlines').insert(upserts);
+        if (insertError) throw insertError;
+      }
+
+      await loadPeriodDeadlines(activeSchoolYear.id, true);
+      setAppMessage({
+        title: 'Deadlines saved',
+        message:
+          'Grading period deadlines are updated. Past deadlines automatically lock teacher grade entry for that period.',
+        variant: 'success',
+      });
+    } catch (err: any) {
+      showError('Could not save grading period deadlines.', err);
+    } finally {
+      setActionKey(null);
+    }
+  };
 
   const createSchoolYear = async () => {
     if (!newSchoolYear.trim() || actionKey) return;
@@ -361,6 +480,82 @@ export default function AdminAcademicPage() {
           </div>
         </GlassCard>
       </div>
+
+      <GlassCard variant="plain" className="mt-6 p-4 sm:p-6">
+        <h2 className="mb-2 text-xl font-semibold text-[#800000]">Grade submission deadlines</h2>
+        <p className="mb-4 text-sm text-gray-600">
+          Set when teachers must finish entering grades for each period (Prelims, Midterms, Semi-Finals,
+          Finals). After the deadline, that period is locked for teachers whether or not they submitted
+          grades. Applies to the active school year
+          {activeSchoolYear ? `: ${activeSchoolYear.name}` : ''}.
+        </p>
+        {!activeSchoolYear ? (
+          <p className="text-sm text-amber-800">Set an active school year before configuring deadlines.</p>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200 text-left text-gray-600">
+                    <th className="px-2 py-2 font-medium">Semester</th>
+                    <th className="px-2 py-2 font-medium">Period</th>
+                    <th className="px-2 py-2 font-medium">Deadline</th>
+                    <th className="px-2 py-2 font-medium">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {SEMESTERS.flatMap((sem) =>
+                    GRADING_PERIODS.map((period) => {
+                      const key = deadlineKey(sem.value, period.value);
+                      const existing = periodDeadlines.find(
+                        (d) => d.semester === sem.value && d.period === period.value
+                      );
+                      const closed = isPeriodPastDeadline(periodDeadlines, sem.value, period.value);
+                      return (
+                        <tr key={key} className="border-b border-gray-100">
+                          <td className="px-2 py-2 text-gray-800">{sem.label}</td>
+                          <td className="px-2 py-2 font-medium text-[#800000]">{period.label}</td>
+                          <td className="px-2 py-2">
+                            <input
+                              type="datetime-local"
+                              value={deadlineInputs[key] ?? ''}
+                              onChange={(e) => setDeadlineInput(key, e.target.value)}
+                              className="w-full min-w-[12rem] rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
+                            />
+                          </td>
+                          <td className="px-2 py-2">
+                            {closed ? (
+                              <span className="font-medium text-red-700">Locked</span>
+                            ) : existing?.deadline_at ? (
+                              <span className="text-gray-600">
+                                Open until {formatDeadlineDisplay(existing.deadline_at)}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400">No deadline set</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-4">
+              <Button
+                type="button"
+                variant="glass"
+                onClick={() => void savePeriodDeadlines()}
+                disabled={Boolean(actionKey)}
+              >
+                {actionKey === 'save-period-deadlines' ? <Spinner size="sm" /> : null}
+                {actionKey === 'save-period-deadlines' ? 'Saving...' : 'Save deadlines'}
+              </Button>
+            </div>
+          </>
+        )}
+      </GlassCard>
+
       {deleteSchoolYearModal && (
         <ConfirmModal
           isOpen

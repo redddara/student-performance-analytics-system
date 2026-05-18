@@ -32,15 +32,29 @@ import {
   MessageModal,
   type AppMessagePayload,
 } from '../../components/ui';
-import { supabase, hashPassword, generateTempPassword, generateStudentUsername } from '../../lib/supabase';
+import {
+  supabase,
+  hashPassword,
+  generateTempPassword,
+  generateStudentUsername,
+  createStudentUsernameAllocator,
+  getNextStudentUsernameSequence,
+  studentUsernameLikePattern,
+} from '../../lib/supabase';
 import { sendEmail, generateStudentCredentialEmail, generatePasswordResetEmail } from '../../api/email';
 import {
   DEFAULT_SCHOOL_SECTION,
-  SCHOOL_SECTION_SELECT_OPTIONS,
   type SchoolSectionCode,
   normalizeSchoolSection,
   sectionFromUserRecord,
 } from '../../constants/schoolSections';
+import {
+  fetchActiveOfficialSections,
+  matchesOfficialSectionFilter,
+  officialSectionFilterOptions,
+  sectionsForStudentFilter,
+  type OfficialSection,
+} from '../../lib/officialSections';
 import { isLoginLocked } from '../../lib/loginLock';
 import {
   formatPersonDisplayName,
@@ -55,6 +69,16 @@ import {
   sortByStudentName,
   sortSelectOptions,
 } from '../../lib/sortUtils';
+import {
+  dropoutFlagForStudentStatus,
+  matchesStudentStatusFilter,
+  normalizeStudentStatus,
+  STUDENT_STATUS_FILTER_OPTIONS,
+  STUDENT_STATUS_OPTIONS,
+  studentStatusBadgeVariant,
+  studentStatusLabel,
+  type StudentStatus,
+} from '../../lib/studentStatus';
 
 type OfficialSectionRow = {
   id: string;
@@ -81,8 +105,12 @@ export default function AdminUsersPage() {
   const [filterYearLevel, setFilterYearLevel] = useState('');
   const [filterTempStatus, setFilterTempStatus] = useState('');
   const [filterAccountStatus, setFilterAccountStatus] = useState('');
+  const [filterStudentStatus, setFilterStudentStatus] = useState('');
   const [filterSection, setFilterSection] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [officialSections, setOfficialSections] = useState<OfficialSection[]>([]);
+  const [studentSectionByUserId, setStudentSectionByUserId] = useState<Map<string, string>>(new Map());
+  const [studentStatusByUserId, setStudentStatusByUserId] = useState<Map<string, StudentStatus>>(new Map());
   const [rowActionKey, setRowActionKey] = useState<string | null>(null);
   const [usersTablePage, setUsersTablePage] = useState(1);
   const [usersTablePageSize, setUsersTablePageSize] = useState(10);
@@ -104,13 +132,28 @@ export default function AdminUsersPage() {
 
   const loadData = async () => {
     try {
-      const [usersRes, coursesRes] = await Promise.all([
+      const [usersRes, coursesRes, sectionsRes, studentsRes] = await Promise.all([
         supabase.from('users').select('*').order('created_at', { ascending: false }),
         supabase.from('courses').select('*').order('name', { ascending: true }),
+        fetchActiveOfficialSections(),
+        supabase.from('students').select('user_id, section_id, student_status'),
       ]);
-      
+
       setUsers(usersRes.data || []);
       setCourses(coursesRes.data || []);
+      setOfficialSections(sectionsRes);
+      const sectionMap = new Map<string, string>();
+      const statusMap = new Map<string, StudentStatus>();
+      (studentsRes.data || []).forEach(
+        (row: { user_id?: string | null; section_id?: string | null; student_status?: string | null }) => {
+          if (row.user_id) {
+            sectionMap.set(row.user_id, row.section_id || '');
+            statusMap.set(row.user_id, normalizeStudentStatus(row.student_status));
+          }
+        }
+      );
+      setStudentSectionByUserId(sectionMap);
+      setStudentStatusByUserId(statusMap);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -143,23 +186,50 @@ export default function AdminUsersPage() {
     setRowActionKey(null);
   };
 
-  const handleToggleDropout = async (userId: string, makeDropout: boolean) => {
+  const handleSetStudentStatus = async (userId: string, nextStatus: StudentStatus) => {
     if (rowActionKey) return;
-    setRowActionKey(`dropout:${userId}`);
-    const { error } = await supabase
-      .from('users')
-      .update({
-        is_dropout: makeDropout,
-        login_failed_attempts: 0,
-        login_locked_until: null,
-      })
-      .eq('id', userId)
-      .eq('role', 'student');
-
-    if (error) {
+    setRowActionKey(`status:${userId}`);
+    const { data: studentRow, error: studentLookupError } = await supabase
+      .from('students')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (studentLookupError) {
       showMessage({
-        title: 'Could not update account status',
-        message: error.message || 'Check your connection and try again.',
+        title: 'Could not update student status',
+        message: studentLookupError.message || 'Check your connection and try again.',
+        variant: 'error',
+      });
+      setRowActionKey(null);
+      return;
+    }
+    if (!studentRow?.id) {
+      showMessage({
+        title: 'Student record missing',
+        message: 'No student profile is linked to this account.',
+        variant: 'error',
+      });
+      setRowActionKey(null);
+      return;
+    }
+
+    const [{ error: studentError }, { error: userError }] = await Promise.all([
+      supabase.from('students').update({ student_status: nextStatus }).eq('id', studentRow.id),
+      supabase
+        .from('users')
+        .update({
+          is_dropout: dropoutFlagForStudentStatus(nextStatus),
+          login_failed_attempts: 0,
+          login_locked_until: null,
+        })
+        .eq('id', userId)
+        .eq('role', 'student'),
+    ]);
+
+    if (studentError || userError) {
+      showMessage({
+        title: 'Could not update student status',
+        message: studentError?.message || userError?.message || 'Check your connection and try again.',
         variant: 'error',
       });
       setRowActionKey(null);
@@ -167,10 +237,8 @@ export default function AdminUsersPage() {
     }
 
     showMessage({
-      title: makeDropout ? 'Student marked as dropout' : 'Student reactivated',
-      message: makeDropout
-        ? 'This student account is now locked from signing in.'
-        : 'This student account can sign in again.',
+      title: 'Student status updated',
+      message: `Status set to ${studentStatusLabel(nextStatus)}.`,
       variant: 'success',
     });
     loadData();
@@ -300,9 +368,12 @@ export default function AdminUsersPage() {
         course_id: role === 'student' || role === 'teacher' ? resolvedCourseId : null,
         name_title: role === 'teacher' ? normalizeTeacherTitle(updatedData.name_title) || null : null,
       };
+      const nextStudentStatus =
+        role === 'student' ? normalizeStudentStatus(updatedData.student_status) : 'active';
+
       if (role === 'student') {
         payload.section = resolvedLegacySection;
-        payload.is_dropout = Boolean(updatedData.is_dropout);
+        payload.is_dropout = dropoutFlagForStudentStatus(nextStudentStatus);
       }
       await supabase.from('users').update(payload).eq('id', userId);
 
@@ -322,6 +393,7 @@ export default function AdminUsersPage() {
             section: resolvedLegacySection,
             course_id: resolvedCourseId,
             grade_level: resolvedYearLevel || null,
+            student_status: nextStudentStatus,
           })
           .eq('user_id', userId);
 
@@ -364,6 +436,17 @@ export default function AdminUsersPage() {
   const sortedCourses = useMemo(() => sortByName(courses), [courses]);
   const courseFilterOptions = useMemo(() => courseSelectOptions(sortedCourses), [sortedCourses]);
 
+  const sectionFilterOptions = useMemo(() => {
+    const studentUsers = users.filter((u) => u.role === 'student');
+    const studentsForFilter = studentUsers.map((u) => ({
+      section_id: studentSectionByUserId.get(u.id) || null,
+    }));
+    return officialSectionFilterOptions(
+      sectionsForStudentFilter(officialSections, studentsForFilter),
+      'All sections'
+    );
+  }, [officialSections, users, studentSectionByUserId]);
+
   const filteredUsers = useMemo(() => {
     const q = filterSearch.trim().toLowerCase();
     const filtered = users.filter((u) => {
@@ -378,14 +461,19 @@ export default function AdminUsersPage() {
       if (filterTempStatus === 'active' && u.is_temp_password) return false;
       if (filterAccountStatus === 'dropout' && !u.is_dropout) return false;
       if (filterAccountStatus === 'active' && (u.role !== 'student' || u.is_dropout)) return false;
+      if (filterStudentStatus) {
+        if (u.role !== 'student') return false;
+        const st = studentStatusByUserId.get(u.id) ?? 'active';
+        if (!matchesStudentStatusFilter(st, filterStudentStatus)) return false;
+      }
       if (filterSection) {
         if (u.role !== 'student') return false;
-        if (normalizeSchoolSection(u.section) !== filterSection) return false;
+        if (!matchesOfficialSectionFilter(studentSectionByUserId.get(u.id), filterSection)) return false;
       }
       return true;
     });
     return sortByStudentName(filtered);
-  }, [users, filterSearch, filterRole, filterCourseId, filterYearLevel, filterTempStatus, filterAccountStatus, filterSection]);
+  }, [users, filterSearch, filterRole, filterCourseId, filterYearLevel, filterTempStatus, filterAccountStatus, filterStudentStatus, filterSection, studentSectionByUserId, studentStatusByUserId]);
 
   const hasActiveFilters =
     Boolean(filterSearch.trim()) ||
@@ -394,6 +482,7 @@ export default function AdminUsersPage() {
     Boolean(filterYearLevel) ||
     Boolean(filterTempStatus) ||
     Boolean(filterAccountStatus) ||
+    Boolean(filterStudentStatus) ||
     Boolean(filterSection);
 
   const totalUserPages = useMemo(
@@ -415,6 +504,7 @@ export default function AdminUsersPage() {
     filterYearLevel,
     filterTempStatus,
     filterAccountStatus,
+    filterStudentStatus,
     filterSection,
     usersTablePageSize,
   ]);
@@ -430,6 +520,7 @@ export default function AdminUsersPage() {
     setFilterYearLevel('');
     setFilterTempStatus('');
     setFilterAccountStatus('');
+    setFilterStudentStatus('');
     setFilterSection('');
   };
 
@@ -590,10 +681,7 @@ export default function AdminUsersPage() {
               label="Section (students)"
               value={filterSection}
               onChange={(e) => setFilterSection(e.target.value)}
-              options={sortSelectOptions(
-                [{ value: '', label: 'All sections' }, ...SCHOOL_SECTION_SELECT_OPTIONS],
-                ['']
-              )}
+              options={sectionFilterOptions}
             />
             <Select
               label="Password status"
@@ -614,6 +702,12 @@ export default function AdminUsersPage() {
                 { value: 'active', label: 'Active students' },
                 { value: 'dropout', label: 'Dropout (locked)' },
               ]}
+            />
+            <Select
+              label="Enrollment status"
+              value={filterStudentStatus}
+              onChange={(e) => setFilterStudentStatus(e.target.value)}
+              options={STUDENT_STATUS_FILTER_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
             />
           </div>
           <p className="mt-4 text-sm text-gray-600">
@@ -648,43 +742,58 @@ export default function AdminUsersPage() {
               <td className="px-4 py-3">
                 <div className="flex flex-wrap items-center gap-1.5">
                   {user.is_temp_password && <Badge variant="warning">Temp</Badge>}
-                  {user.role === 'student' && user.is_dropout && <Badge variant="danger">Dropout</Badge>}
-                  {isLoginLocked(user) && <Badge variant="danger">Login locked</Badge>}
-                  {!user.is_temp_password && !isLoginLocked(user) && !user.is_dropout && (
-                    <span className="text-xs text-gray-500">—</span>
+                  {user.role === 'student' && (
+                    <Badge variant={studentStatusBadgeVariant(studentStatusByUserId.get(user.id))}>
+                      {studentStatusLabel(studentStatusByUserId.get(user.id))}
+                    </Badge>
                   )}
+                  {user.role === 'student' && user.is_dropout && (
+                    <Badge variant="danger">Login locked</Badge>
+                  )}
+                  {isLoginLocked(user) && <Badge variant="danger">Login locked</Badge>}
+                  {user.role !== 'student' &&
+                    !user.is_temp_password &&
+                    !isLoginLocked(user) && (
+                      <span className="text-xs text-gray-500">—</span>
+                    )}
                 </div>
               </td>
               <td className="px-4 py-3">
                 <div className="flex flex-wrap gap-2">
-                  {user.role === 'student' && (
-                    <button
-                      type="button"
-                      className={`p-2 rounded-lg glass-hover ${user.is_dropout ? 'text-green-700' : 'text-amber-700'}`}
-                      onClick={() => handleToggleDropout(user.id, !user.is_dropout)}
-                      disabled={Boolean(rowActionKey)}
-                      title={user.is_dropout ? 'Reactivate student account' : 'Mark as dropout (lock account)'}
-                      aria-label={
-                        user.is_dropout
-                          ? `Reactivate ${user.name || user.first_name || 'student'}`
-                          : `Mark ${user.name || user.first_name || 'student'} as dropout`
-                      }
-                    >
-                      {user.is_dropout ? (
-                        rowActionKey === `dropout:${user.id}` ? (
+                  {user.role === 'student' &&
+                    (studentStatusByUserId.get(user.id) ?? 'active') !== 'active' && (
+                      <button
+                        type="button"
+                        className="p-2 rounded-lg glass-hover text-green-700"
+                        onClick={() => handleSetStudentStatus(user.id, 'active')}
+                        disabled={Boolean(rowActionKey)}
+                        title="Mark student active"
+                        aria-label={`Reactivate ${user.name || user.first_name || 'student'}`}
+                      >
+                        {rowActionKey === `status:${user.id}` ? (
                           <Spinner size="sm" />
                         ) : (
                           <UserCheck className="h-[1.15rem] w-[1.15rem] shrink-0" strokeWidth={2} aria-hidden />
-                        )
-                      ) : (
-                        rowActionKey === `dropout:${user.id}` ? (
+                        )}
+                      </button>
+                    )}
+                  {user.role === 'student' &&
+                    (studentStatusByUserId.get(user.id) ?? 'active') === 'active' && (
+                      <button
+                        type="button"
+                        className="p-2 rounded-lg glass-hover text-amber-700"
+                        onClick={() => handleSetStudentStatus(user.id, 'inactive')}
+                        disabled={Boolean(rowActionKey)}
+                        title="Mark inactive (removes from grade encoding)"
+                        aria-label={`Mark ${user.name || user.first_name || 'student'} inactive`}
+                      >
+                        {rowActionKey === `status:${user.id}` ? (
                           <Spinner size="sm" />
                         ) : (
                           <UserX className="h-[1.15rem] w-[1.15rem] shrink-0" strokeWidth={2} aria-hidden />
-                        )
-                      )}
-                    </button>
-                  )}
+                        )}
+                      </button>
+                    )}
                   {isLoginLocked(user) && (
                     <button
                       type="button"
@@ -975,17 +1084,15 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess, onFeedback
         const { data: existingUsers } = await supabase
           .from('users')
           .select('username')
-          .like('username', 'STUD-%')
-          .order('username', { ascending: false })
-          .limit(1);
+          .like('username', studentUsernameLikePattern(courseName, effectiveYearLevel));
 
-        let nextNumber = 1001;
-        if (existingUsers && existingUsers.length > 0) {
-          const lastNum = parseInt(existingUsers[0].username?.split('-')[2] || '1000');
-          nextNumber = lastNum + 1;
-        }
+        const nextSequence = getNextStudentUsernameSequence(
+          (existingUsers || []).map((u) => u.username),
+          courseName,
+          effectiveYearLevel
+        );
 
-        username = generateStudentUsername(courseName, nextNumber);
+        username = generateStudentUsername(courseName, effectiveYearLevel, nextSequence);
       }
 
       if (formData.email?.trim()) {
@@ -1079,6 +1186,7 @@ function CreateUserModal({ isOpen, onClose, type, courses, onSuccess, onFeedback
               section: legacySectionValue,
               course_id: effectiveCourseId,
               user_id: userData.id,
+              student_status: 'active',
             })
             .select()
             .single();
@@ -1542,13 +1650,9 @@ function BulkCreateStudentsModal({
       );
       const generatedEmailSet = new Set<string>();
 
-      let highestStudentNumber = 1000;
-      (existingUsers || []).forEach((u: any) => {
-        const raw = String(u.username || '');
-        const parts = raw.split('-');
-        const n = parseInt(parts[2] || '0', 10);
-        if (Number.isFinite(n) && n > highestStudentNumber) highestStudentNumber = n;
-      });
+      const allocateStudentUsername = createStudentUsernameAllocator(
+        (existingUsers || []).map((u: { username?: string | null }) => u.username)
+      );
 
       let success = 0;
       let failed = 0;
@@ -1608,13 +1712,19 @@ function BulkCreateStudentsModal({
           }
 
           let username = '';
-          while (!username) {
-            highestStudentNumber += 1;
-            const candidate = generateStudentUsername(matchedCourse.name, highestStudentNumber);
+          let allocateAttempts = 0;
+          while (!username && allocateAttempts < 1000) {
+            allocateAttempts += 1;
+            const candidate = allocateStudentUsername(matchedCourse.name, yearLevel);
             if (!existingUsernameSet.has(candidate.toUpperCase())) {
               username = candidate;
               existingUsernameSet.add(candidate.toUpperCase());
             }
+          }
+          if (!username) {
+            failed += 1;
+            errors.push(`Row ${rowNo}: could not assign a unique student ID.`);
+            continue;
           }
 
           const tempPassword = generateTempPassword();
@@ -1655,6 +1765,7 @@ function BulkCreateStudentsModal({
               section: sectionLegacyValue,
               course_id: matchedCourse.id,
               user_id: userData.id,
+              student_status: 'active',
             })
             .select()
             .single();
@@ -1783,7 +1894,7 @@ function EditUserModal({ user, courses, onSave }: EditUserModalProps) {
     year_level: user.year_level || '',
     section_id: '',
     course_id: user.course_id || '',
-    is_dropout: Boolean(user.is_dropout),
+    student_status: 'active' as StudentStatus,
   });
 
   useEffect(() => {
@@ -1795,7 +1906,7 @@ function EditUserModal({ user, courses, onSave }: EditUserModalProps) {
       year_level: user.year_level || '',
       section_id: '',
       course_id: user.course_id || '',
-      is_dropout: Boolean(user.is_dropout),
+      student_status: 'active' as StudentStatus,
     });
   }, [user]);
 
@@ -1805,7 +1916,11 @@ function EditUserModal({ user, courses, onSave }: EditUserModalProps) {
       try {
         const [secRes, studentRes] = await Promise.all([
           supabase.from('sections').select('*').eq('is_active', true).order('name', { ascending: true }),
-          supabase.from('students').select('section_id,course_id,grade_level,section').eq('user_id', user.id).maybeSingle(),
+          supabase
+            .from('students')
+            .select('section_id,course_id,grade_level,section,student_status')
+            .eq('user_id', user.id)
+            .maybeSingle(),
         ]);
         if (secRes.error) throw secRes.error;
         if (studentRes.error) throw studentRes.error;
@@ -1817,6 +1932,7 @@ function EditUserModal({ user, courses, onSave }: EditUserModalProps) {
             section_id: st.section_id || '',
             course_id: st.course_id || prev.course_id,
             year_level: st.grade_level || prev.year_level,
+            student_status: normalizeStudentStatus(st.student_status),
           }));
         }
       } catch {
@@ -1939,14 +2055,21 @@ function EditUserModal({ user, courses, onSave }: EditUserModalProps) {
                     options={officialSectionOptions}
                   />
                   <Select
-                    label="Student status"
-                    value={formData.is_dropout ? 'dropout' : 'active'}
-                    onChange={e => setFormData({ ...formData, is_dropout: e.target.value === 'dropout' })}
-                    options={[
-                      { value: 'active', label: 'Active' },
-                      { value: 'dropout', label: 'Dropout (locked)' },
-                    ]}
+                    label="Enrollment status"
+                    value={formData.student_status}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        student_status: normalizeStudentStatus(e.target.value),
+                      })
+                    }
+                    options={STUDENT_STATUS_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
                   />
+                  {formData.student_status === 'inactive' && (
+                    <p className="text-xs text-amber-800">
+                      Inactive students are hidden from grade encoding and cannot sign in.
+                    </p>
+                  )}
                 </>
               ) : null}
             </>

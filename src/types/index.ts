@@ -44,6 +44,8 @@ export interface Subject {
   teacher?: User;
 }
 
+export type StudentStatus = 'active' | 'inactive' | 'graduated' | 'transferred';
+
 export interface Student {
   id: string;
   first_name: string;
@@ -54,6 +56,8 @@ export interface Student {
   section?: string;
   course_id?: string;
   user_id?: string;
+  /** Enrollment status: active students appear in grade encoding. */
+  student_status?: StudentStatus;
   created_at?: string;
   user?: User;
   course?: Course;
@@ -78,6 +82,23 @@ export interface Grade {
   created_at?: string;
   student?: Student;
   subject?: Subject;
+}
+
+export type GradeDisputeStatus = 'pending' | 'accepted' | 'rejected';
+
+export interface GradeDispute {
+  id: string;
+  grade_id: string;
+  student_id: string;
+  teacher_id?: string | null;
+  reason: string;
+  status: GradeDisputeStatus;
+  teacher_response?: string | null;
+  disputed_grade?: number | null;
+  corrected_grade?: number | null;
+  resolved_at?: string | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface StudentSubject {
@@ -142,12 +163,7 @@ export interface StudentAnalytics {
   }[];
 }
 
-export const QUARTERS = [
-  { value: 1, label: 'Prelim' },
-  { value: 2, label: 'Midterm' },
-  { value: 3, label: 'Pre-Finals' },
-  { value: 4, label: 'Finals' },
-] as const;
+export { GRADING_PERIODS, QUARTERS } from '../lib/gradingPeriods';
 
 export const SEMESTERS = [
   { value: 1, label: '1st Semester' },

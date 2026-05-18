@@ -116,9 +116,88 @@ function resolveStudentCourseCode(courseName: string): string {
   return 'XX';
 }
 
-export function generateStudentUsername(courseName: string, number: number): string {
+/** 1st → 1, 2nd → 2, … for STUD-{course}-{year}{seq} IDs (e.g. STUD-CS-1001). */
+export function yearLevelToStudentIdDigit(yearLevel: string): number {
+  const normalized = String(yearLevel || '').trim().toLowerCase();
+  if (normalized.startsWith('1')) return 1;
+  if (normalized.startsWith('2')) return 2;
+  if (normalized.startsWith('3')) return 3;
+  if (normalized.startsWith('4')) return 4;
+  return 1;
+}
+
+export function studentUsernameLikePattern(courseName: string, yearLevel: string): string {
   const courseCode = resolveStudentCourseCode(courseName);
+  const yearDigit = yearLevelToStudentIdDigit(yearLevel);
+  return `STUD-${courseCode}-${yearDigit}%`;
+}
+
+function parseStudentUsernameParts(username: string): {
+  courseCode: string;
+  yearDigit: number;
+  sequence: number;
+} | null {
+  const parts = String(username || '')
+    .trim()
+    .toUpperCase()
+    .split('-');
+  if (parts.length !== 3 || parts[0] !== 'STUD') return null;
+
+  const num = parts[2];
+  if (!/^\d{4}$/.test(num)) return null;
+
+  const yearDigit = parseInt(num[0], 10);
+  const sequence = parseInt(num.slice(1), 10);
+  if (!Number.isFinite(yearDigit) || yearDigit < 1 || yearDigit > 4) return null;
+  if (!Number.isFinite(sequence) || sequence < 1) return null;
+
+  return { courseCode: parts[1], yearDigit, sequence };
+}
+
+export function getNextStudentUsernameSequence(
+  existingUsernames: Array<string | null | undefined>,
+  courseName: string,
+  yearLevel: string
+): number {
+  const courseCode = resolveStudentCourseCode(courseName);
+  const yearDigit = yearLevelToStudentIdDigit(yearLevel);
+
+  let maxSequence = 0;
+  for (const raw of existingUsernames) {
+    const parsed = parseStudentUsernameParts(String(raw || ''));
+    if (!parsed || parsed.courseCode !== courseCode || parsed.yearDigit !== yearDigit) continue;
+    if (parsed.sequence > maxSequence) maxSequence = parsed.sequence;
+  }
+
+  return maxSequence + 1;
+}
+
+/** First student in 1st year CS → STUD-CS-1001; 2nd year → STUD-CS-2001, etc. */
+export function generateStudentUsername(courseName: string, yearLevel: string, sequence: number): string {
+  const courseCode = resolveStudentCourseCode(courseName);
+  const yearDigit = yearLevelToStudentIdDigit(yearLevel);
+  const number = yearDigit * 1000 + sequence;
   return `STUD-${courseCode}-${number.toString().padStart(4, '0')}`;
+}
+
+export function createStudentUsernameAllocator(existingUsernames: Array<string | null | undefined>) {
+  const maxByCourseYear = new Map<string, number>();
+
+  for (const raw of existingUsernames) {
+    const parsed = parseStudentUsernameParts(String(raw || ''));
+    if (!parsed) continue;
+    const key = `${parsed.courseCode}:${parsed.yearDigit}`;
+    maxByCourseYear.set(key, Math.max(maxByCourseYear.get(key) || 0, parsed.sequence));
+  }
+
+  return (courseName: string, yearLevel: string) => {
+    const courseCode = resolveStudentCourseCode(courseName);
+    const yearDigit = yearLevelToStudentIdDigit(yearLevel);
+    const key = `${courseCode}:${yearDigit}`;
+    const nextSequence = (maxByCourseYear.get(key) || 0) + 1;
+    maxByCourseYear.set(key, nextSequence);
+    return generateStudentUsername(courseName, yearLevel, nextSequence);
+  };
 }
 
 export function generateTempPassword(): string {
@@ -134,7 +213,11 @@ export {
   averagePercentToGradePoint,
   computeSubjectFinalAverage,
   calculateGWA,
+  calculateOfficialGwa,
   formatGradeDisplay,
+  formatGradePoint,
+  formatGwa,
+  formatNumericGradePoint,
   formatGradeRange,
   getGradeRemarks,
   getGradeStatus,

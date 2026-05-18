@@ -14,6 +14,11 @@ import {
 } from '../../lib/loginLock';
 import logoSpas from '../../assets/LOGO SPAS.png';
 import { ForgotPasswordModal } from '../../components/auth/ForgotPasswordModal';
+import {
+  isActiveStudentStatus,
+  loginBlockedMessage,
+  normalizeStudentStatus,
+} from '../../lib/studentStatus';
 
 function PillField({
   label,
@@ -186,15 +191,24 @@ export default function LoginPage() {
 
       const user = users[0] as (typeof users)[0];
 
-      if (user.role === 'student' && user.is_dropout) {
-        setLoginModal({
-          title: 'Account locked',
-          message:
-            'Your account is marked as dropout and is currently locked. Please contact an administrator for assistance.',
-          variant: 'error',
-        });
-        setLoading(false);
-        return;
+      if (user.role === 'student') {
+        const { data: studentRow } = await supabase
+          .from('students')
+          .select('student_status')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        const enrollmentStatus = normalizeStudentStatus(studentRow?.student_status);
+        if (!isActiveStudentStatus(enrollmentStatus) || user.is_dropout) {
+          setLoginModal({
+            title: 'Account not available',
+            message: user.is_dropout
+              ? 'Your account is inactive and cannot sign in. Please contact an administrator.'
+              : loginBlockedMessage(enrollmentStatus),
+            variant: 'error',
+          });
+          setLoading(false);
+          return;
+        }
       }
 
       if (isLoginLocked(user)) {

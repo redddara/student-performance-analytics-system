@@ -12,6 +12,8 @@ import {
 } from '../../lib/analyticsData';
 import { countPassingSubjectsByFinalGrade } from '../../lib/studentGradeInsights';
 import { StudentAcademicBanner } from '../../components/student/StudentAcademicBanner';
+import { StudentSubjectsNeedToPassPanel } from '../../components/student/StudentSubjectsNeedToPassPanel';
+import { buildSubjectsNeedToPass } from '../../lib/subjectPassRecovery';
 import {
   classifyStudentEnrollments,
   type SubjectPrerequisite,
@@ -82,13 +84,31 @@ export default function StudentDashboard() {
 
   const academicView = classifyStudentEnrollments(studentProfile, mySubjects, myGrades, prerequisites);
   const visibleSubjectIds = new Set(
-    academicView.visible.map((v) => v.enrollment.subject?.id || v.enrollment.subject_id).filter(Boolean)
+    academicView.visible
+      .map((v) => v.enrollment.subject?.id || v.enrollment.subject_id)
+      .filter((id): id is string => Boolean(id))
   );
   const yearGrades = filterGradesBySchoolYear(myGrades, activeSchoolYearId);
   const visibleGrades = yearGrades.filter((g) => g.subject_id && visibleSubjectIds.has(g.subject_id));
   const passingSubjects = countPassingSubjectsByFinalGrade(visibleGrades);
   const gwa = calculateGwaFromSubjectFinals(visibleGrades);
   const hiddenPrerequisiteCount = academicView.hidden.filter((h) => h.hiddenReason === 'prerequisite').length;
+
+  const subjectNames = new Map<string, string>();
+  for (const row of academicView.visible) {
+    const id = row.enrollment.subject?.id || row.enrollment.subject_id;
+    if (id) subjectNames.set(id, row.enrollment.subject?.name || 'Subject');
+  }
+  const subjectsNeedToPass = buildSubjectsNeedToPass({
+    grades: visibleGrades,
+    activeSchoolYearId,
+    currentSemester: studentProfile.current_semester,
+    visibleSubjectIds,
+    subjectNames,
+  });
+
+  const semesterLabel =
+    studentProfile.current_semester === 2 ? '2nd Semester' : '1st Semester';
 
   return (
     <DashboardLayout title="Student Dashboard">
@@ -140,6 +160,12 @@ export default function StudentDashboard() {
           </div>
         </GlassCard>
       </div>
+
+      <StudentSubjectsNeedToPassPanel
+        subjects={subjectsNeedToPass}
+        schoolYearLabel={activeSchoolYearName || undefined}
+        semesterLabel={semesterLabel}
+      />
 
       <GlassCard className="p-4 sm:p-6">
         <h2 className="text-xl font-semibold text-[#800000] mb-4">My Subjects</h2>

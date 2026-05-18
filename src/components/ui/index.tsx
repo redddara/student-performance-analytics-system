@@ -265,23 +265,37 @@ export function Select({ label, options, className, ...props }: SelectProps) {
 interface BadgeProps {
   children: ReactNode;
   variant?: 'success' | 'warning' | 'danger' | 'info';
+  /** Use `light` on white/gray cards for readable contrast (default `dark` for maroon glass UI). */
+  surface?: 'dark' | 'light';
   className?: string;
 }
 
-export function Badge({ children, variant = 'info', className }: BadgeProps) {
-  const variants = {
+export function Badge({ children, variant = 'info', surface = 'dark', className }: BadgeProps) {
+  const darkVariants = {
     success: 'bg-green-500/15 text-green-300 border-green-400/40 backdrop-blur-sm',
     warning: 'bg-gold-500/20 text-gold-200 border-gold-400/45 backdrop-blur-sm',
     danger: 'bg-red-500/20 text-red-300 border-red-400/40 backdrop-blur-sm',
     info: 'bg-white/10 text-gold-100 border-gold-400/40 backdrop-blur-sm',
   };
-  
+
+  const lightVariants = {
+    success: 'bg-green-100 text-green-900 border-green-300',
+    warning: 'bg-amber-100 text-amber-950 border-amber-400 font-semibold',
+    danger: 'bg-red-100 text-red-900 border-red-300',
+    info: 'bg-maroon-50 text-[#800000] border-maroon-200',
+  };
+
+  const variants = surface === 'light' ? lightVariants : darkVariants;
+
   return (
-    <span className={clsx(
-      'px-3 py-1 rounded-full text-xs font-medium border backdrop-blur-sm',
-      variants[variant],
-      className
-    )}>
+    <span
+      className={clsx(
+        'rounded-full border px-3 py-1 text-xs font-medium',
+        surface === 'dark' && 'backdrop-blur-sm',
+        variants[variant],
+        className,
+      )}
+    >
       {children}
     </span>
   );

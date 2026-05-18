@@ -14,6 +14,7 @@ import {
   Users,
   UserRound,
   ShieldCheck,
+  MessageSquareWarning,
 } from 'lucide-react';
 import { useAuthStore } from '../../store';
 import { supabase } from '../../lib/supabase';
@@ -24,6 +25,13 @@ import {
   fetchGradingPeriodDeadlines,
   type TeacherDeadlineNotification,
 } from '../../lib/gradingPeriodDeadlines';
+import {
+  buildStudentDisputeNotifications,
+  buildTeacherDisputeNotifications,
+  fetchStudentDisputes,
+  fetchTeacherDisputes,
+  type DisputeNotification,
+} from '../../lib/gradeDisputes';
 import logoSpas from '../../assets/LOGO SPAS.png';
 
 interface DashboardLayoutProps {
@@ -52,6 +60,7 @@ const menuItems: Record<
     { id: 'dashboard', label: 'Dashboard', Icon: LayoutDashboard },
     { id: 'subjects', label: 'My Subjects', Icon: GraduationCap },
     { id: 'grades', label: 'Grades', Icon: UserPen },
+    { id: 'disputes', label: 'Disputes', Icon: MessageSquareWarning },
     { id: 'students', label: 'Students', Icon: UserRound },
     { id: 'attendance', label: 'Attendance', Icon: Calendar },
     { id: 'analytics', label: 'Analytics', Icon: BarChart3 },
@@ -73,6 +82,7 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
   const [activeAnnouncements, setActiveAnnouncements] = useState<any[]>([]);
   const [adminWorkflowAlerts, setAdminWorkflowAlerts] = useState<any[]>([]);
   const [teacherDeadlineAlerts, setTeacherDeadlineAlerts] = useState<TeacherDeadlineNotification[]>([]);
+  const [disputeAlerts, setDisputeAlerts] = useState<DisputeNotification[]>([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [readNotificationIds, setReadNotificationIds] = useState<string[]>([]);
   const reloadAdminWorkflowTimerRef = useRef<number | null>(null);
@@ -145,6 +155,54 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
     loadTeacherDeadlineAlerts,
     role === 'teacher' && user?.id ? `live:layout-teacher-deadlines:${user.id}` : null,
     ['grading_period_deadlines', 'school_years']
+  );
+
+  const loadDisputeAlerts = useCallback(async () => {
+    if (!user?.id) {
+      setDisputeAlerts([]);
+      return;
+    }
+    try {
+      if (role === 'teacher') {
+        const disputes = await fetchTeacherDisputes(user.id);
+        setDisputeAlerts(buildTeacherDisputeNotifications(disputes));
+        return;
+      }
+      if (role === 'student') {
+        const { data: student, error } = await supabase
+          .from('students')
+          .select('id')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        if (error) throw error;
+        if (!student?.id) {
+          setDisputeAlerts([]);
+          return;
+        }
+        const disputes = await fetchStudentDisputes(student.id);
+        setDisputeAlerts(buildStudentDisputeNotifications(disputes));
+        return;
+      }
+      setDisputeAlerts([]);
+    } catch {
+      setDisputeAlerts([]);
+    }
+  }, [role, user?.id]);
+
+  useEffect(() => {
+    if (role !== 'teacher' && role !== 'student') {
+      setDisputeAlerts([]);
+      return;
+    }
+    void loadDisputeAlerts();
+  }, [role, loadDisputeAlerts]);
+
+  useSupabaseLiveReload(
+    loadDisputeAlerts,
+    (role === 'teacher' || role === 'student') && user?.id
+      ? `live:layout-disputes:${role}:${user.id}`
+      : null,
+    ['grade_disputes', 'grades']
   );
 
   useEffect(() => {
@@ -305,8 +363,10 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
     role === 'admin'
       ? [...adminWorkflowAlerts, ...announcementNotifications]
       : role === 'teacher'
-        ? [...teacherDeadlineAlerts, ...announcementNotifications]
-        : [...announcementNotifications];
+        ? [...disputeAlerts, ...teacherDeadlineAlerts, ...announcementNotifications]
+        : role === 'student'
+          ? [...disputeAlerts, ...announcementNotifications]
+          : [...announcementNotifications];
   const unreadCount = allNotifications.filter((n: any) => !readNotificationIds.includes(n.id)).length;
 
   const markAsRead = (id: string) => {
@@ -475,6 +535,16 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
                         {item.kind === 'passed' && (
                           <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-red-700">
                             Locked
+                          </p>
+                        )}
+                        {item.kind === 'dispute_pending' && (
+                          <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                            Grade dispute
+                          </p>
+                        )}
+                        {item.kind === 'dispute_resolved' && (
+                          <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-[#800000]">
+                            Dispute update
                           </p>
                         )}
                       </button>

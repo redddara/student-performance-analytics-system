@@ -20,6 +20,7 @@ import {
   sortByLabel,
   subjectSelectOptions,
 } from '../../lib/sortUtils';
+import { isEncodableStudent } from '../../lib/studentStatus';
 
 type FinalAverageRow = {
   key: string;
@@ -123,7 +124,9 @@ export default function AdminGradesPage() {
           }
           return query;
         })(),
-        supabase.from('students').select('id,first_name,last_name,section,grade_level,course_id'),
+        supabase
+          .from('students')
+          .select('id,first_name,last_name,section,grade_level,course_id,student_status'),
         supabase.from('subjects').select('id,name,code,course_id'),
         supabase.from('courses').select('id,name'),
       ]);
@@ -150,6 +153,7 @@ export default function AdminGradesPage() {
     const term = q.trim().toLowerCase();
     return grades.filter((g) => {
       const st = students.find((s) => s.id === g.student_id);
+      if (st && !isEncodableStudent(st.student_status)) return false;
       const sb = subjects.find((s) => s.id === g.subject_id);
       if (semester && String(g.semester) !== semester) return false;
       if (subjectId && g.subject_id !== subjectId) return false;

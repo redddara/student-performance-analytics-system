@@ -119,8 +119,7 @@
   inset: 0;
   z-index: 9999;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
   overflow: hidden;
   background: #fff;
   animation: spasIntroIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
@@ -215,96 +214,93 @@
   animation-delay: -3s;
 }
 
-.spas-intro__frame {
-  position: relative;
-  z-index: 2;
-  width: min(100%, 460px);
-  margin: 1rem;
-  padding: 2rem 1.75rem 1.85rem;
-  text-align: center;
-  border-radius: 1.75rem;
-  border: 1px solid color-mix(in srgb, var(--spas-m500) 22%, white);
-  background: rgba(255, 255, 255, 0.88);
-  box-shadow:
-    0 32px 80px rgba(128, 0, 0, 0.1),
-    0 0 0 1px rgba(255, 255, 255, 0.95) inset;
-  backdrop-filter: blur(16px);
-  animation: spasFrameRise 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both;
-  overflow: hidden;
-}
-
-.spas-intro__corner {
-  position: absolute;
-  width: 22px;
-  height: 22px;
-  border-color: var(--spas-m500);
-  border-style: solid;
-  opacity: 0.55;
-  animation: spasCornerPulse 2.5s ease-in-out infinite;
-}
-
-.spas-intro__corner--tl {
-  top: 14px;
-  left: 14px;
-  border-width: 2px 0 0 2px;
-  border-radius: 4px 0 0 0;
-}
-
-.spas-intro__corner--tr {
-  top: 14px;
-  right: 14px;
-  border-width: 2px 2px 0 0;
-  border-radius: 0 4px 0 0;
-  animation-delay: -0.6s;
-}
-
-.spas-intro__corner--bl {
-  bottom: 14px;
-  left: 14px;
-  border-width: 0 0 2px 2px;
-  border-radius: 0 0 0 4px;
-  animation-delay: -1.2s;
-}
-
-.spas-intro__corner--br {
-  bottom: 14px;
-  right: 14px;
-  border-width: 0 2px 2px 0;
-  border-radius: 0 0 4px 0;
-  animation-delay: -1.8s;
-}
-
-.spas-intro__scanline {
+/* Full-screen stage — no card / form chrome */
+.spas-intro__ambient {
   position: absolute;
   left: 0;
   right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, rgba(128, 0, 0, 0.35), transparent);
-  box-shadow: 0 0 16px rgba(128, 0, 0, 0.25);
-  animation: spasScanline 3.2s ease-in-out infinite;
+  bottom: 18%;
+  height: min(32vh, 220px);
+  opacity: 0.55;
   pointer-events: none;
+  mask-image: linear-gradient(to top, transparent, black 35%, black 75%, transparent);
 }
 
-.spas-intro__badge {
-  display: inline-block;
-  margin: 0 0 1.1rem;
-  padding: 0.35rem 0.85rem;
-  font-size: 0.62rem;
-  font-weight: 700;
-  letter-spacing: 0.22em;
+.spas-intro__chart-wide {
+  width: 100%;
+  height: 100%;
+}
+
+.spas-intro__ambient .spas-intro__chart-line {
+  stroke-dasharray: 520;
+  stroke-dashoffset: 520;
+  animation: spasChartDraw 2.2s cubic-bezier(0.4, 0, 0.2, 1) 0.5s forwards;
+}
+
+.spas-intro__ambient .spas-intro__chart-area {
+  animation: spasChartAreaIn 1s ease-out 1.4s forwards;
+}
+
+.spas-intro__stage {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 2rem 1.5rem 7rem;
+}
+
+.spas-intro__watermark {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  transform: translate(-50%, -50%);
+  font-size: clamp(7rem, 28vw, 11rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  color: var(--spas-m500);
+  opacity: 0.04;
+  pointer-events: none;
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.spas-intro__watermark::after {
+  content: '%';
+  font-size: 0.35em;
+  vertical-align: super;
+  margin-left: 0.02em;
+}
+
+.spas-intro__hero {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: 520px;
+  animation: spasHeroIn 1s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both;
+}
+
+.spas-intro__eyebrow {
+  margin: 0 0 1.25rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.28em;
   text-transform: uppercase;
   color: var(--spas-m600);
-  border: 1px solid var(--spas-m200);
-  border-radius: 999px;
-  background: linear-gradient(180deg, #fff, var(--spas-m100));
-  animation: spasBadgeIn 0.6s ease-out 0.35s both;
+  opacity: 0;
+  animation: spasFadeUp 0.6s ease-out 0.25s forwards;
 }
 
 .spas-intro__logo-stage {
   position: relative;
-  width: 132px;
-  height: 132px;
-  margin: 0 auto 1.15rem;
+  width: 148px;
+  height: 148px;
+  margin: 0 auto 1.35rem;
 }
 
 .spas-intro__ring {
@@ -346,10 +342,10 @@
   position: absolute;
   inset: 0;
   margin: auto;
-  width: 88px;
-  height: 88px;
+  width: 100px;
+  height: 100px;
   object-fit: contain;
-  filter: drop-shadow(0 12px 28px rgba(128, 0, 0, 0.15));
+  filter: drop-shadow(0 16px 36px rgba(128, 0, 0, 0.18));
   animation: spasLogoFloat 3s ease-in-out infinite;
 }
 
@@ -391,182 +387,87 @@
 }
 
 .spas-intro__subtitle {
-  margin: 0.55rem 0 1.35rem;
-  font-size: 0.78rem;
-  line-height: 1.5;
+  margin: 0.6rem 0 1.75rem;
+  max-width: 20rem;
+  font-size: 0.85rem;
+  line-height: 1.55;
   color: #6b7280;
   opacity: 0;
   animation: spasFadeUp 0.6s ease-out 0.85s forwards;
 }
 
-.spas-intro__viz {
-  position: relative;
-  height: 72px;
-  margin-bottom: 0.5rem;
-  padding: 0 0.25rem;
-  opacity: 0;
-  animation: spasFadeUp 0.7s ease-out 0.95s forwards;
-}
-
-.spas-intro__chart-svg {
-  position: absolute;
-  inset: 0 0 18px;
-  width: 100%;
-  height: calc(100% - 18px);
-}
-
 .spas-intro__chart-line {
   stroke: var(--spas-m500);
-  stroke-dasharray: 220;
-  stroke-dashoffset: 220;
-  animation: spasChartDraw 1.6s cubic-bezier(0.4, 0, 0.2, 1) 1.1s forwards;
 }
 
 .spas-intro__chart-area {
   opacity: 0;
-  animation: spasChartAreaIn 0.8s ease-out 1.8s forwards;
 }
 
-.spas-intro__chart-dot {
-  fill: var(--spas-m500);
-  opacity: 0;
-  transform: scale(0);
-  transform-origin: center;
-  transform-box: fill-box;
-  animation: spasDotPop 0.45s cubic-bezier(0.34, 1.5, 0.64, 1) 2.4s forwards;
-}
-
-.spas-intro__bars {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  gap: 4px;
-  height: 18px;
-  opacity: 0.85;
-}
-
-.spas-intro__bar {
-  flex: 1;
-  max-width: 12px;
-  height: var(--bar-h, 50%);
-  border-radius: 2px 2px 1px 1px;
-  background: linear-gradient(to top, var(--spas-m600), var(--spas-m500));
-  transform-origin: bottom;
-  transform: scaleY(0);
-  animation: spasBarGrow 0.7s cubic-bezier(0.34, 1.25, 0.64, 1) forwards;
-  animation-delay: calc(1.2s + var(--bar-i, 0) * 0.05s);
-}
-
-.spas-intro__orbit {
+.spas-intro__icons {
   position: relative;
-  width: 100px;
-  height: 100px;
-  margin: 0.25rem auto 1rem;
-  opacity: 0;
-  animation: spasFadeUp 0.6s ease-out 1.05s forwards;
+  width: 200px;
+  height: 48px;
+  margin-top: 0.25rem;
 }
 
-.spas-intro__orbit-track {
+.spas-intro__icon-float {
   position: absolute;
-  inset: 8px;
-  border: 1px dashed color-mix(in srgb, var(--spas-m500) 22%, transparent);
-  border-radius: 50%;
-  animation: spasRingSpin 14s linear infinite;
-}
-
-.spas-intro__orbit-icon {
-  position: absolute;
-  left: 50%;
   top: 50%;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  margin: -14px 0 0 -14px;
-  border-radius: 50%;
   color: var(--spas-m500);
-  background: #fff;
-  border: 1px solid var(--spas-m200);
-  box-shadow: 0 4px 12px rgba(128, 0, 0, 0.12);
-}
-
-.spas-intro__orbit-icon svg {
-  width: 14px;
-  height: 14px;
-}
-
-.spas-intro__orbit-icon--1 {
-  animation: spasOrbit1 7s linear infinite;
-}
-
-.spas-intro__orbit-icon--2 {
-  animation: spasOrbit2 7s linear infinite;
-}
-
-.spas-intro__orbit-icon--3 {
-  animation: spasOrbit3 7s linear infinite;
-}
-
-.spas-intro__steps {
-  display: flex;
-  justify-content: center;
-  gap: 6px;
-  margin-bottom: 1rem;
-}
-
-.spas-intro__step {
-  width: 28px;
-  height: 3px;
-  border-radius: 999px;
-  background: var(--spas-m200);
-  transition: background 0.35s ease, transform 0.35s ease, box-shadow 0.35s ease;
-}
-
-.spas-intro__step--active {
-  background: color-mix(in srgb, var(--spas-m500) 55%, var(--spas-m200));
-}
-
-.spas-intro__step--current {
-  background: var(--spas-m500);
-  transform: scaleY(1.4);
-  box-shadow: 0 0 10px rgba(128, 0, 0, 0.35);
-}
-
-.spas-intro__progress-block {
   opacity: 0;
-  animation: spasFadeUp 0.55s ease-out 0.7s forwards;
+  filter: drop-shadow(0 4px 12px rgba(128, 0, 0, 0.12));
 }
 
-.spas-intro__progress-meta {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-bottom: 0.45rem;
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+.spas-intro__icon-float svg {
+  width: 1.5rem;
+  height: 1.5rem;
 }
 
-.spas-intro__progress-label {
-  color: #9ca3af;
+.spas-intro__icon-float--1 {
+  left: 8%;
+  animation: spasIconDrift1 4s ease-in-out 1s infinite, spasFadeUp 0.5s ease-out 1s forwards;
 }
 
-.spas-intro__progress-pct {
-  color: var(--spas-m600);
-  font-variant-numeric: tabular-nums;
+.spas-intro__icon-float--2 {
+  left: 50%;
+  animation: spasIconDrift2 4.2s ease-in-out 1.1s infinite, spasFadeUp 0.5s ease-out 1.1s forwards;
+}
+
+.spas-intro__icon-float--3 {
+  right: 8%;
+  animation: spasIconDrift3 3.8s ease-in-out 1.2s infinite, spasFadeUp 0.5s ease-out 1.2s forwards;
+}
+
+/* Bottom dock — minimal, not a form footer */
+.spas-intro__dock {
+  position: absolute;
+  z-index: 3;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 1.5rem clamp(1.25rem, 5vw, 2.5rem) max(1.5rem, env(safe-area-inset-bottom));
+  text-align: center;
+  animation: spasFadeUp 0.6s ease-out 0.5s both;
+}
+
+.spas-intro__status {
+  margin: 0 0 0.85rem;
+  min-height: 1.2em;
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: #6b7280;
+  animation: spasStatusIn 0.35s ease-out;
 }
 
 .spas-intro__progress-track {
-  height: 6px;
+  height: 3px;
+  max-width:  min(420px, 88vw);
+  margin: 0 auto;
   border-radius: 999px;
-  background: var(--spas-m100);
-  border: 1px solid var(--spas-m200);
+  background: color-mix(in srgb, var(--spas-m200) 65%, white);
   overflow: hidden;
 }
 
@@ -575,23 +476,15 @@
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(90deg, var(--spas-m600), var(--spas-m500));
-  box-shadow: 0 0 12px rgba(128, 0, 0, 0.25);
+  box-shadow: 0 0 14px rgba(128, 0, 0, 0.2);
   transition: width 0.1s linear;
 }
 
 .spas-intro__progress-shine {
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5), transparent);
   animation: spasProgressShine 1.8s ease-in-out infinite;
-}
-
-.spas-intro__status {
-  margin: 0.6rem 0 0;
-  min-height: 1.15em;
-  font-size: 0.72rem;
-  color: #6b7280;
-  animation: spasStatusIn 0.35s ease-out;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -637,15 +530,30 @@
   }
 }
 
-@keyframes spasFrameRise {
+@keyframes spasHeroIn {
   from {
     opacity: 0;
-    transform: translateY(28px) scale(0.96);
+    transform: translateY(24px);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateY(0);
   }
+}
+
+@keyframes spasIconDrift1 {
+  0%, 100% { transform: translateY(-50%); }
+  50% { transform: translateY(calc(-50% - 10px)); }
+}
+
+@keyframes spasIconDrift2 {
+  0%, 100% { transform: translateX(-50%) translateY(-50%); }
+  50% { transform: translateX(-50%) translateY(calc(-50% - 12px)); }
+}
+
+@keyframes spasIconDrift3 {
+  0%, 100% { transform: translateY(-50%); }
+  50% { transform: translateY(calc(-50% - 10px)); }
 }
 
 @keyframes spasMeshSpin {

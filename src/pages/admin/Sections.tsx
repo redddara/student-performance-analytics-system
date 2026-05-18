@@ -12,6 +12,12 @@ import {
 } from '../../lib/sortUtils';
 import { getSemesterAdvanceBlockers } from '../../lib/studentAcademicRules';
 import {
+  isEncodableStudent,
+  matchesStudentStatusFilter,
+  STUDENT_STATUS_FILTER_OPTIONS,
+  studentStatusLabel,
+} from '../../lib/studentStatus';
+import {
   Button,
   GlassCard,
   Input,
@@ -42,6 +48,7 @@ type StudentRow = {
   current_semester?: number | null;
   section_id: string | null;
   section: string | null;
+  student_status?: string | null;
 };
 
 const YEAR_OPTIONS = [
@@ -76,6 +83,7 @@ export default function AdminSectionsPage() {
   const [filterYearLevel, setFilterYearLevel] = useState('');
   const [filterStudentSearch, setFilterStudentSearch] = useState('');
   const [filterStudentSectionId, setFilterStudentSectionId] = useState<'all' | 'unassigned' | string>('all');
+  const [filterStudentStatus, setFilterStudentStatus] = useState('active');
 
   const [newSectionName, setNewSectionName] = useState('');
   const [newSectionCourseId, setNewSectionCourseId] = useState('');
@@ -111,7 +119,7 @@ export default function AdminSectionsPage() {
         supabase.from('sections').select('*').order('name', { ascending: true }),
         supabase
           .from('students')
-          .select('id,first_name,last_name,course_id,grade_level,current_semester,section_id,section')
+          .select('id,first_name,last_name,course_id,grade_level,current_semester,section_id,section,student_status')
           .order('last_name', { ascending: true }),
       ]);
       if (courseRes.error) throw courseRes.error;
@@ -151,7 +159,8 @@ export default function AdminSectionsPage() {
   const studentCountBySection = useMemo(() => {
     const m = new Map<string, number>();
     students.forEach((st) => {
-      if (st.section_id) m.set(st.section_id, (m.get(st.section_id) || 0) + 1);
+      if (!st.section_id || !isEncodableStudent(st.student_status)) return;
+      m.set(st.section_id, (m.get(st.section_id) || 0) + 1);
     });
     return m;
   }, [students]);
@@ -173,13 +182,14 @@ export default function AdminSectionsPage() {
           return false;
         }
       }
+      if (!matchesStudentStatusFilter(st.student_status, filterStudentStatus)) return false;
       if (!term) return true;
       const name = formatPersonDisplayName(st).toLowerCase();
       const legacy = String(st.section || '').toLowerCase();
       return name.includes(term) || legacy.includes(term);
     });
     return sortByStudentName(filtered);
-  }, [students, filterCourseId, filterYearLevel, filterStudentSearch, filterStudentSectionId]);
+  }, [students, filterCourseId, filterYearLevel, filterStudentSearch, filterStudentSectionId, filterStudentStatus]);
 
   const toggleStudent = (id: string) => {
     setSelectedStudentIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -555,6 +565,12 @@ export default function AdminSectionsPage() {
                 ...filteredSections.map((s) => ({ value: s.id, label: s.name })),
               ]}
             />
+            <Select
+              label="Enrollment status"
+              value={filterStudentStatus}
+              onChange={(e) => setFilterStudentStatus(e.target.value)}
+              options={STUDENT_STATUS_FILTER_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+            />
           </div>
 
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -568,7 +584,7 @@ export default function AdminSectionsPage() {
           </div>
 
           <div className="space-y-4">
-            <Table variant="light" headers={['', 'Student', 'Year', 'Sem', 'Official section', 'Legacy']}>
+            <Table variant="light" headers={['', 'Student', 'Status', 'Year', 'Sem', 'Official section', 'Legacy']}>
               {studentsInSelectedSection.map((st) => {
                 const checked = selectedStudentIds.includes(st.id);
                 const name = formatPersonDisplayName(st) || 'Unnamed student';
@@ -586,6 +602,9 @@ export default function AdminSectionsPage() {
                       />
                     </td>
                     <td className="px-4 py-3 text-gray-900">{name}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">
+                      {studentStatusLabel(st.student_status)}
+                    </td>
                     <td className="px-4 py-3 text-sm text-gray-700">{st.grade_level || '—'}</td>
                     <td className="px-4 py-3 text-sm text-gray-700">{semLabel}</td>
                     <td className="px-4 py-3 text-sm text-gray-700">{official}</td>

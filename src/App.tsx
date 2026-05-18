@@ -42,6 +42,7 @@ import AdminAttendanceAccessPage from './pages/admin/AttendanceAccess';
 import TeacherDashboard from './pages/teacher/Dashboard';
 import TeacherSubjectsPage from './pages/teacher/Subjects';
 import TeacherGradesPage from './pages/teacher/Grades';
+import TeacherDisputesPage from './pages/teacher/Disputes';
 import TeacherStudentsPage from './pages/teacher/Students';
 import TeacherAnalyticsPage from './pages/teacher/Analytics';
 import TeacherAttendancePage from './pages/teacher/Attendance';
@@ -375,6 +376,7 @@ function AppRoutes() {
                   <Route path="dashboard" element={<TeacherDashboard />} />
                   <Route path="subjects" element={<TeacherSubjectsPage />} />
                   <Route path="grades" element={<TeacherGradesPage />} />
+                  <Route path="disputes" element={<TeacherDisputesPage />} />
                   <Route path="students" element={<TeacherStudentsPage />} />
                   <Route path="attendance" element={<TeacherAttendancePage />} />
                   <Route path="analytics" element={<TeacherAnalyticsPage />} />

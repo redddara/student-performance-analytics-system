@@ -20,6 +20,7 @@ import {
   formatGwa,
 } from '../../lib/supabase';
 import { useGradesAutoRefresh } from '../../lib/useGradesAutoRefresh';
+import { isEncodableStudent } from '../../lib/studentStatus';
 import { formatPersonDisplayName } from '../../lib/personName';
 import {
   fetchActiveOfficialSections,
@@ -150,7 +151,7 @@ export default function TeacherGradesPage() {
         .eq('subject_id', subjectId);
       const list = (data || [])
         .map((r: any) => r.student)
-        .filter((s: any) => Boolean(s) && (s.student_status == null || s.student_status === 'active'));
+        .filter((s: any) => Boolean(s) && isEncodableStudent(s.student_status));
       setEnrolledStudents(list);
       setSelectedStudentForEntry((prev) => (list.some((s: any) => s.id === prev) ? prev : list[0]?.id ?? ''));
       return;
@@ -162,7 +163,7 @@ export default function TeacherGradesPage() {
     const byId = new Map<string, any>();
     (data || []).forEach((r: any) => {
       const st = r.student;
-      if (st?.id && (st.student_status == null || st.student_status === 'active') && !byId.has(st.id)) {
+      if (st?.id && isEncodableStudent(st.student_status) && !byId.has(st.id)) {
         byId.set(st.id, st);
       }
     });
@@ -251,7 +252,7 @@ export default function TeacherGradesPage() {
         .from('students')
         .select('*, user:users(*)')
         .in('id', studentIds);
-      setStudents(studentsData || []);
+      setStudents((studentsData || []).filter((s: any) => isEncodableStudent(s.student_status)));
     } finally {
       setLoading(false);
     }

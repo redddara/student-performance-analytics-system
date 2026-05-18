@@ -8,8 +8,6 @@ interface AppSplashScreenProps {
   onExitComplete: () => void;
 }
 
-const STAT_BARS = [38, 62, 48, 78, 55, 70, 44, 86, 58, 74];
-
 const LOADING_STEPS = [
   { at: 0, label: 'Initializing analytics engine…' },
   { at: 26, label: 'Syncing academic records…' },
@@ -18,7 +16,7 @@ const LOADING_STEPS = [
   { at: 96, label: 'Ready — welcome to SPAS' },
 ] as const;
 
-const PARTICLES = Array.from({ length: 22 }, (_, i) => ({
+const PARTICLES = Array.from({ length: 24 }, (_, i) => ({
   id: i,
   left: `${(i * 19 + 5) % 94 + 3}%`,
   top: `${(i * 27 + 13) % 88 + 6}%`,
@@ -39,14 +37,6 @@ export function AppSplashScreen({ exiting, onExitComplete }: AppSplashScreenProp
       if (progress >= step.at) label = step.label;
     }
     return label;
-  }, [progress]);
-
-  const activeStep = useMemo(() => {
-    let step = 0;
-    for (let i = 0; i < LOADING_STEPS.length; i++) {
-      if (progress >= LOADING_STEPS[i].at) step = i;
-    }
-    return step;
   }, [progress]);
 
   const finish = useCallback(() => {
@@ -115,99 +105,82 @@ export function AppSplashScreen({ exiting, onExitComplete }: AppSplashScreenProp
       <div className="spas-intro__orb spas-intro__orb--a" aria-hidden />
       <div className="spas-intro__orb spas-intro__orb--b" aria-hidden />
 
-      <div className="spas-intro__frame">
-        <span className="spas-intro__corner spas-intro__corner--tl" aria-hidden />
-        <span className="spas-intro__corner spas-intro__corner--tr" aria-hidden />
-        <span className="spas-intro__corner spas-intro__corner--bl" aria-hidden />
-        <span className="spas-intro__corner spas-intro__corner--br" aria-hidden />
-        <div className="spas-intro__scanline" aria-hidden />
+      <div className="spas-intro__ambient" aria-hidden>
+        <svg className="spas-intro__chart-wide" viewBox="0 0 400 120" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="spasChartFillWide" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#800000" stopOpacity="0.14" />
+              <stop offset="100%" stopColor="#800000" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          <path
+            className="spas-intro__chart-area"
+            d="M0 95 L40 78 L80 82 L120 58 L160 64 L200 42 L240 48 L280 32 L320 38 L360 22 L400 28 L400 120 L0 120 Z"
+            fill="url(#spasChartFillWide)"
+          />
+          <path
+            className="spas-intro__chart-line"
+            d="M0 95 L40 78 L80 82 L120 58 L160 64 L200 42 L240 48 L280 32 L320 38 L360 22 L400 28"
+            fill="none"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </div>
 
-        <p className="spas-intro__badge">PHILTECH · SPAS</p>
+      <div className="spas-intro__stage">
+        <span className="spas-intro__watermark" aria-hidden>
+          {displayPercent}
+        </span>
 
-        <div className="spas-intro__logo-stage">
-          <div className="spas-intro__ring spas-intro__ring--outer" aria-hidden />
-          <div className="spas-intro__ring spas-intro__ring--mid" aria-hidden />
-          <div className="spas-intro__ring spas-intro__ring--inner" aria-hidden />
-          <div className="spas-intro__logo-glow" aria-hidden />
-          <img src={logoSpas} alt="" className="spas-intro__logo" width={112} height={112} />
-          <div className="spas-intro__logo-sweep" aria-hidden />
-        </div>
+        <div className="spas-intro__hero">
+          <p className="spas-intro__eyebrow">Philtech</p>
 
-        <h1 className="spas-intro__title" aria-label="SPAS">
-          {'SPAS'.split('').map((char, i) => (
-            <span
-              key={i}
-              className="spas-intro__letter"
-              style={{ '--letter-i': i } as React.CSSProperties}
-            >
-              {char}
-            </span>
-          ))}
-        </h1>
+          <div className="spas-intro__logo-stage">
+            <div className="spas-intro__ring spas-intro__ring--outer" aria-hidden />
+            <div className="spas-intro__ring spas-intro__ring--mid" aria-hidden />
+            <div className="spas-intro__logo-glow" aria-hidden />
+            <img src={logoSpas} alt="" className="spas-intro__logo" width={128} height={128} />
+            <div className="spas-intro__logo-sweep" aria-hidden />
+          </div>
 
-        <p className="spas-intro__subtitle">Student Performance Analytics System</p>
-
-        <div className="spas-intro__viz" aria-hidden>
-          <svg className="spas-intro__chart-svg" viewBox="0 0 156 60" preserveAspectRatio="none">
-            <defs>
-              <linearGradient id="spasChartFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#800000" stopOpacity="0.22" />
-                <stop offset="100%" stopColor="#800000" stopOpacity="0" />
-              </linearGradient>
-            </defs>
-            <path className="spas-intro__chart-area" d={`${CHART_PATH} L148 60 L8 60 Z`} fill="url(#spasChartFill)" />
-            <path className="spas-intro__chart-line" d={CHART_PATH} fill="none" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-            <circle className="spas-intro__chart-dot" cx="148" cy="10" r="4" />
-          </svg>
-
-          <div className="spas-intro__bars">
-            {STAT_BARS.map((h, i) => (
-              <div
+          <h1 className="spas-intro__title" aria-label="SPAS">
+            {'SPAS'.split('').map((char, i) => (
+              <span
                 key={i}
-                className="spas-intro__bar"
-                style={{ '--bar-h': `${h}%`, '--bar-i': i } as React.CSSProperties}
-              />
+                className="spas-intro__letter"
+                style={{ '--letter-i': i } as React.CSSProperties}
+              >
+                {char}
+              </span>
             ))}
+          </h1>
+
+          <p className="spas-intro__subtitle">Student Performance Analytics System</p>
+
+          <div className="spas-intro__icons" aria-hidden>
+            <span className="spas-intro__icon-float spas-intro__icon-float--1">
+              <GraduationCap strokeWidth={1.75} />
+            </span>
+            <span className="spas-intro__icon-float spas-intro__icon-float--2">
+              <BarChart3 strokeWidth={1.75} />
+            </span>
+            <span className="spas-intro__icon-float spas-intro__icon-float--3">
+              <TrendingUp strokeWidth={1.75} />
+            </span>
           </div>
         </div>
+      </div>
 
-        <div className="spas-intro__orbit" aria-hidden>
-          <div className="spas-intro__orbit-track" />
-          <span className="spas-intro__orbit-icon spas-intro__orbit-icon--1">
-            <GraduationCap strokeWidth={1.75} />
-          </span>
-          <span className="spas-intro__orbit-icon spas-intro__orbit-icon--2">
-            <BarChart3 strokeWidth={1.75} />
-          </span>
-          <span className="spas-intro__orbit-icon spas-intro__orbit-icon--3">
-            <TrendingUp strokeWidth={1.75} />
-          </span>
-        </div>
-
-        <div className="spas-intro__steps" aria-hidden>
-          {LOADING_STEPS.map((step, i) => (
-            <span
-              key={step.at}
-              className={`spas-intro__step ${i <= activeStep ? 'spas-intro__step--active' : ''} ${
-                i === activeStep ? 'spas-intro__step--current' : ''
-              }`}
-            />
-          ))}
-        </div>
-
-        <div className="spas-intro__progress-block">
-          <div className="spas-intro__progress-meta">
-            <span className="spas-intro__progress-label">System load</span>
-            <span className="spas-intro__progress-pct">{displayPercent}%</span>
+      <div className="spas-intro__dock">
+        <p key={statusLine} className="spas-intro__status">
+          {statusLine}
+        </p>
+        <div className="spas-intro__progress-track" aria-hidden>
+          <div className="spas-intro__progress-fill" style={{ width: `${progress}%` }}>
+            <span className="spas-intro__progress-shine" aria-hidden />
           </div>
-          <div className="spas-intro__progress-track">
-            <div className="spas-intro__progress-fill" style={{ width: `${progress}%` }}>
-              <span className="spas-intro__progress-shine" aria-hidden />
-            </div>
-          </div>
-          <p key={statusLine} className="spas-intro__status">
-            {statusLine}
-          </p>
         </div>
       </div>
     </div>

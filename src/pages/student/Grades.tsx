@@ -8,6 +8,7 @@ import { supabase } from '../../lib/supabase';
 import { compareAlphabetical, sortByLabel } from '../../lib/sortUtils';
 import type { GradeRecord } from '../../lib/studentGradeInsights';
 import { StudentAcademicBanner } from '../../components/student/StudentAcademicBanner';
+import { StudentGradeDisputesPanel } from '../../components/student/StudentGradeDisputesPanel';
 import { StudentOfficialGradeReport } from '../../components/student/StudentOfficialGradeReport';
 import {
   buildOfficialGradeReportRows,
@@ -70,6 +71,7 @@ export default function StudentGradesPage() {
   const [activeSchoolYearName, setActiveSchoolYearName] = useState('All years');
   /** '' = all years (grouped tables); otherwise one school_years.id */
   const [selectedSchoolYearId, setSelectedSchoolYearId] = useState('');
+  const [studentRecordId, setStudentRecordId] = useState('');
 
   const loadData = useCallback(async () => {
     try {
@@ -80,6 +82,8 @@ export default function StudentGradesPage() {
         .single();
 
       if (!studentData) return;
+
+      setStudentRecordId(studentData.id);
 
       const linkedUser = studentData.user as { username?: string; first_name?: string; last_name?: string } | null;
       setStudentProfile({
@@ -531,6 +535,16 @@ export default function StudentGradesPage() {
         </Button>
       </div>
       </div>
+
+      {studentRecordId && (
+        <div className="mb-8">
+          <StudentGradeDisputesPanel
+            studentId={studentRecordId}
+            grades={myGrades}
+            onDisputesChanged={loadData}
+          />
+        </div>
+      )}
 
       <div id="student-grade-report" className="space-y-8 print:space-y-0">
         {selectedSchoolYearId ? (

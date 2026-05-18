@@ -6,6 +6,7 @@ import { PageIntro } from '../../components/layouts/PageIntro';
 import { GlassCard, Button, Select, MessageModal, Table, type AppMessagePayload } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase, getGradeRemarks, getGradeStatus } from '../../lib/supabase';
+import { isEncodableStudent } from '../../lib/studentStatus';
 import {
   buildBulkGradePreview,
   buildExistingGradesLookup,
@@ -100,8 +101,8 @@ export default function TeacherUploadPage() {
       .eq('subject_id', selectedSubject);
 
     const enrolledStudents: EnrolledStudentLite[] =
-      studentSubjects?.flatMap((ss: { student?: EnrolledStudentLite }) =>
-        ss.student ? [ss.student] : []
+      studentSubjects?.flatMap((ss: { student?: EnrolledStudentLite & { student_status?: string } }) =>
+        ss.student && isEncodableStudent(ss.student.student_status) ? [ss.student] : []
       ) ?? [];
 
     let activeSchoolYearId: string | null = null;

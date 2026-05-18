@@ -11,6 +11,7 @@ import {
   type AppMessagePayload,
 } from '../../components/ui';
 import { formatPersonDisplayName } from '../../lib/personName';
+import { isEncodableStudent } from '../../lib/studentStatus';
 import {
   compareAlphabetical,
   compareNumeric,
@@ -322,7 +323,7 @@ export default function TeacherAttendancePage() {
       .filter((record: any) => record.subject_id === selectedSubjectId)
       .forEach((record: any) => {
         const student = record.student;
-        if (!student?.id) return;
+        if (!student?.id || !isEncodableStudent(student.student_status)) return;
         if (!byId.has(student.id)) {
           byId.set(student.id, student);
         }

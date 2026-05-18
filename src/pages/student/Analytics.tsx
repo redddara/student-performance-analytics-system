@@ -9,10 +9,17 @@ import { calculateGwaFromSubjectFinals } from '../../lib/analyticsData';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { chartAxis, chartGrid, chartTooltip } from '../../lib/chartTheme';
 import { compareAlphabetical } from '../../lib/sortUtils';
+import { StudentSubjectsNeedToPassPanel } from '../../components/student/StudentSubjectsNeedToPassPanel';
+import {
+  buildSubjectsNeedToPass,
+  computeSubjectPassRecovery,
+  formatRequiredScoreMessage,
+} from '../../lib/subjectPassRecovery';
 
 type GradeRow = {
   subject_id?: string;
   quarter?: number;
+  semester?: number;
   school_year_id?: string | null;
   subject?: { name?: string };
   school_year?: { id?: string; name?: string };
@@ -32,6 +39,7 @@ export default function StudentAnalyticsPage() {
   const [weaknesses, setWeaknesses] = useState<string[]>([]);
   const [activeSchoolYearId, setActiveSchoolYearId] = useState<string | null>(null);
   const [activeSchoolYearName, setActiveSchoolYearName] = useState<string>('');
+  const [currentSemester, setCurrentSemester] = useState(1);
   /** '' = all school years */
   const [selectedSchoolYearId, setSelectedSchoolYearId] = useState('');
 
@@ -44,6 +52,8 @@ export default function StudentAnalyticsPage() {
         .single();
 
       if (!studentData) return;
+
+      setCurrentSemester(studentData.current_semester === 2 ? 2 : 1);
 
       const [subjectsRes, activeSyRes, gradesRes] = await Promise.all([
         supabase.from('student_subjects').select('*, subject:subjects(*, course:courses(*))').eq('student_id', studentData.id),
@@ -171,19 +181,12 @@ export default function StudentAnalyticsPage() {
       });
 
     buckets.forEach((b) => {
-      const k = bucketKey(b.subject_id, b.school_year_id);
       const subjectGrades = grades.filter(
         (g) => g.subject_id === b.subject_id && (g.school_year_id ?? null) === (b.school_year_id ?? null)
       );
-      const hasFinals = subjectGrades.some((g) => g.quarter === 4);
-      if (subjectGrades.length > 0 && !hasFinals) {
-        const currentAvg = subjectAverages[k];
-        if (currentAvg !== undefined) {
-          const neededForPass = Math.max(0, 75 - (currentAvg * 0.4) / 0.6);
-          if (neededForPass <= 100) {
-            newSuggestions.push(`Score at least ${neededForPass.toFixed(0)} in Finals to pass ${b.displayName}`);
-          }
-        }
+      const recovery = computeSubjectPassRecovery(subjectGrades);
+      if (recovery && recovery.status === 'recoverable' && recovery.achievable) {
+        newSuggestions.push(`${b.displayName}: ${formatRequiredScoreMessage(recovery)}`);
       }
     });
 
@@ -257,6 +260,29 @@ export default function StudentAnalyticsPage() {
       ? 'All school years'
       : schoolYearOptions.find((o) => o.value === selectedSchoolYearId)?.label || activeSchoolYearName;
 
+  const subjectsNeedToPass = useMemo(() => {
+    const scopedYearId = selectedSchoolYearId || activeSchoolYearId;
+    const visibleSubjectIds = new Set(
+      mySubjects
+        .map((ss) => ss.subject?.id || ss.subject_id)
+        .filter(Boolean) as string[]
+    );
+    const subjectNames = new Map<string, string>();
+    for (const ss of mySubjects) {
+      const id = ss.subject?.id || ss.subject_id;
+      if (id) subjectNames.set(id, ss.subject?.name || 'Subject');
+    }
+    return buildSubjectsNeedToPass({
+      grades: myGrades as GradeRow[],
+      activeSchoolYearId: scopedYearId,
+      currentSemester,
+      visibleSubjectIds,
+      subjectNames,
+    });
+  }, [myGrades, mySubjects, selectedSchoolYearId, activeSchoolYearId, currentSemester]);
+
+  const semesterLabel = currentSemester === 2 ? '2nd Semester' : '1st Semester';
+
   if (loading) {
     return <DashboardLayout title="Analytics"><PageSkeletonLoader rows={5} /></DashboardLayout>;
   }
@@ -298,6 +324,14 @@ export default function StudentAnalyticsPage() {
           <p className="text-sm sm:text-base text-gray-500">Enrolled Subjects</p>
         </GlassCard>
       </div>
+
+      {(selectedSchoolYearId || activeSchoolYearId) && (
+        <StudentSubjectsNeedToPassPanel
+          subjects={subjectsNeedToPass}
+          schoolYearLabel={analyticsScopeLabel !== 'All school years' ? analyticsScopeLabel : activeSchoolYearName}
+          semesterLabel={semesterLabel}
+        />
+      )}
 
       {/* Charts */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-8">

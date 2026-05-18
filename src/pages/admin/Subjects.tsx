@@ -158,7 +158,8 @@ export default function AdminSubjectsPage() {
               .from('students')
               .select('id')
               .eq('course_id', courseId)
-              .eq('grade_level', formData.year_level);
+              .eq('grade_level', formData.year_level)
+              .eq('student_status', 'active');
             if (studentFetchError) throw studentFetchError;
             studentIds = (matchingStudents || []).map((s) => s.id).filter(Boolean);
           }

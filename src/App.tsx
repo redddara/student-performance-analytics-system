@@ -50,6 +50,7 @@ import StudentDashboard from './pages/student/Dashboard';
 import StudentSubjectsPage from './pages/student/Subjects';
 import StudentGradesPage from './pages/student/Grades';
 import StudentAnalyticsPage from './pages/student/Analytics';
+import StudentSchedulePage from './pages/student/Schedule';
 
 function LoadingScreen() {
   return (
@@ -391,6 +392,7 @@ export default function App() {
                 <Routes>
                   <Route path="dashboard" element={<StudentDashboard />} />
                   <Route path="subjects" element={<StudentSubjectsPage />} />
+                  <Route path="schedule" element={<StudentSchedulePage />} />
                   <Route path="grades" element={<StudentGradesPage />} />
                   <Route path="analytics" element={<StudentAnalyticsPage />} />
                   <Route path="*" element={<Navigate to="dashboard" replace />} />

@@ -54,6 +54,7 @@ const menuItems: Record<
   student: [
     { id: 'dashboard', label: 'Dashboard', Icon: LayoutDashboard },
     { id: 'subjects', label: 'My Subjects', Icon: GraduationCap },
+    { id: 'schedule', label: 'My Schedule', Icon: Calendar },
     { id: 'grades', label: 'My Grades', Icon: UserPen },
     { id: 'analytics', label: 'Analytics', Icon: BarChart3 },
   ],

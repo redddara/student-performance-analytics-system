@@ -111,6 +111,57 @@ export function formatClassDaysLabel(pattern?: string | null): string {
   return ordered.map((d) => JS_DAY_NAMES[d]).join(', ');
 }
 
+export type WeeklyScheduleItem = {
+  subjectId: string;
+  subjectName: string;
+  teacherName: string;
+  courseName: string;
+  classDaysLabel: string;
+  isBackSubject?: boolean;
+  isPastTermSubject?: boolean;
+};
+
+export const WEEKLY_SCHEDULE_COLUMNS = [
+  { day: 1, short: 'Mon', label: 'Monday' },
+  { day: 2, short: 'Tue', label: 'Tuesday' },
+  { day: 3, short: 'Wed', label: 'Wednesday' },
+  { day: 4, short: 'Thu', label: 'Thursday' },
+  { day: 5, short: 'Fri', label: 'Friday' },
+  { day: 6, short: 'Sat', label: 'Saturday' },
+  { day: 0, short: 'Sun', label: 'Sunday' },
+] as const;
+
+/** Group subjects into weekday columns; subjects without fixed days go in `daily`. */
+export function partitionSubjectsByClassDays<T extends { class_days?: string | null }>(
+  subjects: T[],
+  toSlot: (subject: T) => WeeklyScheduleItem
+): { byDay: Map<number, WeeklyScheduleItem[]>; daily: WeeklyScheduleItem[] } {
+  const byDay = new Map<number, WeeklyScheduleItem[]>();
+  for (const col of WEEKLY_SCHEDULE_COLUMNS) {
+    byDay.set(col.day, []);
+  }
+  const daily: WeeklyScheduleItem[] = [];
+
+  for (const subject of subjects) {
+    const slot = toSlot(subject);
+    const days = parseClassDays(subject.class_days);
+    if (!days) {
+      daily.push(slot);
+      continue;
+    }
+    for (const day of days) {
+      byDay.get(day)?.push(slot);
+    }
+  }
+
+  const sortByName = (a: WeeklyScheduleItem, b: WeeklyScheduleItem) =>
+    a.subjectName.localeCompare(b.subjectName);
+  for (const list of byDay.values()) list.sort(sortByName);
+  daily.sort(sortByName);
+
+  return { byDay, daily };
+}
+
 /** True when the date falls on a scheduled class day (or no schedule is set). */
 export function isScheduledClassDay(dateIso: string, pattern?: string | null): boolean {
   const days = parseClassDays(pattern);

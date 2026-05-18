@@ -82,7 +82,7 @@ export default function TeacherDashboard() {
       {activeSchoolYearName && (
         <p className="mb-3 text-sm text-gray-600">
           Active School Year: <span className="font-semibold text-[#800000]">{activeSchoolYearName}</span>
-          {' '}(grades and pass rate use this year only)
+          {' '}(grades and passing rate use this year only)
         </p>
       )}
       {/* Stats */}
@@ -118,7 +118,7 @@ export default function TeacherDashboard() {
             </div>
             <div>
               <p className="text-2xl font-bold text-gold-600">{passRate}%</p>
-              <p className="text-sm text-gray-500">Pass Rate (All Subjects Passed)</p>
+              <p className="text-sm text-gray-500">Passing Rate</p>
             </div>
           </div>
         </GlassCard>

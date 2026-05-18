@@ -267,7 +267,7 @@ export default function TeacherAnalyticsPage() {
           </div>
           <div className="text-center p-4 glass-inset">
             <p className="text-2xl font-bold text-green-600">{studentPerformance.length > 0 ? Math.round((passingCount / studentPerformance.length) * 100) : 0}%</p>
-            <p className="text-sm text-gray-600">Pass Rate (All Subjects Passed)</p>
+            <p className="text-sm text-gray-600">Passing Rate</p>
           </div>
           <div className="text-center p-4 glass-inset">
             <p className="text-2xl font-bold text-blue-600">

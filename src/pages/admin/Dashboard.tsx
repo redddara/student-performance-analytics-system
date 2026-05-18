@@ -181,7 +181,7 @@ export default function AdminDashboard() {
       {activeSchoolYearName && (
         <p className="mb-3 text-sm text-gray-600">
           Active School Year: <span className="font-semibold text-[#800000]">{activeSchoolYearName}</span>
-          {' '}(grades and pass rate use this year only)
+          {' '}(grades and passing rate use this year only)
         </p>
       )}
       {/* Stats Cards */}

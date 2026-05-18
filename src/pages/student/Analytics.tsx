@@ -291,7 +291,7 @@ export default function StudentAnalyticsPage() {
         </GlassCard>
         <GlassCard className="p-4 sm:p-6 text-center">
           <p className="text-3xl sm:text-4xl font-bold text-gold-600">{passRate}%</p>
-          <p className="text-sm sm:text-base text-gray-500">Pass Rate (Subjects Passed)</p>
+          <p className="text-sm sm:text-base text-gray-500">Passing Rate</p>
         </GlassCard>
         <GlassCard className="p-4 sm:p-6 text-center">
           <p className="text-3xl sm:text-4xl font-bold text-[#d4af37]">{mySubjects.length}</p>

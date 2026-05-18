@@ -299,7 +299,7 @@ export default function AdminAnalyticsPage() {
         {[
           { label: 'Total Students', value: filteredStudents.length, Icon: Users, color: '#800000' },
           { label: 'Total Subjects', value: subjects.length, Icon: BookOpen, color: '#d4af37' },
-          { label: 'Pass Rate (All Subjects Passed)', value: `${passRate}%`, Icon: CheckCircle2, color: '#4CAF50' },
+          { label: 'Passing Rate', value: `${passRate}%`, Icon: CheckCircle2, color: '#4CAF50' },
           { label: 'Average GWA', value: formatGwa(overallAverage), Icon: ChartLine, color: '#2196F3' },
         ].map((stat, i) => (
           <GlassCard key={i} className={`p-3 sm:p-4 text-center animate-delay-${i * 100} animate-in fade-in slide-in-from-bottom duration-500 opacity-100`}>

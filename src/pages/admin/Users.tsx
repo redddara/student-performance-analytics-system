@@ -36,11 +36,17 @@ import { supabase, hashPassword, generateTempPassword, generateStudentUsername }
 import { sendEmail, generateStudentCredentialEmail, generatePasswordResetEmail } from '../../api/email';
 import {
   DEFAULT_SCHOOL_SECTION,
-  SCHOOL_SECTION_SELECT_OPTIONS,
   type SchoolSectionCode,
   normalizeSchoolSection,
   sectionFromUserRecord,
 } from '../../constants/schoolSections';
+import {
+  fetchActiveOfficialSections,
+  matchesOfficialSectionFilter,
+  officialSectionFilterOptions,
+  sectionsForStudentFilter,
+  type OfficialSection,
+} from '../../lib/officialSections';
 import { isLoginLocked } from '../../lib/loginLock';
 import {
   formatPersonDisplayName,
@@ -83,6 +89,8 @@ export default function AdminUsersPage() {
   const [filterAccountStatus, setFilterAccountStatus] = useState('');
   const [filterSection, setFilterSection] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [officialSections, setOfficialSections] = useState<OfficialSection[]>([]);
+  const [studentSectionByUserId, setStudentSectionByUserId] = useState<Map<string, string>>(new Map());
   const [rowActionKey, setRowActionKey] = useState<string | null>(null);
   const [usersTablePage, setUsersTablePage] = useState(1);
   const [usersTablePageSize, setUsersTablePageSize] = useState(10);
@@ -104,13 +112,21 @@ export default function AdminUsersPage() {
 
   const loadData = async () => {
     try {
-      const [usersRes, coursesRes] = await Promise.all([
+      const [usersRes, coursesRes, sectionsRes, studentsRes] = await Promise.all([
         supabase.from('users').select('*').order('created_at', { ascending: false }),
         supabase.from('courses').select('*').order('name', { ascending: true }),
+        fetchActiveOfficialSections(),
+        supabase.from('students').select('user_id, section_id'),
       ]);
-      
+
       setUsers(usersRes.data || []);
       setCourses(coursesRes.data || []);
+      setOfficialSections(sectionsRes);
+      const sectionMap = new Map<string, string>();
+      (studentsRes.data || []).forEach((row: { user_id?: string | null; section_id?: string | null }) => {
+        if (row.user_id) sectionMap.set(row.user_id, row.section_id || '');
+      });
+      setStudentSectionByUserId(sectionMap);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -364,6 +380,17 @@ export default function AdminUsersPage() {
   const sortedCourses = useMemo(() => sortByName(courses), [courses]);
   const courseFilterOptions = useMemo(() => courseSelectOptions(sortedCourses), [sortedCourses]);
 
+  const sectionFilterOptions = useMemo(() => {
+    const studentUsers = users.filter((u) => u.role === 'student');
+    const studentsForFilter = studentUsers.map((u) => ({
+      section_id: studentSectionByUserId.get(u.id) || null,
+    }));
+    return officialSectionFilterOptions(
+      sectionsForStudentFilter(officialSections, studentsForFilter),
+      'All sections'
+    );
+  }, [officialSections, users, studentSectionByUserId]);
+
   const filteredUsers = useMemo(() => {
     const q = filterSearch.trim().toLowerCase();
     const filtered = users.filter((u) => {
@@ -380,12 +407,12 @@ export default function AdminUsersPage() {
       if (filterAccountStatus === 'active' && (u.role !== 'student' || u.is_dropout)) return false;
       if (filterSection) {
         if (u.role !== 'student') return false;
-        if (normalizeSchoolSection(u.section) !== filterSection) return false;
+        if (!matchesOfficialSectionFilter(studentSectionByUserId.get(u.id), filterSection)) return false;
       }
       return true;
     });
     return sortByStudentName(filtered);
-  }, [users, filterSearch, filterRole, filterCourseId, filterYearLevel, filterTempStatus, filterAccountStatus, filterSection]);
+  }, [users, filterSearch, filterRole, filterCourseId, filterYearLevel, filterTempStatus, filterAccountStatus, filterSection, studentSectionByUserId]);
 
   const hasActiveFilters =
     Boolean(filterSearch.trim()) ||
@@ -590,10 +617,7 @@ export default function AdminUsersPage() {
               label="Section (students)"
               value={filterSection}
               onChange={(e) => setFilterSection(e.target.value)}
-              options={sortSelectOptions(
-                [{ value: '', label: 'All sections' }, ...SCHOOL_SECTION_SELECT_OPTIONS],
-                ['']
-              )}
+              options={sectionFilterOptions}
             />
             <Select
               label="Password status"

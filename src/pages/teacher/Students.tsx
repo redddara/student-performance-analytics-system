@@ -5,8 +5,15 @@ import { DashboardLayout } from '../../components/layouts/DashboardLayout';
 import { GlassCard, Badge, Table, Button, Select, PageSkeletonLoader } from '../../components/ui';
 import { useAuthStore } from '../../store';
 import { supabase, getGradeStatus } from '../../lib/supabase';
-import { SCHOOL_SECTION_SELECT_OPTIONS, normalizeSchoolSection } from '../../constants/schoolSections';
 import { formatPersonDisplayName } from '../../lib/personName';
+import {
+  fetchActiveOfficialSections,
+  matchesOfficialSectionFilter,
+  officialSectionDisplayName,
+  officialSectionFilterOptions,
+  sectionsForStudentFilter,
+  type OfficialSection,
+} from '../../lib/officialSections';
 import { compareNumeric, sortByLabel, sortByName, sortByStudentName, sortSelectOptions } from '../../lib/sortUtils';
 
 const yearLevelRank = (value?: string | null) => {
@@ -31,6 +38,21 @@ export default function TeacherStudentsPage() {
   const [filterSection, setFilterSection] = useState('');
   const [filterSubjectId, setFilterSubjectId] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [officialSections, setOfficialSections] = useState<OfficialSection[]>([]);
+
+  useEffect(() => {
+    void fetchActiveOfficialSections().then(setOfficialSections);
+  }, []);
+
+  const sectionsById = useMemo(
+    () => new Map(officialSections.map((s) => [s.id, s])),
+    [officialSections]
+  );
+
+  const sectionFilterOptions = useMemo(
+    () => officialSectionFilterOptions(sectionsForStudentFilter(officialSections, students)),
+    [officialSections, students]
+  );
 
   const loadData = useCallback(async () => {
     try {
@@ -116,7 +138,7 @@ export default function TeacherStudentsPage() {
       if (q && !name.includes(q)) return false;
       if (filterCourseId && s.course_id !== filterCourseId) return false;
       if (filterYear && (s.grade_level || '') !== filterYear) return false;
-      if (filterSection && normalizeSchoolSection(s.section) !== filterSection) return false;
+      if (!matchesOfficialSectionFilter(s.section_id, filterSection)) return false;
       if (filterSubjectId && !s.subjects?.some((sub: any) => sub.id === filterSubjectId)) return false;
       return true;
     });
@@ -247,7 +269,7 @@ export default function TeacherStudentsPage() {
               label="Section"
               value={filterSection}
               onChange={(e) => setFilterSection(e.target.value)}
-              options={sortSelectOptions([{ value: '', label: 'All sections' }, ...SCHOOL_SECTION_SELECT_OPTIONS], [''])}
+              options={sectionFilterOptions}
             />
             <Select
               label="Enrolled in subject"
@@ -328,7 +350,7 @@ export default function TeacherStudentsPage() {
                 </td>
                 <td className="px-4 py-3 text-gray-600">{student.course?.name || '-'}</td>
                 <td className="px-4 py-3 text-gray-600">{student.grade_level || '-'}</td>
-                <td className="px-4 py-3 text-gray-600">{student.section || '-'}</td>
+                <td className="px-4 py-3 text-gray-600">{officialSectionDisplayName(student, sectionsById)}</td>
                 <td className="px-4 py-3">
                   <div className="flex flex-wrap gap-1">
                     {student.subjects?.slice(0, 3).map((sub: any) => (
@@ -363,7 +385,7 @@ export default function TeacherStudentsPage() {
                     <div>
                       <p className="text-base font-semibold text-gray-800">{formatPersonDisplayName(student)}</p>
                       <p className="text-xs text-gray-500">
-                        {student.course?.name || '-'} · {student.grade_level || '-'} · {student.section || '-'}
+                        {student.course?.name || '-'} · {student.grade_level || '-'} · {officialSectionDisplayName(student, sectionsById)}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">

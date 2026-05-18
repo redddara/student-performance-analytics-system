@@ -18,7 +18,14 @@ import { useInitialPageLoading } from '../../lib/useInitialPageLoading';
 import { formatClassDaysLabel } from '../../lib/classSchedule';
 
 type AttendanceSessionType = 'class' | 'no_class';
-import { SCHOOL_SECTION_SELECT_OPTIONS, normalizeSchoolSection } from '../../constants/schoolSections';
+import {
+  fetchActiveOfficialSections,
+  matchesOfficialSectionFilter,
+  officialSectionDisplayName,
+  officialSectionFilterOptions,
+  sectionsForStudentFilter,
+  type OfficialSection,
+} from '../../lib/officialSections';
 import { BarChart, Bar, CartesianGrid, LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 export default function TeacherAttendancePage() {
@@ -32,6 +39,16 @@ export default function TeacherAttendancePage() {
   const [filterYear, setFilterYear] = useState('');
   const [filterSection, setFilterSection] = useState('');
   const [filterSearch, setFilterSearch] = useState('');
+  const [officialSections, setOfficialSections] = useState<OfficialSection[]>([]);
+
+  useEffect(() => {
+    void fetchActiveOfficialSections().then(setOfficialSections);
+  }, []);
+
+  const sectionsById = useMemo(
+    () => new Map(officialSections.map((s) => [s.id, s])),
+    [officialSections]
+  );
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [presentByStudent, setPresentByStudent] = useState<Record<string, boolean>>({});
   const [attendanceHistory, setAttendanceHistory] = useState<any[]>([]);
@@ -246,6 +263,11 @@ export default function TeacherAttendancePage() {
     return sortByStudentName(Array.from(byId.values()));
   }, [studentEnrollments, selectedSubjectId]);
 
+  const sectionFilterOptions = useMemo(
+    () => officialSectionFilterOptions(sectionsForStudentFilter(officialSections, studentsForSelectedSubject)),
+    [officialSections, studentsForSelectedSubject]
+  );
+
   useEffect(() => {
     void loadAttendanceForDate();
   }, [selectedSubjectId, selectedDate, studentsForSelectedSubject.length, loadAttendanceForDate]);
@@ -284,7 +306,7 @@ export default function TeacherAttendancePage() {
       if (q && !fullName.includes(q)) return false;
       if (filterCourseId && student.course_id !== filterCourseId) return false;
       if (filterYear && (student.grade_level || '') !== filterYear) return false;
-      if (filterSection && normalizeSchoolSection(student.section) !== filterSection) return false;
+      if (!matchesOfficialSectionFilter(student.section_id, filterSection)) return false;
       return true;
     });
     return sortByStudentName(filtered);
@@ -377,7 +399,7 @@ export default function TeacherAttendancePage() {
           studentId,
           name: formatPersonDisplayName(student || {}) || 'Unknown student',
           yearLevel: student?.grade_level || '-',
-          section: student?.section || '-',
+          section: student ? officialSectionDisplayName(student, sectionsById) : '-',
           rate,
           total: stats.total,
         };
@@ -386,7 +408,7 @@ export default function TeacherAttendancePage() {
       .filter((row) => row.rate < 75)
       .sort((a, b) => compareNumeric(a.rate, b.rate))
       .slice(0, 6);
-  }, [activeAttendanceHistory, studentsForSelectedSubject]);
+  }, [activeAttendanceHistory, studentsForSelectedSubject, sectionsById]);
 
   const attendanceBySection = useMemo(() => {
     if (!activeAttendanceHistory.length) return [];
@@ -399,7 +421,9 @@ export default function TeacherAttendancePage() {
     const sectionMap = new Map<string, { section: string; present: number; total: number }>();
     activeAttendanceHistory.forEach((record) => {
       const student = studentById.get(record.student_id);
-      const sectionName = normalizeSchoolSection(student?.section) || 'No section';
+      const sectionName = student
+        ? officialSectionDisplayName(student, sectionsById)
+        : 'No section';
       const bucket = sectionMap.get(sectionName) || { section: sectionName, present: 0, total: 0 };
       bucket.total += 1;
       if (record.is_present) bucket.present += 1;
@@ -412,7 +436,7 @@ export default function TeacherAttendancePage() {
         rate: row.total > 0 ? Math.round((row.present / row.total) * 1000) / 10 : 0,
       }))
       .sort((a, b) => compareNumeric(b.rate, a.rate));
-  }, [activeAttendanceHistory, studentsForSelectedSubject]);
+  }, [activeAttendanceHistory, studentsForSelectedSubject, sectionsById]);
 
   const monthlyAttendanceHeatmap = useMemo(() => {
     const byMonth = new Map<string, { key: string; present: number; total: number }>();
@@ -486,7 +510,7 @@ export default function TeacherAttendancePage() {
           formatPersonDisplayName(student || {}),
           student?.course?.name || '',
           student?.grade_level || '',
-          normalizeSchoolSection(student?.section) || '',
+          student ? officialSectionDisplayName(student, sectionsById) : '',
           record.is_present ? 'Present' : 'Absent',
         ];
       }),
@@ -694,7 +718,7 @@ export default function TeacherAttendancePage() {
             label="Section"
             value={filterSection}
             onChange={(e) => setFilterSection(e.target.value)}
-            options={sortSelectOptions([{ value: '', label: 'All sections' }, ...SCHOOL_SECTION_SELECT_OPTIONS], [''])}
+            options={sectionFilterOptions}
           />
           <div className="space-y-1">
             <label htmlFor="attendance-search" className="ml-1 block text-sm font-medium text-gray-700">
@@ -944,7 +968,7 @@ export default function TeacherAttendancePage() {
                       </td>
                       <td className="px-4 py-3 text-gray-700">{student.course?.name || '-'}</td>
                       <td className="px-4 py-3 text-gray-700">{student.grade_level || '-'}</td>
-                      <td className="px-4 py-3 text-gray-700">{student.section || '-'}</td>
+                      <td className="px-4 py-3 text-gray-700">{officialSectionDisplayName(student, sectionsById)}</td>
                       <td className="px-4 py-3">
                         <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-gray-700">
                           <input

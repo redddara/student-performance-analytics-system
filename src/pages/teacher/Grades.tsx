@@ -18,8 +18,15 @@ import {
   formatGradeDisplay,
 } from '../../lib/supabase';
 import { useGradesAutoRefresh } from '../../lib/useGradesAutoRefresh';
-import { SCHOOL_SECTION_SELECT_OPTIONS, normalizeSchoolSection } from '../../constants/schoolSections';
 import { formatPersonDisplayName } from '../../lib/personName';
+import {
+  fetchActiveOfficialSections,
+  matchesOfficialSectionFilter,
+  officialSectionDisplayName,
+  officialSectionFilterOptions,
+  sectionsForStudentFilter,
+  type OfficialSection,
+} from '../../lib/officialSections';
 import {
   compareNumeric,
   sortByName,
@@ -98,6 +105,21 @@ export default function TeacherGradesPage() {
   const [filterSearch, setFilterSearch] = useState('');
   const [filterSection, setFilterSection] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [officialSections, setOfficialSections] = useState<OfficialSection[]>([]);
+
+  useEffect(() => {
+    void fetchActiveOfficialSections().then(setOfficialSections);
+  }, []);
+
+  const sectionsById = useMemo(
+    () => new Map(officialSections.map((s) => [s.id, s])),
+    [officialSections]
+  );
+
+  const sectionFilterOptions = useMemo(() => {
+    const roster = enrolledStudents.length ? enrolledStudents : students;
+    return officialSectionFilterOptions(sectionsForStudentFilter(officialSections, roster));
+  }, [officialSections, enrolledStudents, students]);
   const [gradeTablePage, setGradeTablePage] = useState(1);
   const [gradeTablePageSize, setGradeTablePageSize] = useState(10);
 
@@ -475,7 +497,7 @@ export default function TeacherGradesPage() {
       const st = students.find((s) => s.id === g.student_id);
       const name = formatPersonDisplayName(st || {}).toLowerCase();
       if (q && !name.includes(q)) return false;
-      if (filterSection && normalizeSchoolSection(st?.section) !== filterSection) return false;
+      if (!matchesOfficialSectionFilter(st?.section_id, filterSection)) return false;
       return true;
     });
   }, [baseGrades, filterSearch, filterSection, students]);
@@ -485,7 +507,7 @@ export default function TeacherGradesPage() {
     const filtered = enrolledStudents.filter((s: any) => {
       const name = formatPersonDisplayName(s).toLowerCase();
       if (q && !name.includes(q)) return false;
-      if (filterSection && normalizeSchoolSection(s.section) !== filterSection) return false;
+      if (!matchesOfficialSectionFilter(s.section_id, filterSection)) return false;
       return true;
     });
     return sortByStudentName(filtered);
@@ -695,7 +717,7 @@ export default function TeacherGradesPage() {
       const current = summary.get(grade.student_id) || {
         studentName,
         gradeLevel: st?.grade_level || '-',
-        section: st?.section || '-',
+        section: st ? officialSectionDisplayName(st, sectionsById) : '-',
         total: 0,
         count: 0,
         failingCount: 0,
@@ -722,7 +744,7 @@ export default function TeacherGradesPage() {
         .sort((a, b) => compareNumeric(b.failingCount, a.failingCount) || compareNumeric(a.average, b.average))
         .slice(0, 5),
     };
-  }, [filteredGrades, students]);
+  }, [filteredGrades, students, sectionsById]);
 
   const classRecordRows = useMemo(() => {
     if (!selectedSubject) return [];
@@ -1054,7 +1076,7 @@ export default function TeacherGradesPage() {
               label="Student section"
               value={filterSection}
               onChange={(e) => setFilterSection(e.target.value)}
-              options={sortSelectOptions([{ value: '', label: 'All sections' }, ...SCHOOL_SECTION_SELECT_OPTIONS], [''])}
+              options={sectionFilterOptions}
             />
           </div>
         </div>

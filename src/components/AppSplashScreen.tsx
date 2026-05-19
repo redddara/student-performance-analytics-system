@@ -109,8 +109,8 @@ export function AppSplashScreen({ exiting, onExitComplete }: AppSplashScreenProp
         <svg className="spas-intro__chart-wide" viewBox="0 0 400 120" preserveAspectRatio="none">
           <defs>
             <linearGradient id="spasChartFillWide" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#800000" stopOpacity="0.14" />
-              <stop offset="100%" stopColor="#800000" stopOpacity="0" />
+              <stop offset="0%" stopColor="#c44d4d" stopOpacity="0.22" />
+              <stop offset="100%" stopColor="#c44d4d" stopOpacity="0" />
             </linearGradient>
           </defs>
           <path
@@ -141,7 +141,7 @@ export function AppSplashScreen({ exiting, onExitComplete }: AppSplashScreenProp
             <div className="spas-intro__ring spas-intro__ring--outer" aria-hidden />
             <div className="spas-intro__ring spas-intro__ring--mid" aria-hidden />
             <div className="spas-intro__logo-glow" aria-hidden />
-            <img src={logoSpas} alt="" className="spas-intro__logo" width={128} height={128} />
+            <img src={logoSpas} alt="" className="spas-intro__logo" width={172} height={172} />
             <div className="spas-intro__logo-sweep" aria-hidden />
           </div>
 

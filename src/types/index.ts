@@ -97,6 +97,7 @@ export interface GradeDispute {
   disputed_grade?: number | null;
   corrected_grade?: number | null;
   resolved_at?: string | null;
+  resolution_seen_at?: string | null;
   created_at?: string;
   updated_at?: string;
 }

@@ -4,7 +4,7 @@ export const SAPAS_INTRO_SEEN_KEY = 'sapas_intro_seen_v1';
 export const INTRO_MIN_DURATION_MS = 3600;
 
 /** Extra time for the exit fade after the intro completes (ms). */
-export const INTRO_EXIT_DURATION_MS = 750;
+export const INTRO_EXIT_DURATION_MS = 850;
 
 export function hasSeenIntroThisSession(): boolean {
   try {

@@ -16,17 +16,17 @@ const LOADING_STEPS = [
   { at: 96, label: 'Ready — welcome to SPAS' },
 ] as const;
 
-const PARTICLES = Array.from({ length: 24 }, (_, i) => ({
+const CHART_PATH_LENGTH = 520;
+
+const PARTICLES = Array.from({ length: 28 }, (_, i) => ({
   id: i,
   left: `${(i * 19 + 5) % 94 + 3}%`,
   top: `${(i * 27 + 13) % 88 + 6}%`,
-  size: 3 + (i % 4),
+  size: 2 + (i % 5),
   delay: `${(i % 9) * 0.28}s`,
   duration: `${2.8 + (i % 6) * 0.45}s`,
+  gold: i % 5 === 0,
 }));
-
-const CHART_PATH =
-  'M8 52 L28 44 L48 48 L68 28 L88 34 L108 18 L128 24 L148 10';
 
 export function AppSplashScreen({ exiting, onExitComplete }: AppSplashScreenProps) {
   const [progress, setProgress] = useState(0);
@@ -69,10 +69,12 @@ export function AppSplashScreen({ exiting, onExitComplete }: AppSplashScreenProp
   }, []);
 
   const displayPercent = Math.round(progress);
+  const isReady = progress >= 96;
+  const chartOffset = CHART_PATH_LENGTH - (progress / 100) * CHART_PATH_LENGTH;
 
   return (
     <div
-      className={`spas-intro ${exiting ? 'spas-intro--exit' : ''}`}
+      className={`spas-intro ${exiting ? 'spas-intro--exit' : ''} ${isReady ? 'spas-intro--ready' : ''}`}
       style={{ backgroundColor: '#1a0202' }}
       role="dialog"
       aria-modal="true"
@@ -82,13 +84,23 @@ export function AppSplashScreen({ exiting, onExitComplete }: AppSplashScreenProp
       <div className="spas-intro__bg" aria-hidden />
       <div className="spas-intro__mesh" aria-hidden />
       <div className="spas-intro__grid" aria-hidden />
+      <div className="spas-intro__vignette" aria-hidden />
+      <div className="spas-intro__grain" aria-hidden />
       <div className="spas-intro__scan-beam" aria-hidden />
+      <div className="spas-intro__scanline" aria-hidden />
+
+      <div className="spas-intro__corners" aria-hidden>
+        <span className="spas-intro__corner spas-intro__corner--tl" />
+        <span className="spas-intro__corner spas-intro__corner--tr" />
+        <span className="spas-intro__corner spas-intro__corner--bl" />
+        <span className="spas-intro__corner spas-intro__corner--br" />
+      </div>
 
       <div className="spas-intro__particles" aria-hidden>
         {PARTICLES.map((p) => (
           <span
             key={p.id}
-            className="spas-intro__particle"
+            className={`spas-intro__particle${p.gold ? ' spas-intro__particle--gold' : ''}`}
             style={
               {
                 left: p.left,
@@ -105,13 +117,19 @@ export function AppSplashScreen({ exiting, onExitComplete }: AppSplashScreenProp
 
       <div className="spas-intro__orb spas-intro__orb--a" aria-hidden />
       <div className="spas-intro__orb spas-intro__orb--b" aria-hidden />
+      <div className="spas-intro__orb spas-intro__orb--gold" aria-hidden />
 
       <div className="spas-intro__ambient" aria-hidden>
         <svg className="spas-intro__chart-wide" viewBox="0 0 400 120" preserveAspectRatio="none">
           <defs>
             <linearGradient id="spasChartFillWide" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#c44d4d" stopOpacity="0.22" />
+              <stop offset="0%" stopColor="#d4a54a" stopOpacity="0.18" />
               <stop offset="100%" stopColor="#c44d4d" stopOpacity="0" />
+            </linearGradient>
+            <linearGradient id="spasChartStrokeWide" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#8b2828" />
+              <stop offset="50%" stopColor="#d4a54a" />
+              <stop offset="100%" stopColor="#f5e6c8" />
             </linearGradient>
           </defs>
           <path
@@ -123,27 +141,42 @@ export function AppSplashScreen({ exiting, onExitComplete }: AppSplashScreenProp
             className="spas-intro__chart-line"
             d="M0 95 L40 78 L80 82 L120 58 L160 64 L200 42 L240 48 L280 32 L320 38 L360 22 L400 28"
             fill="none"
+            stroke="url(#spasChartStrokeWide)"
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
+            style={{
+              strokeDasharray: CHART_PATH_LENGTH,
+              strokeDashoffset: chartOffset,
+            }}
           />
         </svg>
       </div>
 
       <div className="spas-intro__stage">
-        <span className="spas-intro__watermark" aria-hidden>
+        <span
+          className="spas-intro__watermark"
+          aria-hidden
+          style={{ opacity: 0.04 + (progress / 100) * 0.04 }}
+        >
           {displayPercent}
         </span>
 
         <div className="spas-intro__hero">
-          <p className="spas-intro__eyebrow">Philtech</p>
+          <p className="spas-intro__eyebrow">
+            <span className="spas-intro__eyebrow-line" aria-hidden />
+            Philtech
+            <span className="spas-intro__eyebrow-line" aria-hidden />
+          </p>
 
           <div className="spas-intro__logo-stage">
             <div className="spas-intro__ring spas-intro__ring--outer" aria-hidden />
             <div className="spas-intro__ring spas-intro__ring--mid" aria-hidden />
+            <div className="spas-intro__ring spas-intro__ring--inner" aria-hidden />
             <div className="spas-intro__logo-glow" aria-hidden />
             <img src={logoSpas} alt="" className="spas-intro__logo" width={220} height={220} />
             <div className="spas-intro__logo-sweep" aria-hidden />
+            <div className="spas-intro__logo-pulse" aria-hidden />
           </div>
 
           <h1 className="spas-intro__title" aria-label="SPAS">
@@ -175,12 +208,27 @@ export function AppSplashScreen({ exiting, onExitComplete }: AppSplashScreenProp
       </div>
 
       <div className="spas-intro__dock">
-        <p key={statusLine} className="spas-intro__status">
-          {statusLine}
-        </p>
-        <div className="spas-intro__progress-track" aria-hidden>
-          <div className="spas-intro__progress-fill" style={{ width: `${progress}%` }}>
-            <span className="spas-intro__progress-shine" aria-hidden />
+        <div className="spas-intro__dock-panel">
+          <div className="spas-intro__status-row">
+            <p key={statusLine} className="spas-intro__status" aria-live="polite">
+              {statusLine}
+            </p>
+            <span className="spas-intro__progress-pct" aria-hidden>
+              {displayPercent}%
+            </span>
+          </div>
+          <div
+            className="spas-intro__progress-track"
+            role="progressbar"
+            aria-valuenow={displayPercent}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label="Loading progress"
+          >
+            <div className="spas-intro__progress-fill" style={{ width: `${progress}%` }}>
+              <span className="spas-intro__progress-shine" aria-hidden />
+              <span className="spas-intro__progress-cap" aria-hidden />
+            </div>
           </div>
         </div>
       </div>

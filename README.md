@@ -73,29 +73,29 @@ are handled through Supabase.
 
 ```text
 .
-├── api/                         # Reserved API directory
-├── dist/                        # Built Vite output checked into the repo
-├── docs/                        # Project documentation
-├── public/                      # Static public assets and headers
-├── src/
-│   ├── api/                     # Client-side API wrappers
-│   ├── assets/                  # Images and app assets
-│   ├── components/              # Layouts, UI primitives, student panels
-│   ├── constants/               # School/section constants
-│   ├── lib/                     # Domain logic and Supabase helpers
-│   ├── pages/                   # Route pages by role
-│   ├── store/                   # Zustand stores
-│   └── types/                   # Shared TypeScript types
-├── supabase/
-│   ├── functions/send-email/    # Deno edge function for email delivery
-│   ├── migrations/              # SQL migrations for app features
-│   └── config.toml              # Supabase CLI function config
-├── index.html                   # Vite HTML shell
-├── package.json                 # Scripts and dependencies
-├── server.js                    # Express static server for production
-├── render.yaml                  # Render deployment template
-├── vercel.json                  # Security header config
-└── vite.config.ts               # Vite build/dev config
+|-- api/                         # Reserved API directory
+|-- dist/                        # Built Vite output checked into the repo
+|-- docs/                        # Project documentation
+|-- public/                      # Static public assets and headers
+|-- src/
+|   |-- api/                     # Client-side API wrappers
+|   |-- assets/                  # Images and app assets
+|   |-- components/              # Layouts, UI primitives, student panels
+|   |-- constants/               # School/section constants
+|   |-- lib/                     # Domain logic and Supabase helpers
+|   |-- pages/                   # Route pages by role
+|   |-- store/                   # Zustand stores
+|   `-- types/                   # Shared TypeScript types
+|-- supabase/
+|   |-- functions/send-email/    # Deno edge function for email delivery
+|   |-- migrations/              # SQL migrations for app features
+|   `-- config.toml              # Supabase CLI function config
+|-- index.html                   # Vite HTML shell
+|-- package.json                 # Scripts and dependencies
+|-- server.js                    # Express static server for production
+|-- render.yaml                  # Render deployment template
+|-- vercel.json                  # Security header config
+`-- vite.config.ts               # Vite build/dev config
 ```
 
 ## Quick start

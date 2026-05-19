@@ -29,6 +29,7 @@ export type GradeDisputeWithDetails = GradeDispute & {
 
 export type DisputeNotification = {
   id: string;
+  disputeId?: string;
   title: string;
   body: string;
   actionPath?: string;
@@ -186,6 +187,41 @@ export async function acceptGradeDispute(params: {
   if (disputeError) throw disputeError;
 }
 
+export function disputeResolutionNotificationId(
+  disputeId: string,
+  status: 'accepted' | 'rejected'
+): string {
+  return `dispute-resolved:${disputeId}:${status}`;
+}
+
+export async function acknowledgeDisputeResolution(disputeId: string): Promise<void> {
+  try {
+    const { error } = await supabase
+      .from('grade_disputes')
+      .update({ resolution_seen_at: new Date().toISOString() })
+      .eq('id', disputeId)
+      .in('status', ['accepted', 'rejected']);
+    if (error) throw error;
+  } catch {
+    // Column may be missing until migration is applied; local read state still applies.
+  }
+}
+
+export async function acknowledgeDisputeResolutions(disputeIds: string[]): Promise<void> {
+  const ids = [...new Set(disputeIds.filter(Boolean))];
+  if (!ids.length) return;
+  try {
+    const { error } = await supabase
+      .from('grade_disputes')
+      .update({ resolution_seen_at: new Date().toISOString() })
+      .in('id', ids)
+      .in('status', ['accepted', 'rejected']);
+    if (error) throw error;
+  } catch {
+    // ignore — see acknowledgeDisputeResolution
+  }
+}
+
 export async function rejectGradeDispute(disputeId: string, teacherResponse: string): Promise<void> {
   const response = teacherResponse.trim();
   if (!response) throw new Error('Please provide an explanation when rejecting a dispute.');
@@ -228,7 +264,10 @@ export function buildStudentDisputeNotifications(
   disputes: GradeDisputeWithDetails[],
 ): DisputeNotification[] {
   return disputes
-    .filter((d) => d.status === 'accepted' || d.status === 'rejected')
+    .filter(
+      (d) =>
+        (d.status === 'accepted' || d.status === 'rejected') && !d.resolution_seen_at
+    )
     .slice(0, 8)
     .map((d) => {
       const resolved = d.resolved_at ? new Date(d.resolved_at).getTime() : 0;
@@ -240,7 +279,8 @@ export function buildStudentDisputeNotifications(
           ? `New grade: ${formatDisputedGradeDisplay(d.corrected_grade)}`
           : d.teacher_response?.slice(0, 100) || 'See your dispute history for details.';
       return {
-        id: `dispute-resolved:${d.id}:${d.status}`,
+        id: disputeResolutionNotificationId(d.id, d.status),
+        disputeId: d.id,
         kind: 'dispute_resolved' as const,
         title: `Grade dispute ${statusWord}`,
         body: `${buildDisputeSummaryLine(d)} · ${detail}`,

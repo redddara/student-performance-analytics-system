@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode, useCallback, useRef } from 'react';
+import { useEffect, useState, useMemo, type ReactNode, useCallback, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   BarChart3,
@@ -26,12 +26,27 @@ import {
   type TeacherDeadlineNotification,
 } from '../../lib/gradingPeriodDeadlines';
 import {
+  acknowledgeDisputeResolution,
+  acknowledgeDisputeResolutions,
   buildStudentDisputeNotifications,
   buildTeacherDisputeNotifications,
+  disputeResolutionNotificationId,
   fetchStudentDisputes,
   fetchTeacherDisputes,
   type DisputeNotification,
 } from '../../lib/gradeDisputes';
+import {
+  computeUnreadNotifications,
+  loadReadNotificationIds,
+  saveReadNotificationIds,
+} from '../../lib/notificationReadState';
+import { getOnboardingStepsForRole } from '../../lib/onboardingTourSteps';
+import {
+  loadTourCompleted,
+  saveTourCompleted,
+  tourCompletedStorageKey,
+} from '../../lib/tourCompletedState';
+import { OnboardingTour } from '../onboarding/OnboardingTour';
 import logoSpas from '../../assets/LOGO SPAS.png';
 
 interface DashboardLayoutProps {
@@ -85,7 +100,10 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
   const [disputeAlerts, setDisputeAlerts] = useState<DisputeNotification[]>([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [readNotificationIds, setReadNotificationIds] = useState<string[]>([]);
+  const [onboardingTourOpen, setOnboardingTourOpen] = useState(false);
+  const readNotificationsHydratedRef = useRef(false);
   const reloadAdminWorkflowTimerRef = useRef<number | null>(null);
+  const onboardingTourCheckedRef = useRef(false);
 
   const role = user?.role || 'admin';
   const items = menuItems[role as keyof typeof menuItems] || menuItems.admin;
@@ -98,6 +116,33 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
   };
 
   const notificationsStorageKey = `sapas_read_notifications_${user?.id || 'guest'}_${role}`;
+  const onboardingSteps = getOnboardingStepsForRole(role);
+  const tourStorageKey =
+    user?.id && onboardingSteps
+      ? tourCompletedStorageKey(user.id, role)
+      : null;
+
+  useEffect(() => {
+    onboardingTourCheckedRef.current = false;
+    setOnboardingTourOpen(false);
+  }, [tourStorageKey]);
+
+  useEffect(() => {
+    if (onboardingTourCheckedRef.current) return;
+    if (!user?.id || !onboardingSteps || !tourStorageKey) return;
+    if (user.is_temp_password) return;
+    if (loadTourCompleted(tourStorageKey)) return;
+
+    onboardingTourCheckedRef.current = true;
+    const delay = window.setTimeout(() => setOnboardingTourOpen(true), 600);
+    return () => window.clearTimeout(delay);
+  }, [user?.id, user?.is_temp_password, onboardingSteps, tourStorageKey]);
+
+  const completeOnboardingTour = useCallback(() => {
+    if (tourStorageKey) saveTourCompleted(tourStorageKey);
+    setOnboardingTourOpen(false);
+    setSidebarOpen(false);
+  }, [tourStorageKey]);
 
   const loadAnnouncements = useCallback(async () => {
     try {
@@ -181,6 +226,18 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
         }
         const disputes = await fetchStudentDisputes(student.id);
         setDisputeAlerts(buildStudentDisputeNotifications(disputes));
+        const seenNotificationIds = disputes
+          .filter(
+            (d) =>
+              d.resolution_seen_at &&
+              (d.status === 'accepted' || d.status === 'rejected')
+          )
+          .map((d) => disputeResolutionNotificationId(d.id, d.status));
+        if (seenNotificationIds.length) {
+          setReadNotificationIds((prev) =>
+            Array.from(new Set([...prev, ...seenNotificationIds]))
+          );
+        }
         return;
       }
       setDisputeAlerts([]);
@@ -210,21 +267,14 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
   }, [loadAnnouncements]);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(notificationsStorageKey);
-      if (!raw) {
-        setReadNotificationIds([]);
-        return;
-      }
-      const parsed = JSON.parse(raw);
-      setReadNotificationIds(Array.isArray(parsed) ? parsed : []);
-    } catch {
-      setReadNotificationIds([]);
-    }
+    readNotificationsHydratedRef.current = false;
+    setReadNotificationIds(loadReadNotificationIds(notificationsStorageKey));
+    readNotificationsHydratedRef.current = true;
   }, [notificationsStorageKey]);
 
   useEffect(() => {
-    localStorage.setItem(notificationsStorageKey, JSON.stringify(readNotificationIds));
+    if (!readNotificationsHydratedRef.current) return;
+    saveReadNotificationIds(notificationsStorageKey, readNotificationIds);
   }, [notificationsStorageKey, readNotificationIds]);
 
   const loadAdminWorkflowAlerts = useCallback(async () => {
@@ -276,7 +326,7 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
           .map((q: number) => `Q${q}`)
           .join(', ');
         return {
-          id: `wf:${g.kind}:${g.subjectId}:${g.semester}:${g.latestCreatedAt}`,
+          id: `wf:${g.kind}:${g.subjectId}:${g.semester}`,
           kind: g.kind,
           title: g.kind === 'unlock' ? `${g.teacherName} requested unlock` : `${g.teacherName} submitted for review`,
           body:
@@ -352,30 +402,67 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
     return () => window.clearInterval(id);
   }, [role, loadAdminWorkflowAlerts]);
 
-  const announcementNotifications = activeAnnouncements.map((ann: any) => ({
-    id: `ann:${ann.id}`,
-    title: ann.title,
-    body: ann.body,
-    actionPath: undefined as string | undefined,
-  }));
+  type LayoutNotification = {
+    id: string;
+    title: string;
+    body: string;
+    actionPath?: string;
+    kind?: string;
+    disputeId?: string;
+  };
 
-  const allNotifications =
-    role === 'admin'
-      ? [...adminWorkflowAlerts, ...announcementNotifications]
-      : role === 'teacher'
-        ? [...disputeAlerts, ...teacherDeadlineAlerts, ...announcementNotifications]
-        : role === 'student'
-          ? [...disputeAlerts, ...announcementNotifications]
-          : [...announcementNotifications];
-  const unreadCount = allNotifications.filter((n: any) => !readNotificationIds.includes(n.id)).length;
+  const allNotifications = useMemo((): LayoutNotification[] => {
+    const announcementNotifications: LayoutNotification[] = activeAnnouncements.map((ann: any) => ({
+      id: `ann:${ann.id}`,
+      title: ann.title,
+      body: ann.body,
+    }));
+    if (role === 'admin') {
+      return [...adminWorkflowAlerts, ...announcementNotifications];
+    }
+    if (role === 'teacher') {
+      return [...disputeAlerts, ...teacherDeadlineAlerts, ...announcementNotifications];
+    }
+    if (role === 'student') {
+      return [...disputeAlerts, ...announcementNotifications];
+    }
+    return announcementNotifications;
+  }, [
+    role,
+    adminWorkflowAlerts,
+    disputeAlerts,
+    teacherDeadlineAlerts,
+    activeAnnouncements,
+  ]);
 
-  const markAsRead = (id: string) => {
+  const unreadNotifications = useMemo(
+    () => computeUnreadNotifications(allNotifications, readNotificationIds),
+    [allNotifications, readNotificationIds]
+  );
+
+  const persistDisputeAcknowledgements = (items: LayoutNotification[]) => {
+    const disputeIds = items
+      .filter((n) => n.kind === 'dispute_resolved' && n.disputeId)
+      .map((n) => n.disputeId as string);
+    if (!disputeIds.length) return;
+    void acknowledgeDisputeResolutions(disputeIds).then(() => {
+      void loadDisputeAlerts();
+    });
+  };
+
+  const markAsRead = (id: string, item?: LayoutNotification) => {
     setReadNotificationIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+    if (item?.kind === 'dispute_resolved' && item.disputeId) {
+      void acknowledgeDisputeResolution(item.disputeId).then(() => {
+        void loadDisputeAlerts();
+      });
+    }
   };
 
   const markAllVisibleAsRead = () => {
-    const ids = allNotifications.map((n: any) => n.id);
+    const ids = unreadNotifications.map((n) => n.id);
     setReadNotificationIds((prev) => Array.from(new Set([...prev, ...ids])));
+    persistDisputeAcknowledgements(unreadNotifications);
   };
 
   return (
@@ -433,6 +520,7 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
             <Link
               key={item.id}
               to={`/${role}/${item.id}`}
+              data-tour={`nav-${item.id}`}
               className={`flex min-h-[44px] items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-300 touch-manipulation group ${
                 currentPage === item.id
                   ? 'bg-gold-500/20 backdrop-blur-sm border border-gold-400/55 text-gold-100 shadow-lg gold-glow'
@@ -463,7 +551,10 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
       {/* Main Content */}
       <main className="relative z-10 min-w-0 flex-1 h-dvh overflow-y-auto px-4 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom,0px))] sm:px-6 md:ml-64 md:w-[calc(100%-16rem)] md:px-8 lg:px-12 md:pt-6 lg:pt-8 bg-white print:ml-0 print:h-auto print:w-full print:max-w-none print:overflow-visible print:p-0 print:pt-0">
         {/* Mobile Header with Hamburger */}
-        <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between md:mb-10 print:hidden">
+        <header
+          className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between md:mb-10 print:hidden"
+          data-tour="page-header"
+        >
           <div className="flex items-start gap-3 min-w-0">
             <button 
               type="button"
@@ -484,18 +575,13 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
               type="button"
               className="relative rounded-2xl border border-maroon-200/60 bg-white p-2.5 text-maroon-800 shadow-md transition-all duration-300 hover:border-maroon-400/50 hover:shadow-lg"
               aria-label="Notifications"
-              onClick={() =>
-                setNotificationsOpen((prev) => {
-                  const next = !prev;
-                  if (next) markAllVisibleAsRead();
-                  return next;
-                })
-              }
+              data-tour="notifications"
+              onClick={() => setNotificationsOpen((prev) => !prev)}
             >
               <Bell className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
-              {unreadCount > 0 && (
+              {unreadNotifications.length > 0 && (
                 <span className="absolute -right-1 -top-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-semibold text-white">
-                  {unreadCount}
+                  {unreadNotifications.length > 9 ? '9+' : unreadNotifications.length}
                 </span>
               )}
             </button>
@@ -507,19 +593,28 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
             </div>
             {notificationsOpen && (
               <div className="absolute right-0 top-14 z-20 w-80 max-w-[90vw] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl">
-                <div className="border-b border-gray-100 px-4 py-3">
+                <div className="flex items-center justify-between gap-2 border-b border-gray-100 px-4 py-3">
                   <p className="text-sm font-semibold text-gray-900">Notifications</p>
+                  {unreadNotifications.length > 0 && (
+                    <button
+                      type="button"
+                      className="text-xs font-medium text-[#800000] hover:underline"
+                      onClick={() => markAllVisibleAsRead()}
+                    >
+                      Mark all read
+                    </button>
+                  )}
                 </div>
                 <div className="max-h-72 overflow-y-auto">
-                  {allNotifications.length === 0 ? (
+                  {unreadNotifications.length === 0 ? (
                     <p className="px-4 py-4 text-sm text-gray-500">No new notifications.</p>
                   ) : (
-                    allNotifications.map((item: any) => (
+                    unreadNotifications.map((item) => (
                       <button
                         key={item.id}
                         type="button"
                         onClick={() => {
-                          markAsRead(item.id);
+                          markAsRead(item.id, item);
                           setNotificationsOpen(false);
                           if (item.actionPath) navigate(item.actionPath);
                         }}
@@ -561,6 +656,14 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
           {children}
         </div>
       </main>
+
+      {onboardingTourOpen && onboardingSteps && (
+        <OnboardingTour
+          steps={onboardingSteps}
+          onComplete={completeOnboardingTour}
+          onOpenSidebar={() => setSidebarOpen(true)}
+        />
+      )}
     </div>
   );
 }

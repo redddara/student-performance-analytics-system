@@ -30,6 +30,12 @@ export function SplashGate({ children }: SplashGateProps) {
   const showSplash = phase === 'splash' || phase === 'exiting';
   const showApp = phase === 'exiting' || phase === 'done';
 
+  useEffect(() => {
+    if (!showSplash) return;
+    document.documentElement.classList.add('spas-splash-active');
+    return () => document.documentElement.classList.remove('spas-splash-active');
+  }, [showSplash]);
+
   return (
     <>
       {showApp ? children : null}

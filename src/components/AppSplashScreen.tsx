@@ -73,6 +73,7 @@ export function AppSplashScreen({ exiting, onExitComplete }: AppSplashScreenProp
   return (
     <div
       className={`spas-intro ${exiting ? 'spas-intro--exit' : ''}`}
+      style={{ backgroundColor: '#1a0202' }}
       role="dialog"
       aria-modal="true"
       aria-label="Loading Student Performance Analytics System"
@@ -141,7 +142,7 @@ export function AppSplashScreen({ exiting, onExitComplete }: AppSplashScreenProp
             <div className="spas-intro__ring spas-intro__ring--outer" aria-hidden />
             <div className="spas-intro__ring spas-intro__ring--mid" aria-hidden />
             <div className="spas-intro__logo-glow" aria-hidden />
-            <img src={logoSpas} alt="" className="spas-intro__logo" width={172} height={172} />
+            <img src={logoSpas} alt="" className="spas-intro__logo" width={220} height={220} />
             <div className="spas-intro__logo-sweep" aria-hidden />
           </div>
 

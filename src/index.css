@@ -133,7 +133,7 @@ html.spas-splash-active body {
   overflow: hidden;
   background-color: #1a0202 !important;
   background: var(--spas-bg);
-  animation: spasIntroIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: spasIntroIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 .spas-intro--exit {
@@ -149,11 +149,11 @@ html.spas-splash-active body {
   animation: spasLogoPulseReady 1.2s ease-out forwards;
 }
 
-.spas-intro--ready .spas-intro__progress-cap {
-  box-shadow:
-    0 0 10px var(--spas-gold-light),
-    0 0 22px var(--spas-gold),
-    0 0 36px rgba(212, 165, 74, 0.5);
+.spas-intro--ready .spas-intro__logo {
+  animation:
+    spasLogoReveal 1.1s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both,
+    spasLogoFloat 3.2s ease-in-out 1.2s infinite,
+    spasLogoReadyGlow 1.4s ease-out forwards;
 }
 
 .spas-intro__bg {
@@ -223,49 +223,6 @@ html.spas-splash-active body {
   animation: spasScanline 4.5s ease-in-out infinite;
   pointer-events: none;
   z-index: 1;
-}
-
-.spas-intro__corners {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  pointer-events: none;
-}
-
-.spas-intro__corner {
-  position: absolute;
-  width: clamp(28px, 8vw, 44px);
-  height: clamp(28px, 8vw, 44px);
-  opacity: 0;
-  animation: spasCornerIn 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.4s forwards;
-}
-
-.spas-intro__corner--tl {
-  top: max(1rem, env(safe-area-inset-top));
-  left: max(1rem, env(safe-area-inset-left));
-  border-top: 1px solid color-mix(in srgb, var(--spas-gold) 55%, transparent);
-  border-left: 1px solid color-mix(in srgb, var(--spas-gold) 55%, transparent);
-}
-
-.spas-intro__corner--tr {
-  top: max(1rem, env(safe-area-inset-top));
-  right: max(1rem, env(safe-area-inset-right));
-  border-top: 1px solid color-mix(in srgb, var(--spas-gold) 55%, transparent);
-  border-right: 1px solid color-mix(in srgb, var(--spas-gold) 55%, transparent);
-}
-
-.spas-intro__corner--bl {
-  bottom: max(5.5rem, calc(env(safe-area-inset-bottom) + 4rem));
-  left: max(1rem, env(safe-area-inset-left));
-  border-bottom: 1px solid color-mix(in srgb, var(--spas-gold) 40%, transparent);
-  border-left: 1px solid color-mix(in srgb, var(--spas-gold) 40%, transparent);
-}
-
-.spas-intro__corner--br {
-  bottom: max(5.5rem, calc(env(safe-area-inset-bottom) + 4rem));
-  right: max(1rem, env(safe-area-inset-right));
-  border-bottom: 1px solid color-mix(in srgb, var(--spas-gold) 40%, transparent);
-  border-right: 1px solid color-mix(in srgb, var(--spas-gold) 40%, transparent);
 }
 
 .spas-intro__scan-beam {
@@ -357,8 +314,8 @@ html.spas-splash-active body {
 }
 
 .spas-intro__ambient .spas-intro__chart-line {
-  transition: stroke-dashoffset 0.12s linear;
-  filter: drop-shadow(0 0 6px rgba(212, 165, 74, 0.35));
+  transition: stroke-dashoffset 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  filter: drop-shadow(0 0 8px rgba(212, 165, 74, 0.4));
 }
 
 .spas-intro__ambient .spas-intro__chart-area {
@@ -386,10 +343,11 @@ html.spas-splash-active body {
   line-height: 1;
   letter-spacing: -0.04em;
   color: var(--spas-m100);
-  opacity: 0.06;
   pointer-events: none;
   user-select: none;
   font-variant-numeric: tabular-nums;
+  opacity: var(--wm-opacity, 0.06);
+  animation: spasWatermarkBreathe 4s ease-in-out 1s infinite;
 }
 
 .spas-intro__watermark::after {
@@ -406,14 +364,10 @@ html.spas-splash-active body {
   align-items: center;
   text-align: center;
   max-width: 520px;
-  animation: spasHeroIn 1s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both;
+  animation: spasHeroIn 1.1s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both;
 }
 
 .spas-intro__eyebrow {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.85rem;
   margin: 0 0 1.25rem;
   font-size: 0.72rem;
   font-weight: 600;
@@ -421,15 +375,7 @@ html.spas-splash-active body {
   text-transform: uppercase;
   color: var(--spas-gold-light);
   opacity: 0;
-  animation: spasFadeUp 0.6s ease-out 0.25s forwards;
-}
-
-.spas-intro__eyebrow-line {
-  display: block;
-  width: clamp(24px, 8vw, 48px);
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--spas-gold), transparent);
-  opacity: 0.7;
+  animation: spasFadeUp 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.2s forwards;
 }
 
 .spas-intro__logo-stage {
@@ -437,6 +383,7 @@ html.spas-splash-active body {
   width: clamp(200px, 56vw, 280px);
   height: clamp(200px, 56vw, 280px);
   margin: 0 auto 1.35rem;
+  animation: spasLogoStageBreathe 4.5s ease-in-out 1.1s infinite;
 }
 
 .spas-intro__ring {
@@ -451,19 +398,19 @@ html.spas-splash-active body {
   inset: -6px;
   border-color: color-mix(in srgb, var(--spas-gold) 35%, transparent);
   border-style: dashed;
-  animation: spasRingSpin 14s linear infinite;
+  animation: spasRingSpin 18s linear infinite;
 }
 
 .spas-intro__ring--mid {
   inset: 8px;
   border-color: color-mix(in srgb, var(--spas-m500) 45%, transparent);
-  animation: spasRingSpin 9s linear infinite reverse;
+  animation: spasRingSpin 11s linear infinite reverse;
 }
 
 .spas-intro__ring--inner {
   inset: 20px;
   border-color: color-mix(in srgb, var(--spas-gold) 50%, transparent);
-  animation: spasRingPulse 2.2s ease-in-out infinite;
+  animation: spasRingPulse 3s cubic-bezier(0.45, 0, 0.55, 1) infinite;
 }
 
 .spas-intro__logo-glow {
@@ -497,8 +444,8 @@ html.spas-splash-active body {
   object-fit: contain;
   filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.5));
   animation:
-    spasLogoReveal 1.1s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both,
-    spasLogoFloat 3.2s ease-in-out 1.2s infinite;
+    spasLogoReveal 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both,
+    spasLogoFloat 4s cubic-bezier(0.45, 0, 0.55, 1) 1.3s infinite;
 }
 
 .spas-intro__logo-sweep {
@@ -513,8 +460,8 @@ html.spas-splash-active body {
   content: '';
   position: absolute;
   inset: -50%;
-  background: linear-gradient(120deg, transparent 40%, rgba(255, 220, 220, 0.35) 50%, transparent 60%);
-  animation: spasLogoSweep 2.8s ease-in-out infinite;
+  background: linear-gradient(120deg, transparent 38%, rgba(245, 230, 200, 0.45) 50%, transparent 62%);
+  animation: spasLogoSweep 3.2s cubic-bezier(0.45, 0, 0.55, 1) infinite;
 }
 
 .spas-intro__title {
@@ -542,11 +489,11 @@ html.spas-splash-active body {
   opacity: 0;
   transform: translateY(18px) scale(0.85);
   animation:
-    spasLetterPop 0.55s cubic-bezier(0.34, 1.4, 0.64, 1) forwards,
-    spasLetterShimmer 3.5s ease-in-out infinite;
+    spasLetterPop 0.65s cubic-bezier(0.34, 1.35, 0.64, 1) forwards,
+    spasLetterShimmer 4s ease-in-out infinite;
   animation-delay:
-    calc(0.45s + var(--letter-i, 0) * 0.09s),
-    calc(1.1s + var(--letter-i, 0) * 0.12s);
+    calc(0.4s + var(--letter-i, 0) * 0.1s),
+    calc(1.2s + var(--letter-i, 0) * 0.15s);
   filter: drop-shadow(0 2px 12px rgba(0, 0, 0, 0.4));
 }
 
@@ -557,7 +504,7 @@ html.spas-splash-active body {
   line-height: 1.55;
   color: color-mix(in srgb, var(--spas-m200) 75%, #9ca3af);
   opacity: 0;
-  animation: spasFadeUp 0.6s ease-out 0.85s forwards;
+  animation: spasSubtitleIn 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.9s forwards;
 }
 
 .spas-intro__chart-line {
@@ -591,102 +538,63 @@ html.spas-splash-active body {
 
 .spas-intro__icon-float--1 {
   left: 8%;
-  animation: spasIconDrift1 4s ease-in-out 1s infinite, spasFadeUp 0.5s ease-out 1s forwards;
+  animation:
+    spasIconDrift1 5s cubic-bezier(0.45, 0, 0.55, 1) 1s infinite,
+    spasFadeUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) 1s forwards;
 }
 
 .spas-intro__icon-float--2 {
   left: 50%;
-  animation: spasIconDrift2 4.2s ease-in-out 1.1s infinite, spasFadeUp 0.5s ease-out 1.1s forwards;
+  animation:
+    spasIconDrift2 5.2s cubic-bezier(0.45, 0, 0.55, 1) 1.1s infinite,
+    spasFadeUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) 1.1s forwards;
 }
 
 .spas-intro__icon-float--3 {
   right: 8%;
-  animation: spasIconDrift3 3.8s ease-in-out 1.2s infinite, spasFadeUp 0.5s ease-out 1.2s forwards;
+  animation:
+    spasIconDrift3 4.8s cubic-bezier(0.45, 0, 0.55, 1) 1.2s infinite,
+    spasFadeUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) 1.2s forwards;
 }
 
-/* Bottom dock — glass panel */
+/* Bottom dock — minimal, no card chrome */
 .spas-intro__dock {
   position: absolute;
   z-index: 3;
   left: 0;
   right: 0;
   bottom: 0;
-  padding: 0 clamp(1rem, 4vw, 2rem) max(1.25rem, env(safe-area-inset-bottom));
-  animation: spasFadeUp 0.6s ease-out 0.5s both;
-}
-
-.spas-intro__dock-panel {
-  max-width: min(440px, 92vw);
-  margin: 0 auto;
-  padding: 1rem 1.15rem 1.1rem;
-  border-radius: 1rem;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid color-mix(in srgb, var(--spas-gold) 22%, transparent);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
-}
-
-.spas-intro__status-row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 0.75rem;
+  padding: 1.5rem clamp(1.25rem, 5vw, 2.5rem) max(1.5rem, env(safe-area-inset-bottom));
+  text-align: center;
+  animation: spasFadeUp 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.45s both;
 }
 
 .spas-intro__status {
-  margin: 0;
+  margin: 0 0 0.85rem;
   min-height: 1.2em;
-  flex: 1;
-  text-align: left;
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   font-weight: 500;
-  letter-spacing: 0.02em;
-  color: color-mix(in srgb, var(--spas-m200) 80%, #9ca3af);
-  animation: spasStatusIn 0.35s ease-out;
-}
-
-.spas-intro__progress-pct {
-  flex-shrink: 0;
-  font-size: 0.72rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.06em;
-  color: var(--spas-gold-light);
-  opacity: 0.9;
+  letter-spacing: 0.04em;
+  color: color-mix(in srgb, var(--spas-m200) 75%, transparent);
+  animation: spasStatusIn 0.45s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .spas-intro__progress-track {
-  height: 4px;
+  height: 2px;
+  max-width: min(420px, 88vw);
+  margin: 0 auto;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
-  overflow: visible;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
 }
 
 .spas-intro__progress-fill {
   position: relative;
   height: 100%;
-  min-width: 4px;
   border-radius: inherit;
-  background: linear-gradient(90deg, var(--spas-m700), var(--spas-m500) 55%, var(--spas-gold));
-  box-shadow: 0 0 16px rgba(196, 77, 77, 0.4);
-  transition: width 0.1s linear;
-}
-
-.spas-intro__progress-cap {
-  position: absolute;
-  right: 0;
-  top: 50%;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  transform: translate(50%, -50%);
-  background: var(--spas-gold-light);
-  box-shadow: 0 0 10px var(--spas-gold);
-  transition: box-shadow 0.3s ease;
+  background: linear-gradient(90deg, var(--spas-m700), var(--spas-m500) 50%, var(--spas-gold));
+  box-shadow: 0 0 12px rgba(212, 165, 74, 0.35);
+  transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .spas-intro__progress-shine {
@@ -730,8 +638,14 @@ html.spas-splash-active body {
 }
 
 @keyframes spasIntroIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+    transform: scale(1.04);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 @keyframes spasIntroOut {
@@ -754,19 +668,47 @@ html.spas-splash-active body {
 @keyframes spasHeroOut {
   to {
     opacity: 0;
-    transform: scale(0.96) translateY(-16px);
-    filter: blur(4px);
+    transform: scale(0.94) translateY(-20px);
+    filter: blur(6px);
   }
 }
 
-@keyframes spasCornerIn {
+@keyframes spasLogoStageBreathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.025); }
+}
+
+@keyframes spasWatermarkBreathe {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.03);
+  }
+}
+
+@keyframes spasSubtitleIn {
   from {
     opacity: 0;
-    transform: scale(0.85);
+    transform: translateY(10px);
+    letter-spacing: 0.02em;
   }
   to {
     opacity: 1;
-    transform: scale(1);
+    transform: translateY(0);
+    letter-spacing: 0.01em;
+  }
+}
+
+@keyframes spasLogoReadyGlow {
+  0% {
+    filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.5));
+  }
+  40% {
+    filter: drop-shadow(0 0 28px rgba(212, 165, 74, 0.55)) drop-shadow(0 20px 40px rgba(0, 0, 0, 0.5));
+  }
+  100% {
+    filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.5));
   }
 }
 
@@ -842,14 +784,14 @@ html.spas-splash-active body {
 @keyframes spasParticleFloat {
   0%, 100% {
     opacity: 0;
-    transform: translateY(0) scale(1);
+    transform: translateY(0) scale(0.8);
   }
-  25% { opacity: 0.35; }
+  20% { opacity: 0.25; }
   50% {
-    opacity: 0.55;
-    transform: translateY(-18px) scale(1.2);
+    opacity: 0.6;
+    transform: translateY(-22px) scale(1.25);
   }
-  75% { opacity: 0.2; }
+  80% { opacity: 0.15; }
 }
 
 @keyframes spasOrbDrift {
@@ -895,8 +837,9 @@ html.spas-splash-active body {
 }
 
 @keyframes spasLogoFloat {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-5px); }
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  33% { transform: translateY(-6px) rotate(0.4deg); }
+  66% { transform: translateY(-3px) rotate(-0.3deg); }
 }
 
 @keyframes spasLogoSweep {
@@ -967,11 +910,13 @@ html.spas-splash-active body {
 @keyframes spasStatusIn {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateY(8px);
+    filter: blur(4px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
+    filter: blur(0);
   }
 }
 

@@ -89,13 +89,6 @@ export function AppSplashScreen({ exiting, onExitComplete }: AppSplashScreenProp
       <div className="spas-intro__scan-beam" aria-hidden />
       <div className="spas-intro__scanline" aria-hidden />
 
-      <div className="spas-intro__corners" aria-hidden>
-        <span className="spas-intro__corner spas-intro__corner--tl" />
-        <span className="spas-intro__corner spas-intro__corner--tr" />
-        <span className="spas-intro__corner spas-intro__corner--bl" />
-        <span className="spas-intro__corner spas-intro__corner--br" />
-      </div>
-
       <div className="spas-intro__particles" aria-hidden>
         {PARTICLES.map((p) => (
           <span
@@ -157,17 +150,13 @@ export function AppSplashScreen({ exiting, onExitComplete }: AppSplashScreenProp
         <span
           className="spas-intro__watermark"
           aria-hidden
-          style={{ opacity: 0.04 + (progress / 100) * 0.04 }}
+          style={{ '--wm-opacity': 0.04 + (progress / 100) * 0.04 } as React.CSSProperties}
         >
           {displayPercent}
         </span>
 
         <div className="spas-intro__hero">
-          <p className="spas-intro__eyebrow">
-            <span className="spas-intro__eyebrow-line" aria-hidden />
-            Philtech
-            <span className="spas-intro__eyebrow-line" aria-hidden />
-          </p>
+          <p className="spas-intro__eyebrow">Philtech</p>
 
           <div className="spas-intro__logo-stage">
             <div className="spas-intro__ring spas-intro__ring--outer" aria-hidden />
@@ -208,27 +197,19 @@ export function AppSplashScreen({ exiting, onExitComplete }: AppSplashScreenProp
       </div>
 
       <div className="spas-intro__dock">
-        <div className="spas-intro__dock-panel">
-          <div className="spas-intro__status-row">
-            <p key={statusLine} className="spas-intro__status" aria-live="polite">
-              {statusLine}
-            </p>
-            <span className="spas-intro__progress-pct" aria-hidden>
-              {displayPercent}%
-            </span>
-          </div>
-          <div
-            className="spas-intro__progress-track"
-            role="progressbar"
-            aria-valuenow={displayPercent}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-label="Loading progress"
-          >
-            <div className="spas-intro__progress-fill" style={{ width: `${progress}%` }}>
-              <span className="spas-intro__progress-shine" aria-hidden />
-              <span className="spas-intro__progress-cap" aria-hidden />
-            </div>
+        <p key={statusLine} className="spas-intro__status" aria-live="polite">
+          {statusLine}
+        </p>
+        <div
+          className="spas-intro__progress-track"
+          role="progressbar"
+          aria-valuenow={displayPercent}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label="Loading progress"
+        >
+          <div className="spas-intro__progress-fill" style={{ width: `${progress}%` }}>
+            <span className="spas-intro__progress-shine" aria-hidden />
           </div>
         </div>
       </div>

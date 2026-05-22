@@ -1,8 +1,8 @@
 # Software Engineering II Documentation
 
-Project: Student Performance Analytics System (SAPAS)  
-Branding: Edulytics PHILTECH  
-Repository package: `student-performance-analytics`  
+Project: Student Performance Analytics System (SAPAS)
+Branding: Edulytics PHILTECH
+Repository package: `student-performance-analytics`
 System type: Role-based academic management and analytics web application
 
 This document follows the Software Engineering II format provided by the user.

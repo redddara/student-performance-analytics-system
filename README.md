@@ -17,6 +17,7 @@ are handled through Supabase.
 - [Supabase database and edge functions](docs/SUPABASE.md)
 - [User guide](docs/USER_GUIDE.md)
 - [Development guide](docs/DEVELOPMENT.md)
+- [Software Engineering II formatted documentation](docs/SOFTWARE_ENGINEERING_II_DOCUMENTATION.md)
 
 ## Main capabilities
 

@@ -75,7 +75,7 @@ export function AppSplashScreen({ exiting, onExitComplete }: AppSplashScreenProp
   return (
     <div
       className={`spas-intro ${exiting ? 'spas-intro--exit' : ''} ${isReady ? 'spas-intro--ready' : ''}`}
-      style={{ backgroundColor: '#1a0202' }}
+      style={{ backgroundColor: '#ffffff' }}
       role="dialog"
       aria-modal="true"
       aria-label="Loading Student Performance Analytics System"
@@ -116,13 +116,13 @@ export function AppSplashScreen({ exiting, onExitComplete }: AppSplashScreenProp
         <svg className="spas-intro__chart-wide" viewBox="0 0 400 120" preserveAspectRatio="none">
           <defs>
             <linearGradient id="spasChartFillWide" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#d4a54a" stopOpacity="0.18" />
+              <stop offset="0%" stopColor="#c44d4d" stopOpacity="0.18" />
               <stop offset="100%" stopColor="#c44d4d" stopOpacity="0" />
             </linearGradient>
             <linearGradient id="spasChartStrokeWide" x1="0" y1="0" x2="1" y2="0">
               <stop offset="0%" stopColor="#8b2828" />
-              <stop offset="50%" stopColor="#d4a54a" />
-              <stop offset="100%" stopColor="#f5e6c8" />
+              <stop offset="50%" stopColor="#c44d4d" />
+              <stop offset="100%" stopColor="#a83232" />
             </linearGradient>
           </defs>
           <path
